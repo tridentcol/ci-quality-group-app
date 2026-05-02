@@ -12,9 +12,14 @@ Future<void> main() async {
 
   await initializeDateFormatting('es_CO', null);
 
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  // En Android/iOS el plugin nativo ya puede haber inicializado Firebase
+  // a través de google-services.json / GoogleService-Info.plist. Por eso
+  // verificamos antes de pedir initializeApp y evitamos el "duplicate-app".
+  if (Firebase.apps.isEmpty) {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+  }
 
   // Habilita la caché offline de Firestore (sincroniza al recuperar conexión).
   FirebaseFirestore.instance.settings = const Settings(
