@@ -36,28 +36,40 @@ class MasterListsRepository {
   }
 
   Stream<List<MasterListItem>> watchItems(String listId, {String? parent}) {
-    Query<Map<String, dynamic>> query = _itemsCol(listId)
-        .where('active', isEqualTo: true)
-        .orderBy('value');
+    // Filtramos `active` y ordenamos por `value` en memoria para no requerir
+    // un índice compuesto en Firestore. Las listas maestras son pequeñas
+    // (decenas de items), así que el costo es despreciable.
+    Query<Map<String, dynamic>> query = _itemsCol(listId);
     if (parent != null) {
       query = query.where('parent', isEqualTo: parent);
     }
-    return query.snapshots().map(
-          (snap) => snap.docs.map(MasterListItem.fromSnapshot).toList(),
-        );
+    return query.snapshots().map((snap) {
+      final items = snap.docs
+          .map(MasterListItem.fromSnapshot)
+          .where((item) => item.active)
+          .toList()
+        ..sort((a, b) =>
+            a.value.toLowerCase().compareTo(b.value.toLowerCase()));
+      return items;
+    });
   }
 
   Future<List<MasterListItem>> fetchItemsOnce(
     String listId, {
     String? parent,
   }) async {
-    Query<Map<String, dynamic>> query =
-        _itemsCol(listId).where('active', isEqualTo: true).orderBy('value');
+    Query<Map<String, dynamic>> query = _itemsCol(listId);
     if (parent != null) {
       query = query.where('parent', isEqualTo: parent);
     }
     final snap = await query.get();
-    return snap.docs.map(MasterListItem.fromSnapshot).toList();
+    final items = snap.docs
+        .map(MasterListItem.fromSnapshot)
+        .where((item) => item.active)
+        .toList()
+      ..sort((a, b) =>
+          a.value.toLowerCase().compareTo(b.value.toLowerCase()));
+    return items;
   }
 
   Future<void> upsertList(MasterList list) async {
