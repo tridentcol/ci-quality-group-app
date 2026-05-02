@@ -3,10 +3,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../features/admin/presentation/admin_dashboard_screen.dart';
+import '../../features/admin/presentation/master_list_detail_screen.dart';
+import '../../features/admin/presentation/master_lists_screen.dart';
 import '../../features/auth/data/auth_repository.dart';
 import '../../features/auth/presentation/login_screen.dart';
 import '../../features/hours/presentation/hours_entry_screen.dart';
-import '../../features/sales/presentation/sales_entry_screen.dart';
+import '../../features/sales/presentation/sale_detail_screen.dart';
+import '../../features/sales/presentation/sale_form_screen.dart';
+import '../../features/sales/presentation/sales_home_screen.dart';
+import '../../features/sales/presentation/sales_list_screen.dart';
 import '../constants/roles.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
@@ -22,19 +27,11 @@ final routerProvider = Provider<GoRouter>((ref) {
       final atLogin = state.matchedLocation == '/login';
       final atSplash = state.matchedLocation == '/';
 
-      if (!loggedIn) {
-        return atLogin ? null : '/login';
-      }
-
-      if (loadingProfile) {
-        return atSplash ? null : '/';
-      }
+      if (!loggedIn) return atLogin ? null : '/login';
+      if (loadingProfile) return atSplash ? null : '/';
 
       final user = profile.valueOrNull;
-      if (user == null || !user.active) {
-        // Logged in pero sin perfil válido → mantenemos en splash mostrando aviso.
-        return atSplash ? null : '/';
-      }
+      if (user == null || !user.active) return atSplash ? null : '/';
 
       final home = switch (user.role) {
         AppRole.admin => '/admin',
@@ -44,14 +41,20 @@ final routerProvider = Provider<GoRouter>((ref) {
 
       if (atLogin || atSplash) return home;
 
-      // Evita que un rol entre a una sección que no le corresponde.
-      if (state.matchedLocation.startsWith('/admin') && user.role != AppRole.admin) {
+      // Permisos por path:
+      //  - /admin/* : solo admin.
+      //  - /sales/* : admin y sales.
+      //  - /hours/* : admin y hours.
+      final loc = state.matchedLocation;
+      if (loc.startsWith('/admin') && user.role != AppRole.admin) return home;
+      if (loc.startsWith('/sales') &&
+          user.role != AppRole.admin &&
+          user.role != AppRole.sales) {
         return home;
       }
-      if (state.matchedLocation.startsWith('/sales') && user.role != AppRole.sales) {
-        return home;
-      }
-      if (state.matchedLocation.startsWith('/hours') && user.role != AppRole.hours) {
+      if (loc.startsWith('/hours') &&
+          user.role != AppRole.admin &&
+          user.role != AppRole.hours) {
         return home;
       }
       return null;
@@ -59,9 +62,52 @@ final routerProvider = Provider<GoRouter>((ref) {
     routes: [
       GoRoute(path: '/', builder: (_, __) => const _SplashScreen()),
       GoRoute(path: '/login', builder: (_, __) => const LoginScreen()),
-      GoRoute(path: '/admin', builder: (_, __) => const AdminDashboardScreen()),
-      GoRoute(path: '/sales', builder: (_, __) => const SalesEntryScreen()),
-      GoRoute(path: '/hours', builder: (_, __) => const HoursEntryScreen()),
+
+      // Admin
+      GoRoute(
+        path: '/admin',
+        builder: (_, __) => const AdminDashboardScreen(),
+        routes: [
+          GoRoute(
+            path: 'master-lists',
+            builder: (_, __) => const MasterListsScreen(),
+            routes: [
+              GoRoute(
+                path: ':listId',
+                builder: (_, state) =>
+                    MasterListDetailScreen(listId: state.pathParameters['listId']!),
+              ),
+            ],
+          ),
+          GoRoute(
+            path: 'sales',
+            builder: (_, __) => const SalesListScreen(),
+          ),
+        ],
+      ),
+
+      // Sales (admin + sales)
+      GoRoute(
+        path: '/sales',
+        builder: (_, __) => const SalesHomeScreen(),
+        routes: [
+          GoRoute(
+            path: 'new',
+            builder: (_, __) => const SaleFormScreen(),
+          ),
+          GoRoute(
+            path: ':id',
+            builder: (_, state) =>
+                SaleDetailScreen(saleId: state.pathParameters['id']!),
+          ),
+        ],
+      ),
+
+      // Hours (admin + hours)
+      GoRoute(
+        path: '/hours',
+        builder: (_, __) => const HoursEntryScreen(),
+      ),
     ],
   );
 });
