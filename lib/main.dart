@@ -12,13 +12,16 @@ Future<void> main() async {
 
   await initializeDateFormatting('es_CO', null);
 
-  // En Android/iOS el plugin nativo ya puede haber inicializado Firebase
-  // a través de google-services.json / GoogleService-Info.plist. Por eso
-  // verificamos antes de pedir initializeApp y evitamos el "duplicate-app".
-  if (Firebase.apps.isEmpty) {
+  // En Android/iOS el plugin nativo (google-services.json /
+  // GoogleService-Info.plist) ya inicializa Firebase antes de que Dart
+  // pueda enterarse, por lo que `Firebase.apps.isEmpty` no es confiable.
+  // Tragamos específicamente "duplicate-app" para arrancar igual.
+  try {
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
     );
+  } on FirebaseException catch (e) {
+    if (e.code != 'duplicate-app') rethrow;
   }
 
   // Habilita la caché offline de Firestore (sincroniza al recuperar conexión).
