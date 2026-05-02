@@ -14,14 +14,34 @@ import '../../features/sales/presentation/sales_home_screen.dart';
 import '../../features/sales/presentation/sales_list_screen.dart';
 import '../constants/roles.dart';
 
+/// Notifier que GoRouter escucha. Lo creamos UNA sola vez y lo reusamos
+/// para evitar acumular listeners cada vez que cambia el estado de auth.
+final _routerRefreshProvider = Provider<ChangeNotifier>((ref) {
+  final notifier = ChangeNotifier();
+  ref.listen(authStateProvider, (_, __) {
+    // ignore: invalid_use_of_visible_for_testing_member, invalid_use_of_protected_member
+    notifier.notifyListeners();
+  });
+  ref.listen(currentProfileProvider, (_, __) {
+    // ignore: invalid_use_of_visible_for_testing_member, invalid_use_of_protected_member
+    notifier.notifyListeners();
+  });
+  ref.onDispose(notifier.dispose);
+  return notifier;
+});
+
 final routerProvider = Provider<GoRouter>((ref) {
-  final auth = ref.watch(authStateProvider);
-  final profile = ref.watch(currentProfileProvider);
+  final refreshListenable = ref.watch(_routerRefreshProvider);
 
   return GoRouter(
     initialLocation: '/',
-    refreshListenable: _RouterRefresh(ref),
+    refreshListenable: refreshListenable,
     redirect: (context, state) {
+      // Leemos los estados con `read` para no rebuiildear el provider del
+      // router cuando cambia auth o profile (de eso se encarga el listenable).
+      final auth = ref.read(authStateProvider);
+      final profile = ref.read(currentProfileProvider);
+
       final loggedIn = auth.valueOrNull != null;
       final loadingProfile = loggedIn && profile.isLoading;
       final atLogin = state.matchedLocation == '/login';
@@ -41,10 +61,6 @@ final routerProvider = Provider<GoRouter>((ref) {
 
       if (atLogin || atSplash) return home;
 
-      // Permisos por path:
-      //  - /admin/* : solo admin.
-      //  - /sales/* : admin y sales.
-      //  - /hours/* : admin y hours.
       final loc = state.matchedLocation;
       if (loc.startsWith('/admin') && user.role != AppRole.admin) return home;
       if (loc.startsWith('/sales') &&
@@ -111,13 +127,6 @@ final routerProvider = Provider<GoRouter>((ref) {
     ],
   );
 });
-
-class _RouterRefresh extends ChangeNotifier {
-  _RouterRefresh(Ref ref) {
-    ref.listen(authStateProvider, (_, __) => notifyListeners());
-    ref.listen(currentProfileProvider, (_, __) => notifyListeners());
-  }
-}
 
 class _SplashScreen extends ConsumerWidget {
   const _SplashScreen();
