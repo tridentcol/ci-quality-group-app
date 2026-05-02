@@ -81,22 +81,32 @@ class AdminDashboardScreen extends ConsumerWidget {
             onTap: () => context.push('/admin/master-lists'),
           ),
           const SizedBox(height: 24),
-          Text('PRÓXIMAMENTE', style: _sectionStyle(context)),
+          Text('HORAS', style: _sectionStyle(context)),
           const SizedBox(height: 8),
-          const _AdminTile(
+          _AdminTile(
             title: 'Horas laboradas',
-            subtitle: 'Registros por trabajador con desglose por categoría.',
+            subtitle:
+                'Registros por trabajador, totales por categoría y export xlsx.',
             icon: Icons.schedule_outlined,
-            onTap: null,
+            onTap: () => context.push('/admin/hours'),
           ),
           const SizedBox(height: 10),
-          const _AdminTile(
+          _AdminTile(
+            title: 'Marcar entrada/salida',
+            subtitle: 'Acceso rápido a la pantalla del encargado de horas.',
+            icon: Icons.fact_check_outlined,
+            onTap: () => context.push('/hours'),
+          ),
+          const SizedBox(height: 10),
+          _AdminTile(
             title: 'Trabajadores',
             subtitle: 'Lista activa, edición y desactivación con histórico.',
             icon: Icons.engineering_outlined,
-            onTap: null,
+            onTap: () => context.push('/admin/workers'),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 24),
+          Text('PRÓXIMAMENTE', style: _sectionStyle(context)),
+          const SizedBox(height: 8),
           const _AdminTile(
             title: 'Constructor de formularios',
             subtitle: 'Agrega o reordena campos del formulario de ventas.',

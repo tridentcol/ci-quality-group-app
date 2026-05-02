@@ -1,0 +1,309 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+
+import '../../../core/utils/dates.dart';
+import '../../auth/data/auth_repository.dart';
+import '../../workers/data/workers_repository.dart';
+import '../../workers/domain/worker.dart';
+import '../data/hours_repository.dart';
+import '../domain/hours_categories.dart';
+import '../domain/hours_entry.dart';
+
+/// Pantalla principal del encargado de horas: lista de trabajadores activos
+/// con su estado del día (sin abrir, abierto, cerrado).
+class HoursHomeScreen extends ConsumerStatefulWidget {
+  const HoursHomeScreen({super.key});
+
+  @override
+  ConsumerState<HoursHomeScreen> createState() => _HoursHomeScreenState();
+}
+
+class _HoursHomeScreenState extends ConsumerState<HoursHomeScreen> {
+  String _query = '';
+  bool _seedTried = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _seedIfEmpty());
+  }
+
+  Future<void> _seedIfEmpty() async {
+    if (_seedTried) return;
+    _seedTried = true;
+    try {
+      final loaded =
+          await ref.read(workersRepositoryProvider).seedFromAssetsIfEmpty();
+      if (loaded > 0 && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Se cargaron $loaded trabajadores iniciales.')),
+        );
+      }
+    } catch (_) {}
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final workers = ref.watch(activeWorkersProvider);
+    final today = ref.watch(todayHoursByWorkerProvider);
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Control de horas'),
+        actions: [
+          IconButton(
+            tooltip: 'Cerrar sesión',
+            icon: const Icon(Icons.logout_outlined),
+            onPressed: () => ref.read(authRepositoryProvider).signOut(),
+          ),
+        ],
+      ),
+      body: Column(
+        children: [
+          _TodayHeader(
+            entries: today.valueOrNull ?? const {},
+            workers: workers.valueOrNull ?? const [],
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+            child: TextField(
+              decoration: const InputDecoration(
+                hintText: 'Buscar trabajador…',
+                prefixIcon: Icon(Icons.search),
+              ),
+              onChanged: (v) => setState(() => _query = v.trim().toLowerCase()),
+            ),
+          ),
+          Expanded(
+            child: workers.when(
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (e, _) => Center(child: Text('Error: $e')),
+              data: (data) {
+                final filtered = _query.isEmpty
+                    ? data
+                    : data
+                        .where((w) =>
+                            w.fullName.toLowerCase().contains(_query) ||
+                            w.role.toLowerCase().contains(_query))
+                        .toList();
+                if (filtered.isEmpty) {
+                  return Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Text(
+                        data.isEmpty
+                            ? 'Aún no hay trabajadores activos. Pídele al admin que los cargue.'
+                            : 'No hay coincidencias.',
+                        textAlign: TextAlign.center,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: theme.colorScheme.onSurface
+                              .withValues(alpha: 0.6),
+                        ),
+                      ),
+                    ),
+                  );
+                }
+                return ListView.separated(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
+                  itemCount: filtered.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 10),
+                  itemBuilder: (context, i) {
+                    final w = filtered[i];
+                    final entry = (today.valueOrNull ?? const {})[w.id];
+                    return _WorkerHoursCard(
+                      worker: w,
+                      entry: entry,
+                      onTap: () => context.push('/hours/${w.id}'),
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TodayHeader extends StatelessWidget {
+  const _TodayHeader({required this.entries, required this.workers});
+
+  final Map<String, HoursEntry> entries;
+  final List<Worker> workers;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final activeIds = workers.map((w) => w.id).toSet();
+    final entriesToday = entries.values.where((e) => activeIds.contains(e.workerId));
+    final closed = entriesToday.where((e) => !e.isOpen).length;
+    final open = entriesToday.where((e) => e.isOpen).length;
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.primary,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Hoy ${formatDate(DateTime.now())}',
+            style: theme.textTheme.bodySmall?.copyWith(color: Colors.white70),
+          ),
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              _Stat(label: 'Abiertos', value: '$open', color: Colors.white),
+              const SizedBox(width: 24),
+              _Stat(label: 'Cerrados', value: '$closed', color: Colors.white),
+              const SizedBox(width: 24),
+              _Stat(
+                label: 'Sin marcar',
+                value: '${workers.length - open - closed}',
+                color: Colors.white,
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _Stat extends StatelessWidget {
+  const _Stat({required this.label, required this.value, required this.color});
+  final String label;
+  final String value;
+  final Color color;
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(value,
+            style: Theme.of(context)
+                .textTheme
+                .headlineMedium
+                ?.copyWith(color: color, fontWeight: FontWeight.w700)),
+        Text(label,
+            style: Theme.of(context)
+                .textTheme
+                .bodySmall
+                ?.copyWith(color: color.withValues(alpha: 0.85))),
+      ],
+    );
+  }
+}
+
+class _WorkerHoursCard extends StatelessWidget {
+  const _WorkerHoursCard({
+    required this.worker,
+    required this.entry,
+    required this.onTap,
+  });
+
+  final Worker worker;
+  final HoursEntry? entry;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final hasEntry = entry != null;
+    final isOpen = entry?.isOpen ?? false;
+    final color = !hasEntry
+        ? theme.colorScheme.onSurface.withValues(alpha: 0.4)
+        : isOpen
+            ? theme.colorScheme.primary
+            : theme.colorScheme.secondary;
+    final statusLabel = !hasEntry
+        ? 'Sin marcar'
+        : isOpen
+            ? 'Día abierto'
+            : 'Cerrado';
+    return Card(
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              Container(
+                width: 8,
+                height: 56,
+                decoration: BoxDecoration(
+                  color: color,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(worker.fullName, style: theme.textTheme.titleMedium),
+                    const SizedBox(height: 2),
+                    Text(
+                      worker.role,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                      ),
+                    ),
+                    if (hasEntry) ...[
+                      const SizedBox(height: 6),
+                      Text(
+                        _summary(entry!),
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: color.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text(
+                      statusLabel,
+                      style: theme.textTheme.labelSmall?.copyWith(color: color),
+                    ),
+                  ),
+                  if (hasEntry && !entry!.isOpen) ...[
+                    const SizedBox(height: 6),
+                    Text(
+                      formatHours(entry!.breakdown.totalPaid),
+                      style: theme.textTheme.labelLarge?.copyWith(
+                        color: theme.colorScheme.primary,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _summary(HoursEntry e) {
+    final inStr = formatTime(e.checkIn);
+    final outStr = e.checkOut != null ? formatTime(e.checkOut!) : '—';
+    return 'Entrada $inStr · Salida $outStr';
+  }
+}

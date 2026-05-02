@@ -7,11 +7,16 @@ import '../../features/admin/presentation/master_list_detail_screen.dart';
 import '../../features/admin/presentation/master_lists_screen.dart';
 import '../../features/auth/data/auth_repository.dart';
 import '../../features/auth/presentation/login_screen.dart';
-import '../../features/hours/presentation/hours_entry_screen.dart';
+import '../../features/hours/presentation/hours_admin_screen.dart';
+import '../../features/hours/presentation/hours_home_screen.dart';
+import '../../features/hours/presentation/worker_day_screen.dart';
 import '../../features/sales/presentation/sale_detail_screen.dart';
 import '../../features/sales/presentation/sale_form_screen.dart';
 import '../../features/sales/presentation/sales_home_screen.dart';
 import '../../features/sales/presentation/sales_list_screen.dart';
+import '../../features/workers/data/workers_repository.dart';
+import '../../features/workers/presentation/worker_form_screen.dart';
+import '../../features/workers/presentation/workers_screen.dart';
 import '../constants/roles.dart';
 
 /// Notifier que GoRouter escucha. Lo creamos UNA sola vez y lo reusamos
@@ -99,6 +104,25 @@ final routerProvider = Provider<GoRouter>((ref) {
             path: 'sales',
             builder: (_, __) => const SalesListScreen(),
           ),
+          GoRoute(
+            path: 'hours',
+            builder: (_, __) => const HoursAdminScreen(),
+          ),
+          GoRoute(
+            path: 'workers',
+            builder: (_, __) => const WorkersScreen(),
+            routes: [
+              GoRoute(
+                path: 'new',
+                builder: (_, __) => const WorkerFormScreen(),
+              ),
+              GoRoute(
+                path: ':id/edit',
+                builder: (_, state) => _EditWorkerRoute(
+                    workerId: state.pathParameters['id']!),
+              ),
+            ],
+          ),
         ],
       ),
 
@@ -122,11 +146,45 @@ final routerProvider = Provider<GoRouter>((ref) {
       // Hours (admin + hours)
       GoRoute(
         path: '/hours',
-        builder: (_, __) => const HoursEntryScreen(),
+        builder: (_, __) => const HoursHomeScreen(),
+        routes: [
+          GoRoute(
+            path: ':workerId',
+            builder: (_, state) =>
+                WorkerDayScreen(workerId: state.pathParameters['workerId']!),
+          ),
+        ],
       ),
     ],
   );
 });
+
+/// Carga el trabajador por id y muestra el formulario de edición.
+class _EditWorkerRoute extends ConsumerWidget {
+  const _EditWorkerRoute({required this.workerId});
+  final String workerId;
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final worker = ref.watch(workerByIdProvider(workerId));
+    return worker.when(
+      loading: () => const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      ),
+      error: (e, _) => Scaffold(
+        appBar: AppBar(),
+        body: Center(child: Text('Error: $e')),
+      ),
+      data: (w) {
+        if (w == null) {
+          return const Scaffold(
+            body: Center(child: Text('Trabajador no encontrado.')),
+          );
+        }
+        return WorkerFormScreen(editing: w);
+      },
+    );
+  }
+}
 
 class _SplashScreen extends ConsumerWidget {
   const _SplashScreen();
