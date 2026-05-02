@@ -1,0 +1,105 @@
+{
+  "_comment": "Seed inicial de trabajadores. TERMOCANDELARIA excluidos por indicación del admin. Se carga al primer arranque si la colección está vacía.",
+  "workers": [
+    {
+      "fullName": "Juan Carlos Padilla Cardenas",
+      "address": "Arroz barato",
+      "idNumber": "1143351374",
+      "email": "Juancarlospadillacardenas@gmail.com",
+      "phone": "324 5729470",
+      "bank": "Bancolombia",
+      "role": "AUX. GESTOR DE RESIDUOS",
+      "active": true
+    },
+    {
+      "fullName": "Erick Barragan Campillo",
+      "address": "Barrio arroz barato cr 9 calle 7",
+      "idNumber": "1047458313",
+      "email": "Barraganerick884@gmail.com",
+      "phone": "301 2940318",
+      "bank": "Bancolombia",
+      "role": "AUX. GESTOR DE RESIDUOS",
+      "active": true
+    },
+    {
+      "fullName": "Celedon Rafael Garcia Barrios",
+      "address": "Nueve de abril",
+      "idNumber": "73113356",
+      "email": "Celedongarcia79@gmail.com",
+      "phone": "315 4864740",
+      "bank": "Bancolombia",
+      "role": "AUX. GESTOR DE RESIDUOS",
+      "active": true
+    },
+    {
+      "fullName": "Favian Jose Barrientos Martinez",
+      "address": "Villa hermosa",
+      "idNumber": "6043662",
+      "email": "Qualityfavian@gmail.com",
+      "phone": "324 4737684",
+      "bank": "Bancolombia",
+      "role": "AUX. GESTOR DE RESIDUOS",
+      "active": true
+    },
+    {
+      "fullName": "Enrique Manuel Benitez Herazo",
+      "address": "La consolata 80B #4B 14",
+      "idNumber": "78714106",
+      "email": null,
+      "phone": "304 2474602",
+      "bank": "Nequi",
+      "role": "CONDUCTOR",
+      "active": true
+    },
+    {
+      "fullName": "Endriz Jose Medina Gonzales",
+      "address": "Arroz barato cr 4 con 5",
+      "idNumber": "6044400",
+      "email": "Josemedinagonzales3418@gmail.com",
+      "phone": "320 7806192",
+      "bank": "Nequi",
+      "role": "AUX. GESTOR DE RESIDUOS",
+      "active": true
+    },
+    {
+      "fullName": "Juan Carlos Alvarez Gomez",
+      "address": "Condominio pradera 1 Turbaco MZ M casa 27",
+      "idNumber": "8374779",
+      "email": "Alvaresjuancarlo@hotmail.com",
+      "phone": "311 6627850",
+      "bank": "Nequi",
+      "role": "AUX. GESTOR DE RESIDUOS",
+      "active": true
+    },
+    {
+      "fullName": "Carlos Eduardo Solar Blanco",
+      "address": "Arroz barato",
+      "idNumber": "1049948893",
+      "email": "carlossolar2821@gmail.com",
+      "phone": "323 2893402",
+      "bank": "Bancolombia",
+      "role": "AUX. GESTOR DE RESIDUOS",
+      "active": true
+    },
+    {
+      "fullName": "Vicente Antonio Ortega Diaz",
+      "address": "Arroz barato Cll las flores crr A",
+      "idNumber": "10943262",
+      "email": "vicenteortega1178@gmail.com",
+      "phone": "312 7380848",
+      "bank": "Bancolombia",
+      "role": "AUX. GESTOR DE RESIDUOS",
+      "active": true
+    },
+    {
+      "fullName": "Jose Antonio Chirino",
+      "address": "Heneken calle principal",
+      "idNumber": "ppt 5507125",
+      "email": "leonarkerjosechirino@gmail.com",
+      "phone": "300 1707084",
+      "bank": "Nequi",
+      "role": "AUX. GESTOR DE RESIDUOS",
+      "active": true
+    }
+  ]
+}
