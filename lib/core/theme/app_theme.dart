@@ -92,7 +92,7 @@ class AppTheme {
             ? SystemUiOverlayStyle.light
             : SystemUiOverlayStyle.dark,
       ),
-      cardTheme: CardTheme(
+      cardTheme: CardThemeData(
         color: base.colorScheme.surface,
         elevation: 0,
         margin: EdgeInsets.zero,
