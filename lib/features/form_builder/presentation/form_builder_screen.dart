@@ -35,27 +35,17 @@ class _FormBuilderScreenState extends ConsumerState<FormBuilderScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Sincronización con el provider: cuando llega un nuevo schema (al
-    // entrar y en cada save), guardamos su versión como base y, si el
-    // admin no ha empezado a editar (_draft == null), absorbemos sus
-    // fields como snapshot inicial. WidgetRef.listen no soporta
-    // fireImmediately, así que el primer caso lo manejamos directamente
-    // sobre el ref.watch de abajo.
-    ref.listen<AsyncValue<FormSchema>>(
-      formSchemaProvider(widget.module),
-      (prev, next) {
-        next.whenData((schema) {
-          _baseVersion = schema.version;
-          _draft ??= [...schema.fields];
-        });
-      },
-    );
     final schemaAsync = ref.watch(formSchemaProvider(widget.module));
-    // Inicialización del primer build (cuando ya hay datos pero el
-    // listener aún no se disparó).
+    // Inicialización: la primera vez que llega un schema y _draft está
+    // vacío, lo absorbemos como snapshot inicial. Después de eso _draft
+    // es la fuente de verdad local hasta que el admin guarde o salga.
+    // No se reinicializa desde el stream para evitar pisar reorderings
+    // recién guardados antes de que la suscripción los emita de vuelta.
     schemaAsync.whenData((schema) {
-      _baseVersion = schema.version;
-      _draft ??= [...schema.fields];
+      if (_draft == null) {
+        _baseVersion = schema.version;
+        _draft = [...schema.fields];
+      }
     });
     return Scaffold(
       appBar: AppBar(
@@ -201,8 +191,14 @@ class _FormBuilderScreenState extends ConsumerState<FormBuilderScreen> {
             module: widget.module,
             updatedBy: me?.uid ?? 'system',
           );
-      setState(() => _draft = null);
+      // Reset a defaults sí descarta el draft local: el admin pidió
+      // explícitamente volver al esquema por defecto.
+      ref.invalidate(formSchemaProvider(widget.module));
       if (mounted) {
+        setState(() {
+          _draft = null;
+          _baseVersion = 0;
+        });
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Formulario restaurado.')),
         );
@@ -230,10 +226,19 @@ class _FormBuilderScreenState extends ConsumerState<FormBuilderScreen> {
             updatedBy: me?.uid ?? 'system',
             previousVersion: _baseVersion,
           );
-      // Reset del draft: el StreamProvider emitirá el nuevo schema con la
-      // versión bumpeada y el build vuelve a sincronizar.
-      setState(() => _draft = null);
+      // Mantenemos `_draft` con lo que el admin acaba de guardar (es la
+      // fuente de verdad ahora) y avanzamos `_baseVersion` para que el
+      // siguiente save use el previousVersion correcto. NO reseteamos a
+      // null: hacerlo dispara una race con el Stream donde a veces el
+      // próximo build se reinicializa con el schema viejo (pre-emit) y
+      // se pisa el reorden recién guardado.
+      //
+      // Forzamos invalidación del provider para que SaleFormScreen y
+      // cualquier otra pantalla con `ref.watch(formSchemaProvider)` re-
+      // sincronicen con los datos frescos en Firestore.
+      ref.invalidate(formSchemaProvider(widget.module));
       if (mounted) {
+        setState(() => _baseVersion += 1);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Formulario actualizado.')),
         );
