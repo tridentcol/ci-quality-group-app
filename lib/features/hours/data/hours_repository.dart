@@ -155,6 +155,17 @@ class HoursRepository {
     return HoursEntry.fromSnapshot(snap);
   }
 
+  /// Stream del registro de un trabajador en una fecha específica.
+  /// Útil cuando el encargado/admin quiere ver o editar un día distinto a
+  /// hoy. Aprovecha el id determinístico para resolver con un solo doc.
+  Stream<HoursEntry?> watchEntryForDate(String workerId, DateTime date) {
+    final dayStart = startOfDay(date);
+    final id = entryIdFor(workerId, dayStart);
+    return _col.doc(id).snapshots().map(
+          (snap) => snap.exists ? HoursEntry.fromSnapshot(snap) : null,
+        );
+  }
+
   /// Stream de todas las entradas de hoy, indexadas por workerId. Sirve para
   /// pintar el estado del día en la pantalla del encargado.
   Stream<Map<String, HoursEntry>> watchTodayByWorker() {
@@ -226,6 +237,35 @@ final todayHoursByWorkerProvider =
   // el token correcto y no quede atascado en permission-denied.
   ref.watch(authStateProvider);
   return ref.watch(hoursRepositoryProvider).watchTodayByWorker();
+});
+
+class WorkerDayQuery {
+  const WorkerDayQuery({required this.workerId, required this.date});
+  final String workerId;
+  final DateTime date;
+
+  @override
+  bool operator ==(Object other) =>
+      other is WorkerDayQuery &&
+      other.workerId == workerId &&
+      other.date.year == date.year &&
+      other.date.month == date.month &&
+      other.date.day == date.day;
+
+  @override
+  int get hashCode =>
+      Object.hash(workerId, date.year, date.month, date.day);
+}
+
+/// Registro de horas de un trabajador en un día específico (cualquier fecha,
+/// no solo hoy). Sirve para que `WorkerDayScreen` se abra sobre el día
+/// seleccionado por el usuario.
+final workerDayEntryProvider =
+    StreamProvider.family.autoDispose<HoursEntry?, WorkerDayQuery>((ref, q) {
+  ref.watch(authStateProvider);
+  return ref
+      .watch(hoursRepositoryProvider)
+      .watchEntryForDate(q.workerId, q.date);
 });
 
 class HoursDateRange {
