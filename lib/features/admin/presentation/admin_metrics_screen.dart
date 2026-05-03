@@ -259,33 +259,51 @@ class _KpiCard extends StatelessWidget {
     final c = color ?? theme.colorScheme.primary;
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(14),
         child: Column(
+          mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
                 if (icon != null) ...[
-                  Icon(icon, size: 18, color: c),
+                  Icon(icon, size: 16, color: c),
                   const SizedBox(width: 6),
                 ],
                 Expanded(
                   child: Text(
                     label,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                     style: theme.textTheme.labelSmall?.copyWith(
                       color:
-                          theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                          theme.colorScheme.onSurface.withValues(alpha: 0.65),
+                      height: 1.2,
                     ),
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 6),
-            Text(value, style: theme.textTheme.titleLarge),
+            const SizedBox(height: 8),
+            // FittedBox evita que valores largos como $1,234,567,890 desborden
+            // el card y se monten encima de la sección de abajo.
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerLeft,
+              child: Text(
+                value,
+                maxLines: 1,
+                style: theme.textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
             if (subtitle != null) ...[
               const SizedBox(height: 2),
               Text(
                 subtitle!,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: theme.colorScheme.onSurface.withValues(alpha: 0.55),
                 ),
@@ -294,6 +312,47 @@ class _KpiCard extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Fila de hasta 3 KPI cards con altura consistente. En pantallas
+/// estrechas las apila en 2 columnas para evitar texto incrustado /
+/// solapamientos con la sección siguiente.
+class _KpiRow extends StatelessWidget {
+  const _KpiRow({required this.cards});
+  final List<Widget> cards;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final narrow = constraints.maxWidth < 380;
+        if (narrow) {
+          return Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              for (final c in cards)
+                SizedBox(
+                  width: (constraints.maxWidth - 10) / 2,
+                  child: c,
+                ),
+            ],
+          );
+        }
+        return IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              for (var i = 0; i < cards.length; i++) ...[
+                Expanded(child: cards[i]),
+                if (i < cards.length - 1) const SizedBox(width: 10),
+              ],
+            ],
+          ),
+        );
+      },
     );
   }
 }
@@ -322,35 +381,24 @@ class _SalesSection extends StatelessWidget {
 
     return Column(
       children: [
-        Row(
-          children: [
-            Expanded(
-              child: _KpiCard(
-                label: 'Total',
-                value: formatCop(metrics.total),
-                icon: Icons.payments_outlined,
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: _KpiCard(
-                label: 'Cantidad',
-                value: '${metrics.count}',
-                subtitle: 'ventas',
-                icon: Icons.receipt_long_outlined,
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: _KpiCard(
-                label: 'Ticket prom.',
-                value:
-                    formatCop((metrics.total / metrics.count).round()),
-                icon: Icons.calculate_outlined,
-              ),
-            ),
-          ],
-        ),
+        _KpiRow(cards: [
+          _KpiCard(
+            label: 'Total',
+            value: formatCop(metrics.total),
+            icon: Icons.payments_outlined,
+          ),
+          _KpiCard(
+            label: 'Cantidad',
+            value: '${metrics.count}',
+            subtitle: 'ventas',
+            icon: Icons.receipt_long_outlined,
+          ),
+          _KpiCard(
+            label: 'Ticket prom.',
+            value: formatCop((metrics.total / metrics.count).round()),
+            icon: Icons.calculate_outlined,
+          ),
+        ]),
         const SizedBox(height: 16),
         if (metrics.dailyTotals.length >= 2)
           Card(
@@ -370,14 +418,9 @@ class _SalesSection extends StatelessWidget {
             ),
           ),
         const SizedBox(height: 16),
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Expanded(child: _DonutCard(
-              title: 'Por método de pago',
-              data: metrics.byMethod,
-            )),
-          ],
+        _DonutCard(
+          title: 'Por método de pago',
+          data: metrics.byMethod,
         ),
         const SizedBox(height: 16),
         if (metrics.byMaterial.isNotEmpty)
@@ -728,38 +771,28 @@ class _HoursSection extends StatelessWidget {
 
     return Column(
       children: [
-        Row(
-          children: [
-            Expanded(
-              child: _KpiCard(
-                label: 'Horas pagas',
-                value: formatHours(metrics.totalPaid),
-                icon: Icons.timer_outlined,
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: _KpiCard(
-                label: 'Trabajadores',
-                value: '${metrics.uniqueWorkers}',
-                subtitle: 'con registro',
-                icon: Icons.engineering_outlined,
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: _KpiCard(
-                label: 'Abiertos',
-                value: '${metrics.openCount}',
-                subtitle: 'sin cerrar',
-                icon: Icons.lock_open_outlined,
-                color: metrics.openCount > 0
-                    ? Colors.orange
-                    : theme.colorScheme.primary,
-              ),
-            ),
-          ],
-        ),
+        _KpiRow(cards: [
+          _KpiCard(
+            label: 'Horas pagas',
+            value: formatHours(metrics.totalPaid),
+            icon: Icons.timer_outlined,
+          ),
+          _KpiCard(
+            label: 'Trabajadores',
+            value: '${metrics.uniqueWorkers}',
+            subtitle: 'con registro',
+            icon: Icons.engineering_outlined,
+          ),
+          _KpiCard(
+            label: 'Abiertos',
+            value: '${metrics.openCount}',
+            subtitle: 'sin cerrar',
+            icon: Icons.lock_open_outlined,
+            color: metrics.openCount > 0
+                ? Colors.orange
+                : theme.colorScheme.primary,
+          ),
+        ]),
         const SizedBox(height: 16),
         Card(
           child: Padding(

@@ -213,6 +213,20 @@ final masterListsProvider = StreamProvider<List<MasterList>>((ref) {
   return ref.watch(masterListsRepositoryProvider).watchLists();
 });
 
+/// Stream reactivo a la metadata de UNA lista. Lo usa MasterListField para
+/// saber si la lista permite captura libre. Reemplaza al FutureBuilder
+/// previo que solo leía el documento una vez (y no se enteraba cuando el
+/// admin cambiaba `allowFreeText` en otro dispositivo).
+final masterListMetaProvider =
+    StreamProvider.family.autoDispose<MasterList?, String>((ref, listId) {
+  ref.watch(authStateProvider);
+  return FirebaseFirestore.instance
+      .collection(FirestorePaths.masterLists)
+      .doc(listId)
+      .snapshots()
+      .map((snap) => snap.exists ? MasterList.fromSnapshot(snap) : null);
+});
+
 final masterListItemsProvider = StreamProvider.family
     .autoDispose<List<MasterListItem>, MasterListItemsQuery>((ref, query) {
   ref.watch(authStateProvider);

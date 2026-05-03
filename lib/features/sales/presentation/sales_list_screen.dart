@@ -6,6 +6,7 @@ import '../../../core/utils/clock.dart';
 import '../../../core/utils/dates.dart';
 import '../../../core/utils/money.dart';
 import '../../../shared/services/xlsx_export_service.dart';
+import '../../../shared/widgets/range_filter_bar.dart';
 import '../data/sales_repository.dart';
 import '../domain/sale.dart';
 import 'widgets/sale_card.dart';
@@ -33,21 +34,6 @@ class _SalesListScreenState extends ConsumerState<SalesListScreen> {
     final now = AppClock.now();
     _start = startOfMonth(now);
     _end = endOfMonth(now);
-  }
-
-  Future<void> _pickRange() async {
-    final picked = await showDateRangePicker(
-      context: context,
-      firstDate: DateTime(2020),
-      lastDate: AppClock.now().add(const Duration(days: 1)),
-      initialDateRange: DateTimeRange(start: _start, end: _end),
-    );
-    if (picked != null) {
-      setState(() {
-        _start = startOfDay(picked.start);
-        _end = endOfDay(picked.end);
-      });
-    }
   }
 
   Future<void> _export(List<Sale> sales) async {
@@ -85,14 +71,9 @@ class _SalesListScreenState extends ConsumerState<SalesListScreen> {
       appBar: AppBar(
         title: const Text('Ventas'),
         actions: [
-          IconButton(
-            tooltip: 'Filtrar fechas',
-            onPressed: _pickRange,
-            icon: const Icon(Icons.calendar_month_outlined),
-          ),
           if (widget.allowExport)
             IconButton(
-              tooltip: 'Exportar a Excel',
+              tooltip: 'Exportar a Excel (rango actual)',
               onPressed: _exporting
                   ? null
                   : () => _export(sales.valueOrNull ?? const []),
@@ -117,11 +98,19 @@ class _SalesListScreenState extends ConsumerState<SalesListScreen> {
             end: _end,
             sales: sales.valueOrNull ?? const [],
           ),
+          RangeFilterBar(
+            start: _start,
+            end: _end,
+            onChanged: (r) => setState(() {
+              _start = r.start;
+              _end = r.end;
+            }),
+          ),
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
             child: TextField(
               decoration: const InputDecoration(
-                hintText: 'Buscar por consecutivo, proveedor, material…',
+                hintText: 'Buscar por consecutivo, cliente, material…',
                 prefixIcon: Icon(Icons.search),
               ),
               onChanged: (v) => setState(() => _query = v.trim().toLowerCase()),
@@ -199,7 +188,7 @@ class _RangeAndStats extends StatelessWidget {
     final total = sales.fold<num>(0, (sum, s) => sum + s.totalValue);
     return Container(
       width: double.infinity,
-      margin: const EdgeInsets.all(16),
+      margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: theme.colorScheme.primary,
@@ -209,17 +198,22 @@ class _RangeAndStats extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            '${formatDate(start)} – ${formatDate(end)}',
+            'Total del rango',
             style: theme.textTheme.bodySmall?.copyWith(color: Colors.white70),
           ),
           const SizedBox(height: 4),
-          Text(
-            formatCop(total),
-            style: theme.textTheme.headlineMedium?.copyWith(color: Colors.white),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              formatCop(total),
+              style:
+                  theme.textTheme.headlineMedium?.copyWith(color: Colors.white),
+            ),
           ),
           const SizedBox(height: 4),
           Text(
-            '${sales.length} venta${sales.length == 1 ? '' : 's'} en el rango',
+            '${sales.length} venta${sales.length == 1 ? '' : 's'}',
             style: theme.textTheme.bodyMedium?.copyWith(color: Colors.white70),
           ),
         ],

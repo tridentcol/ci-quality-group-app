@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/utils/clock.dart';
 import '../../../core/utils/dates.dart';
 import '../../../shared/services/xlsx_export_service.dart';
+import '../../../shared/widgets/range_filter_bar.dart';
 import '../../workers/data/workers_repository.dart';
 import '../data/hours_repository.dart';
 import '../domain/hours_categories.dart';
@@ -30,21 +31,6 @@ class _HoursAdminScreenState extends ConsumerState<HoursAdminScreen> {
     final now = AppClock.now();
     _start = startOfMonth(now);
     _end = endOfMonth(now);
-  }
-
-  Future<void> _pickRange() async {
-    final picked = await showDateRangePicker(
-      context: context,
-      firstDate: DateTime(2020),
-      lastDate: AppClock.now().add(const Duration(days: 1)),
-      initialDateRange: DateTimeRange(start: _start, end: _end),
-    );
-    if (picked != null) {
-      setState(() {
-        _start = startOfDay(picked.start);
-        _end = endOfDay(picked.end);
-      });
-    }
   }
 
   Future<void> _export(List<HoursEntry> entries) async {
@@ -84,12 +70,7 @@ class _HoursAdminScreenState extends ConsumerState<HoursAdminScreen> {
         title: const Text('Horas laboradas'),
         actions: [
           IconButton(
-            tooltip: 'Filtrar fechas',
-            icon: const Icon(Icons.calendar_month_outlined),
-            onPressed: _pickRange,
-          ),
-          IconButton(
-            tooltip: 'Exportar a Excel',
+            tooltip: 'Exportar a Excel (rango actual)',
             onPressed: _exporting
                 ? null
                 : () => _export(_filtered(entries.valueOrNull ?? const [])),
@@ -116,19 +97,16 @@ class _HoursAdminScreenState extends ConsumerState<HoursAdminScreen> {
           return CustomScrollView(
             slivers: [
               SliverToBoxAdapter(
-                child: _RangeBanner(
-                  start: _start,
-                  end: _end,
-                  count: filtered.length,
-                ),
+                child: _RangeBanner(count: filtered.length),
               ),
               SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-                  child: BreakdownCard(
-                    breakdown: totals,
-                    title: 'Totales del rango',
-                  ),
+                child: RangeFilterBar(
+                  start: _start,
+                  end: _end,
+                  onChanged: (r) => setState(() {
+                    _start = r.start;
+                    _end = r.end;
+                  }),
                 ),
               ),
               SliverToBoxAdapter(
@@ -151,6 +129,15 @@ class _HoursAdminScreenState extends ConsumerState<HoursAdminScreen> {
                           )),
                     ],
                     onChanged: (v) => setState(() => _workerFilter = v),
+                  ),
+                ),
+              ),
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+                  child: BreakdownCard(
+                    breakdown: totals,
+                    title: 'Totales del rango',
                   ),
                 ),
               ),
@@ -207,20 +194,15 @@ class _HoursAdminScreenState extends ConsumerState<HoursAdminScreen> {
 }
 
 class _RangeBanner extends StatelessWidget {
-  const _RangeBanner({
-    required this.start,
-    required this.end,
-    required this.count,
-  });
-  final DateTime start;
-  final DateTime end;
+  const _RangeBanner({required this.count});
   final int count;
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Container(
       width: double.infinity,
-      margin: const EdgeInsets.all(16),
+      margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: theme.colorScheme.primary,
@@ -230,7 +212,7 @@ class _RangeBanner extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            '${formatDate(start)} – ${formatDate(end)}',
+            'Registros del rango',
             style: theme.textTheme.bodySmall?.copyWith(color: Colors.white70),
           ),
           const SizedBox(height: 4),
