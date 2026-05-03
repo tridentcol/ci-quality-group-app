@@ -56,6 +56,14 @@ class AdminDashboardScreen extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 20),
+          _AdminTile(
+            title: 'Métricas y gráficas',
+            subtitle:
+                'KPIs, totales por método, top clientes y desglose de horas.',
+            icon: Icons.insights_outlined,
+            onTap: () => context.push('/admin/metrics'),
+          ),
+          const SizedBox(height: 24),
           Text('VENTAS', style: _sectionStyle(context)),
           const SizedBox(height: 8),
           _AdminTile(

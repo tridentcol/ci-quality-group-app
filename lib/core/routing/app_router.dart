@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../features/admin/presentation/admin_dashboard_screen.dart';
+import '../../features/admin/presentation/admin_metrics_screen.dart';
 import '../../features/admin/presentation/master_list_detail_screen.dart';
 import '../../features/admin/presentation/master_lists_screen.dart';
 import '../../features/admin/presentation/user_form_screen.dart';
@@ -126,6 +127,10 @@ final routerProvider = Provider<GoRouter>((ref) {
                 ],
               ),
             ],
+          ),
+          GoRoute(
+            path: 'metrics',
+            builder: (_, __) => const AdminMetricsScreen(),
           ),
           GoRoute(
             path: 'settings/schedule',
