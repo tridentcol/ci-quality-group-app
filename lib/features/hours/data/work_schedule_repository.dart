@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants/firestore_paths.dart';
+import '../../auth/data/auth_repository.dart';
 import '../domain/work_schedule.dart';
 
 /// Persistencia y lectura de la jornada laboral. Si todavía no se ha
@@ -50,5 +51,9 @@ final workScheduleRepositoryProvider = Provider<WorkScheduleRepository>((ref) {
 });
 
 final workScheduleProvider = StreamProvider<WorkSchedule>((ref) {
+  // Re-crea el listener cuando cambia la sesión (logout + login). Sin esto
+  // el snapshot listener queda con el token de Auth viejo y Firestore
+  // tira permission-denied tras volver a entrar.
+  ref.watch(authStateProvider);
   return ref.watch(workScheduleRepositoryProvider).watch();
 });
