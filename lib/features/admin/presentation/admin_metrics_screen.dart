@@ -6,16 +6,20 @@ import 'package:intl/intl.dart';
 import '../../../core/utils/clock.dart';
 import '../../../core/utils/dates.dart';
 import '../../../core/utils/money.dart';
+import '../../../shared/widgets/range_filter_bar.dart';
 import '../../hours/data/hours_repository.dart';
 import '../../hours/domain/hours_categories.dart';
 import '../../sales/data/sales_repository.dart';
 import '../data/metrics.dart';
 
+enum _MetricsView { sales, hours }
+
 /// Dashboard del admin con KPIs y gráficas.
 ///
-/// Filtra por rango (default = mes corriente) y agrega en cliente sobre
-/// los streams ya existentes de ventas y horas. Sin queries especiales,
-/// sin agregación servidor, sin índices nuevos.
+/// Está dividido en dos vistas (Ventas / Horas) seleccionables con un
+/// SegmentedButton en la parte superior. Cada vista mantiene su propio
+/// rango de fechas; al cambiar de vista el rango se reinicia al mes
+/// corriente para que la consulta sea limpia.
 class AdminMetricsScreen extends ConsumerStatefulWidget {
   const AdminMetricsScreen({super.key});
 
@@ -25,215 +29,129 @@ class AdminMetricsScreen extends ConsumerStatefulWidget {
 }
 
 class _AdminMetricsScreenState extends ConsumerState<AdminMetricsScreen> {
+  _MetricsView _view = _MetricsView.sales;
   late DateTime _start;
   late DateTime _end;
 
   @override
   void initState() {
     super.initState();
+    _resetRangeToCurrentMonth();
+  }
+
+  void _resetRangeToCurrentMonth() {
     final now = AppClock.now();
     _start = startOfMonth(now);
     _end = endOfMonth(now);
   }
 
-  Future<void> _pickRange() async {
-    final picked = await showDateRangePicker(
-      context: context,
-      firstDate: DateTime(2020),
-      lastDate: AppClock.now().add(const Duration(days: 1)),
-      initialDateRange: DateTimeRange(start: _start, end: _end),
-    );
-    if (picked != null) {
-      setState(() {
-        _start = startOfDay(picked.start);
-        _end = endOfDay(picked.end);
-      });
-    }
-  }
-
-  void _setPreset(_RangePreset preset) {
-    final now = AppClock.now();
+  void _switchView(_MetricsView v) {
+    if (v == _view) return;
     setState(() {
-      switch (preset) {
-        case _RangePreset.today:
-          _start = startOfDay(now);
-          _end = endOfDay(now);
-          break;
-        case _RangePreset.week:
-          final weekStart = now.subtract(Duration(days: now.weekday - 1));
-          _start = startOfDay(weekStart);
-          _end = endOfDay(now);
-          break;
-        case _RangePreset.month:
-          _start = startOfMonth(now);
-          _end = endOfMonth(now);
-          break;
-        case _RangePreset.last30:
-          _start = startOfDay(now.subtract(const Duration(days: 29)));
-          _end = endOfDay(now);
-          break;
-      }
+      _view = v;
+      _resetRangeToCurrentMonth();
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    final salesAsync = ref.watch(
-      salesByRangeProvider(SalesDateRange(start: _start, end: _end)),
-    );
-    final hoursAsync = ref.watch(
-      hoursByRangeProvider(HoursDateRange(start: _start, end: _end)),
-    );
-    final theme = Theme.of(context);
-
     return Scaffold(
       appBar: AppBar(
         title: const Text('Métricas y gráficas'),
-        actions: [
-          IconButton(
-            tooltip: 'Filtrar fechas',
-            icon: const Icon(Icons.calendar_month_outlined),
-            onPressed: _pickRange,
-          ),
-        ],
       ),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+      body: Column(
         children: [
-          _RangeBanner(
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+            child: SizedBox(
+              width: double.infinity,
+              child: SegmentedButton<_MetricsView>(
+                segments: const [
+                  ButtonSegment(
+                    value: _MetricsView.sales,
+                    label: Text('Ventas'),
+                    icon: Icon(Icons.receipt_long_outlined),
+                  ),
+                  ButtonSegment(
+                    value: _MetricsView.hours,
+                    label: Text('Horas'),
+                    icon: Icon(Icons.schedule_outlined),
+                  ),
+                ],
+                selected: {_view},
+                onSelectionChanged: (s) => _switchView(s.first),
+              ),
+            ),
+          ),
+          RangeFilterBar(
             start: _start,
             end: _end,
-            onPreset: _setPreset,
+            onChanged: (r) => setState(() {
+              _start = r.start;
+              _end = r.end;
+            }),
           ),
-          const SizedBox(height: 24),
-          Text('VENTAS', style: _sectionStyle(theme)),
-          const SizedBox(height: 8),
-          salesAsync.when(
-            loading: () => const Padding(
-              padding: EdgeInsets.symmetric(vertical: 24),
-              child: Center(child: CircularProgressIndicator()),
-            ),
-            error: (e, _) => Text('Error en ventas: $e'),
-            data: (sales) {
-              final m = SalesMetrics.compute(
-                sales,
-                rangeStart: _start,
-                rangeEnd: _end,
-              );
-              return _SalesSection(metrics: m, rangeStart: _start);
-            },
-          ),
-          const SizedBox(height: 24),
-          Text('HORAS', style: _sectionStyle(theme)),
-          const SizedBox(height: 8),
-          hoursAsync.when(
-            loading: () => const Padding(
-              padding: EdgeInsets.symmetric(vertical: 24),
-              child: Center(child: CircularProgressIndicator()),
-            ),
-            error: (e, _) => Text('Error en horas: $e'),
-            data: (entries) {
-              final m = HoursMetrics.compute(entries);
-              return _HoursSection(metrics: m);
-            },
+          Expanded(
+            child: _view == _MetricsView.sales
+                ? _SalesView(start: _start, end: _end)
+                : _HoursView(start: _start, end: _end),
           ),
         ],
       ),
     );
   }
-
-  TextStyle? _sectionStyle(ThemeData theme) =>
-      theme.textTheme.labelLarge?.copyWith(
-        color: theme.colorScheme.primary,
-        letterSpacing: 1.2,
-      );
 }
 
-enum _RangePreset { today, week, month, last30 }
-
-class _RangeBanner extends StatelessWidget {
-  const _RangeBanner({
-    required this.start,
-    required this.end,
-    required this.onPreset,
-  });
-
+/// Vista que renderiza KPIs y gráficas de ventas para el rango dado.
+class _SalesView extends ConsumerWidget {
+  const _SalesView({required this.start, required this.end});
   final DateTime start;
   final DateTime end;
-  final ValueChanged<_RangePreset> onPreset;
 
   @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.primary,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            '${formatDate(start)} – ${formatDate(end)}',
-            style: theme.textTheme.bodySmall?.copyWith(color: Colors.white70),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            'Resumen del periodo',
-            style: theme.textTheme.titleLarge?.copyWith(color: Colors.white),
-          ),
-          const SizedBox(height: 12),
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: [
-                _PresetChip(label: 'Hoy', onTap: () => onPreset(_RangePreset.today)),
-                const SizedBox(width: 8),
-                _PresetChip(
-                    label: 'Esta semana',
-                    onTap: () => onPreset(_RangePreset.week)),
-                const SizedBox(width: 8),
-                _PresetChip(
-                    label: 'Este mes',
-                    onTap: () => onPreset(_RangePreset.month)),
-                const SizedBox(width: 8),
-                _PresetChip(
-                    label: 'Últimos 30 días',
-                    onTap: () => onPreset(_RangePreset.last30)),
-              ],
-            ),
-          ),
-        ],
-      ),
+  Widget build(BuildContext context, WidgetRef ref) {
+    final salesAsync = ref.watch(
+      salesByRangeProvider(SalesDateRange(start: start, end: end)),
+    );
+    return salesAsync.when(
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (e, _) => Center(child: Text('Error en ventas: $e')),
+      data: (sales) {
+        final m = SalesMetrics.compute(
+          sales,
+          rangeStart: start,
+          rangeEnd: end,
+        );
+        return ListView(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
+          children: [_SalesSection(metrics: m, rangeStart: start)],
+        );
+      },
     );
   }
 }
 
-class _PresetChip extends StatelessWidget {
-  const _PresetChip({required this.label, required this.onTap});
-  final String label;
-  final VoidCallback onTap;
+/// Vista que renderiza KPIs y gráficas de horas para el rango dado.
+class _HoursView extends ConsumerWidget {
+  const _HoursView({required this.start, required this.end});
+  final DateTime start;
+  final DateTime end;
 
   @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(999),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.18),
-          borderRadius: BorderRadius.circular(999),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.4)),
-        ),
-        child: Text(
-          label,
-          style: const TextStyle(
-              color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
-        ),
-      ),
+  Widget build(BuildContext context, WidgetRef ref) {
+    final hoursAsync = ref.watch(
+      hoursByRangeProvider(HoursDateRange(start: start, end: end)),
+    );
+    return hoursAsync.when(
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (e, _) => Center(child: Text('Error en horas: $e')),
+      data: (entries) {
+        final m = HoursMetrics.compute(entries);
+        return ListView(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
+          children: [_HoursSection(metrics: m)],
+        );
+      },
     );
   }
 }

@@ -48,6 +48,11 @@ class RangeFilterBar extends StatelessWidget {
         newEnd = endOfDay(now);
         break;
       case _RangePreset.month:
+        // "Este mes" cubre SIEMPRE el mes natural completo: del día 1 al
+        // último día calendario, sin importar si hoy es la primera semana.
+        // Esto garantiza que los exports semanales incluyan todas las
+        // parciales de inicio y fin de mes (los meses no caben en 4
+        // semanas exactas).
         newStart = startOfMonth(now);
         newEnd = endOfMonth(now);
         break;
@@ -106,13 +111,13 @@ class RangeFilterBar extends StatelessWidget {
                 ),
                 const SizedBox(width: 6),
                 _Chip(
-                  label: 'Semana',
+                  label: 'Esta semana',
                   selected: activePreset == _RangePreset.week,
                   onTap: () => _applyPreset(_RangePreset.week),
                 ),
                 const SizedBox(width: 6),
                 _Chip(
-                  label: 'Mes',
+                  label: 'Este mes',
                   selected: activePreset == _RangePreset.month,
                   onTap: () => _applyPreset(_RangePreset.month),
                 ),
