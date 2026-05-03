@@ -185,7 +185,7 @@ class FormSchema {
           ),
           const FieldDefinition(
             id: 'providerName',
-            label: 'Nombre del proveedor',
+            label: 'Nombre del cliente',
             type: FieldType.masterListReference,
             masterListId: 'providers',
             required: true,
@@ -258,7 +258,7 @@ class FormSchema {
           ),
           const FieldDefinition(
             id: 'payerName',
-            label: 'Quién paga',
+            label: 'Quién recibe',
             type: FieldType.masterListReference,
             masterListId: 'payers',
             required: true,

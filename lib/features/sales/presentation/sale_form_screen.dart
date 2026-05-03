@@ -195,7 +195,7 @@ class _SaleFormScreenState extends ConsumerState<SaleFormScreen> {
               const SizedBox(height: 12),
               MasterListField(
                 listId: 'providers',
-                label: 'Nombre del proveedor',
+                label: 'Nombre del cliente',
                 initialValue: _provider,
                 required: true,
                 onChanged: (v) => setState(() => _provider = v),
@@ -293,7 +293,7 @@ class _SaleFormScreenState extends ConsumerState<SaleFormScreen> {
               const SizedBox(height: 12),
               MasterListField(
                 listId: 'payers',
-                label: 'Quién paga',
+                label: 'Quién recibe',
                 initialValue: _payer,
                 required: true,
                 onChanged: (v) => setState(() => _payer = v),

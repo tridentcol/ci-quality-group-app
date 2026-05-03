@@ -29,7 +29,7 @@ class XlsxExportService {
       'Fecha',
       'Tipo documento',
       'Número documento',
-      'Proveedor',
+      'Cliente',
       'Material',
       'Tipo lámina',
       'Unidad',
@@ -37,7 +37,7 @@ class XlsxExportService {
       'Valor unitario',
       'Valor total',
       'Método de pago',
-      'Quién paga',
+      'Quién recibe',
       'Registrada por',
       'Registrada el',
     ];

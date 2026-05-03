@@ -141,7 +141,7 @@ class _SaleDetailBody extends ConsumerWidget {
               children: [
                 _Row(label: 'Tipo de documento', value: sale.documentType),
                 _Row(label: 'Número de documento', value: sale.documentNumber),
-                _Row(label: 'Proveedor', value: sale.providerName),
+                _Row(label: 'Cliente', value: sale.providerName),
                 const Divider(height: 24),
                 _Row(label: 'Material', value: sale.material),
                 if (sale.materialVariant != null)
@@ -152,7 +152,7 @@ class _SaleDetailBody extends ConsumerWidget {
                 _Row(label: 'Valor total', value: formatCop(sale.totalValue)),
                 const Divider(height: 24),
                 _Row(label: 'Método de pago', value: sale.paymentMethod),
-                _Row(label: 'Quién paga', value: sale.payerName),
+                _Row(label: 'Quién recibe', value: sale.payerName),
                 const Divider(height: 24),
                 _Row(label: 'Registrada por', value: sale.createdByName),
                 _Row(label: 'Registrada el', value: formatDateTime(sale.createdAt)),

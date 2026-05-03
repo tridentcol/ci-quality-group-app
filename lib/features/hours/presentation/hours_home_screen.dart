@@ -21,27 +21,6 @@ class HoursHomeScreen extends ConsumerStatefulWidget {
 
 class _HoursHomeScreenState extends ConsumerState<HoursHomeScreen> {
   String _query = '';
-  bool _seedTried = false;
-
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _seedIfEmpty());
-  }
-
-  Future<void> _seedIfEmpty() async {
-    if (_seedTried) return;
-    _seedTried = true;
-    try {
-      final loaded =
-          await ref.read(workersRepositoryProvider).seedFromAssetsIfEmpty();
-      if (loaded > 0 && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Se cargaron $loaded trabajadores iniciales.')),
-        );
-      }
-    } catch (_) {}
-  }
 
   @override
   Widget build(BuildContext context) {

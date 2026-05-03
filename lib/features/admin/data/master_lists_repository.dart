@@ -119,22 +119,28 @@ class MasterListsRepository {
     await _itemsCol(listId).doc(itemId).update({'active': false});
   }
 
-  /// Crea las listas base si no existen todavía. Se llama desde el panel admin
-  /// la primera vez que entra a "Listas maestras".
+  /// Crea o actualiza la metadata (nombre, descripción, allowFreeText) de las
+  /// listas base. Se llama desde el panel admin al entrar a "Listas maestras".
+  ///
+  /// La metadata se hace upsert siempre, así rebautizar etiquetas en código
+  /// se propaga a las instalaciones existentes. Los items solo se crean en
+  /// la primera ejecución para no duplicarlos.
   Future<void> seedDefaults() async {
     final defaults = _defaultListsSeed();
     for (final spec in defaults) {
       final id = spec['id'] as String;
       final existing = await _listsCol.doc(id).get();
-      if (existing.exists) continue;
 
       await _listsCol.doc(id).set({
         'name': spec['name'],
         'allowFreeText': spec['allowFreeText'],
         'description': spec['description'],
-      });
+      }, SetOptions(merge: true));
+
+      if (existing.exists) continue;
 
       final items = spec['items'] as List<String>;
+      if (items.isEmpty) continue;
       final batch = _firestore.batch();
       for (final value in items) {
         final ref = _itemsCol(id).doc();
@@ -148,16 +154,16 @@ class MasterListsRepository {
 List<Map<String, dynamic>> _defaultListsSeed() => [
       {
         'id': 'providers',
-        'name': 'Proveedores',
+        'name': 'Clientes',
         'allowFreeText': true,
-        'description': 'Personas o empresas a las que se les compra material.',
+        'description': 'Personas o empresas a las que se les vende material.',
         'items': <String>[],
       },
       {
         'id': 'payers',
-        'name': 'Quién paga',
+        'name': 'Quién recibe',
         'allowFreeText': true,
-        'description': 'Personas que efectivamente desembolsan en una venta.',
+        'description': 'Quién recibe efectivamente el pago de una venta.',
         'items': <String>[],
       },
       {
