@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants/firestore_paths.dart';
+import '../../auth/data/auth_repository.dart';
 import '../domain/master_list.dart';
 
 /// Acceso a las listas maestras gestionadas por el admin.
@@ -208,11 +209,13 @@ final masterListsRepositoryProvider = Provider<MasterListsRepository>((ref) {
 });
 
 final masterListsProvider = StreamProvider<List<MasterList>>((ref) {
+  ref.watch(authStateProvider);
   return ref.watch(masterListsRepositoryProvider).watchLists();
 });
 
 final masterListItemsProvider = StreamProvider.family
     .autoDispose<List<MasterListItem>, MasterListItemsQuery>((ref, query) {
+  ref.watch(authStateProvider);
   return ref
       .watch(masterListsRepositoryProvider)
       .watchItems(query.listId, parent: query.parent);

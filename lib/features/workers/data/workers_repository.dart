@@ -5,6 +5,7 @@ import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants/firestore_paths.dart';
+import '../../auth/data/auth_repository.dart';
 import '../domain/worker.dart';
 
 /// Acceso a la colección `workers`.
@@ -148,10 +149,14 @@ final workersRepositoryProvider = Provider<WorkersRepository>((ref) {
 });
 
 final activeWorkersProvider = StreamProvider<List<Worker>>((ref) {
+  // Re-crea el listener cuando cambia la sesión, para que arranque siempre
+  // con el token correcto y evite errores residuales de permission-denied.
+  ref.watch(authStateProvider);
   return ref.watch(workersRepositoryProvider).watchActive();
 });
 
 final allWorkersProvider = StreamProvider<List<Worker>>((ref) {
+  ref.watch(authStateProvider);
   return ref.watch(workersRepositoryProvider).watchAll();
 });
 

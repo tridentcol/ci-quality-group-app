@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants/firestore_paths.dart';
+import '../../auth/data/auth_repository.dart';
 import '../domain/sale.dart';
 
 /// Acceso a la colección `sales`.
@@ -168,11 +169,13 @@ class SalesDateRange {
 
 final salesByRangeProvider =
     StreamProvider.family.autoDispose<List<Sale>, SalesDateRange>((ref, range) {
+  ref.watch(authStateProvider);
   return ref
       .watch(salesRepositoryProvider)
       .watchByDateRange(range.start, range.end);
 });
 
 final recentSalesProvider = StreamProvider.autoDispose<List<Sale>>((ref) {
+  ref.watch(authStateProvider);
   return ref.watch(salesRepositoryProvider).watchRecent();
 });

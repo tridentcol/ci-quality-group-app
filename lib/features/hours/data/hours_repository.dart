@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants/firestore_paths.dart';
 import '../../../core/utils/dates.dart';
+import '../../auth/data/auth_repository.dart';
 import '../domain/hours_calculator.dart';
 import '../domain/hours_categories.dart';
 import '../domain/hours_entry.dart';
@@ -202,6 +203,9 @@ final hoursRepositoryProvider = Provider<HoursRepository>((ref) {
 
 final todayHoursByWorkerProvider =
     StreamProvider<Map<String, HoursEntry>>((ref) {
+  // Re-crea el listener al cambiar la sesión para que arranque siempre con
+  // el token correcto y no quede atascado en permission-denied.
+  ref.watch(authStateProvider);
   return ref.watch(hoursRepositoryProvider).watchTodayByWorker();
 });
 
@@ -220,6 +224,7 @@ class HoursDateRange {
 
 final hoursByRangeProvider = StreamProvider.family
     .autoDispose<List<HoursEntry>, HoursDateRange>((ref, range) {
+  ref.watch(authStateProvider);
   return ref.watch(hoursRepositoryProvider).watchByRange(range.start, range.end);
 });
 
