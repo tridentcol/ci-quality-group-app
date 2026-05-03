@@ -100,9 +100,14 @@ class HoursRepository {
 
     if (closedAt != null) {
       patch['closedAt'] = Timestamp.fromDate(AppClock.toInstant(closedAt));
-      patch['editableUntil'] = Timestamp.fromDate(
-        AppClock.toInstant(closedAt.add(const Duration(hours: 24))),
-      );
+      // La ventana de 24 h se inicia SOLO en el primer cierre del registro.
+      // Reaperturas y re-cierres no la reinician — la idea es que sea una
+      // ventana fija a partir del primer envío.
+      if (entry.editableUntil == null) {
+        patch['editableUntil'] = Timestamp.fromDate(
+          AppClock.toInstant(closedAt.add(const Duration(hours: 24))),
+        );
+      }
     }
 
     if (newCheckOut != null) {
@@ -130,10 +135,13 @@ class HoursRepository {
   }
 
   /// Reabre un día cerrado. Solo el admin debería invocarlo.
+  ///
+  /// `editableUntil` se conserva intencionalmente: la ventana original de
+  /// 24 h del primer cierre sigue vigente. Si ya expiró, el encargado no
+  /// puede editar aunque el día vuelva a estar abierto — solo el admin.
   Future<void> reopenDay(String id) async {
     await _col.doc(id).update({
       'closedAt': null,
-      'editableUntil': null,
       'breakdown': HoursBreakdown().toMinutesMap(),
       'updatedAt': Timestamp.fromDate(AppClock.toInstant(AppClock.now())),
     });

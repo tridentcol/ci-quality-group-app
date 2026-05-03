@@ -274,9 +274,21 @@ class _WorkerDayScreenState extends ConsumerState<WorkerDayScreen> {
                     onSetCheckOutNow: () => _setCheckOutNow(entry),
                   ),
                   const SizedBox(height: 12),
-                  if (!entry.isOpen)
-                    BreakdownCard(breakdown: entry.breakdown),
-                  if (!entry.isOpen) const SizedBox(height: 12),
+                  // El desglose por categoría legal (ord, extra diurna,
+                  // dominical, etc.) solo lo ve el admin. El encargado de
+                  // horas no necesita ver esa información detallada.
+                  Consumer(builder: (context, ref, _) {
+                    final isAdmin =
+                        ref.watch(currentProfileProvider).valueOrNull?.role.id ==
+                            'admin';
+                    if (entry.isOpen || !isAdmin) {
+                      return const SizedBox.shrink();
+                    }
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: BreakdownCard(breakdown: entry.breakdown),
+                    );
+                  }),
                   if (entry.editableUntil != null && entry.isOpen == false)
                     Padding(
                       padding: const EdgeInsets.only(bottom: 12),
