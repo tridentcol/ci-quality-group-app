@@ -80,6 +80,14 @@ class AdminDashboardScreen extends ConsumerWidget {
             icon: Icons.list_alt_outlined,
             onTap: () => context.push('/admin/master-lists'),
           ),
+          const SizedBox(height: 10),
+          _AdminTile(
+            title: 'Configuración de jornada',
+            subtitle:
+                'Horarios ordinarios, almuerzo y franjas diurna / nocturna.',
+            icon: Icons.tune_outlined,
+            onTap: () => context.push('/admin/settings/schedule'),
+          ),
           const SizedBox(height: 24),
           Text('HORAS', style: _sectionStyle(context)),
           const SizedBox(height: 8),
@@ -119,13 +127,6 @@ class AdminDashboardScreen extends ConsumerWidget {
             title: 'Usuarios de la app',
             subtitle: 'Crea, edita y resetea contraseñas.',
             icon: Icons.manage_accounts_outlined,
-            onTap: null,
-          ),
-          const SizedBox(height: 10),
-          const _AdminTile(
-            title: 'Configuración de jornada',
-            subtitle: 'Horario ordinario, almuerzo y franja diurna/nocturna.',
-            icon: Icons.tune_outlined,
             onTap: null,
           ),
           const SizedBox(height: 32),

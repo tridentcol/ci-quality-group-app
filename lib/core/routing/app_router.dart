@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../features/admin/presentation/admin_dashboard_screen.dart';
 import '../../features/admin/presentation/master_list_detail_screen.dart';
 import '../../features/admin/presentation/master_lists_screen.dart';
+import '../../features/admin/presentation/work_schedule_settings_screen.dart';
 import '../../features/auth/data/auth_repository.dart';
 import '../../features/auth/presentation/login_screen.dart';
 import '../../features/hours/presentation/hours_admin_screen.dart';
@@ -122,6 +123,10 @@ final routerProvider = Provider<GoRouter>((ref) {
                 ],
               ),
             ],
+          ),
+          GoRoute(
+            path: 'settings/schedule',
+            builder: (_, __) => const WorkScheduleSettingsScreen(),
           ),
           GoRoute(
             path: 'workers',
