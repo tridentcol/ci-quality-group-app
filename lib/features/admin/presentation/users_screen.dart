@@ -9,6 +9,7 @@ import '../../../shared/widgets/skeleton.dart';
 import '../../auth/data/auth_repository.dart';
 import '../../auth/data/users_repository.dart';
 import '../../auth/domain/app_user.dart';
+import 'admin_shell.dart';
 
 class UsersScreen extends ConsumerWidget {
   const UsersScreen({super.key});
@@ -22,6 +23,7 @@ class UsersScreen extends ConsumerWidget {
     final theme = Theme.of(context);
 
     return Scaffold(
+      drawer: adminDrawerOrNull(context, '/admin/users'),
       appBar: AppBar(title: const Text('Usuarios de la app')),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => context.push('/admin/users/new'),

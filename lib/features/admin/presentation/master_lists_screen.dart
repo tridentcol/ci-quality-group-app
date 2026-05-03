@@ -6,6 +6,7 @@ import '../../../shared/widgets/empty_state.dart';
 import '../../../shared/widgets/error_view.dart';
 import '../../../shared/widgets/skeleton.dart';
 import '../data/master_lists_repository.dart';
+import 'admin_shell.dart';
 
 class MasterListsScreen extends ConsumerStatefulWidget {
   const MasterListsScreen({super.key});
@@ -33,6 +34,7 @@ class _MasterListsScreenState extends ConsumerState<MasterListsScreen> {
   Widget build(BuildContext context) {
     final listsAsync = ref.watch(masterListsProvider);
     return Scaffold(
+      drawer: adminDrawerOrNull(context, '/admin/master-lists'),
       appBar: AppBar(title: const Text('Listas maestras')),
       body: RefreshIndicator(
         // Solo invalida el stream — sin escribir a Firestore. Para forzar

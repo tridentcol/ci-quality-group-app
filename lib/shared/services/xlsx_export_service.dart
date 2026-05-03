@@ -1,14 +1,13 @@
-import 'dart:io';
-
 import 'package:excel/excel.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:share_plus/share_plus.dart';
 
 import '../../features/hours/domain/hours_categories.dart';
 import '../../features/hours/domain/hours_entry.dart';
 import '../../features/sales/domain/sale.dart';
+// Conditional import: en native (Android/iOS) usa path_provider+share_plus,
+// en web usa Blob + anchor download. Mismo API público `deliverBytes`.
+import '_export_io.dart' if (dart.library.html) '_export_web.dart' as deliver;
 
 /// Exporta colecciones de datos a `.xlsx` y abre el share sheet del sistema
 /// para que el admin lo envíe por correo, WhatsApp o lo guarde en Drive.
@@ -119,9 +118,17 @@ class XlsxExportService {
         '${DateFormat('yyyyMMdd').format(rangeStart)}_'
         '${DateFormat('yyyyMMdd').format(rangeEnd)}.xlsx';
 
-    await _saveAndShare(
-      excel: excel,
-      filename: filename,
+    final bytes = excel.save(fileName: filename);
+    if (bytes == null) throw StateError('No se pudo serializar el Excel.');
+    await deliver.deliverFiles(
+      files: [
+        deliver.ExportFile(
+          bytes: bytes,
+          filename: filename,
+          mimeType:
+              'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ),
+      ],
       subject: 'Ventas CI Quality Group',
       message:
           'Exportación de ventas del ${dateFmt.format(rangeStart)} al ${dateFmt.format(rangeEnd)} '
@@ -154,8 +161,7 @@ class XlsxExportService {
     }
 
     final months = byMonth.keys.toList()..sort();
-    final dir = await getTemporaryDirectory();
-    final files = <XFile>[];
+    final files = <deliver.ExportFile>[];
     final monthFmt = DateFormat('MMMM yyyy', 'es_CO');
     final dateRangeFmt = DateFormat('dd/MM/yyyy', 'es_CO');
 
@@ -174,10 +180,9 @@ class XlsxExportService {
       if (bytes == null) {
         throw StateError('No se pudo serializar el Excel de $monthLabel.');
       }
-      final file = File('${dir.path}/$filename');
-      await file.writeAsBytes(bytes, flush: true);
-      files.add(XFile(
-        file.path,
+      files.add(deliver.ExportFile(
+        bytes: bytes,
+        filename: filename,
         mimeType:
             'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       ));
@@ -190,10 +195,10 @@ class XlsxExportService {
         : 'Horas del ${dateRangeFmt.format(rangeStart)} al ${dateRangeFmt.format(rangeEnd)}: '
             '${months.length} libros adjuntos (${entries.length} registros en total).';
 
-    await Share.shareXFiles(
-      files,
+    await deliver.deliverFiles(
+      files: files,
       subject: 'Horas laboradas CI Quality Group',
-      text: shareText,
+      message: shareText,
       sharePositionOrigin: _shareOrigin(context),
     );
   }
@@ -498,31 +503,6 @@ class XlsxExportService {
     return cleaned.length <= 31 ? cleaned : cleaned.substring(0, 31);
   }
 
-  static Future<void> _saveAndShare({
-    required Excel excel,
-    required String filename,
-    required String subject,
-    required String message,
-    required Rect sharePositionOrigin,
-  }) async {
-    final bytes = excel.save(fileName: filename);
-    if (bytes == null) throw StateError('No se pudo serializar el Excel.');
-    final dir = await getTemporaryDirectory();
-    final file = File('${dir.path}/$filename');
-    await file.writeAsBytes(bytes, flush: true);
-    await Share.shareXFiles(
-      [
-        XFile(
-          file.path,
-          mimeType:
-              'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        ),
-      ],
-      subject: subject,
-      text: message,
-      sharePositionOrigin: sharePositionOrigin,
-    );
-  }
 }
 
 class _WeekRange {

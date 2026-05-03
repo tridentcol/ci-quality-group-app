@@ -8,6 +8,7 @@ import '../../../shared/widgets/confirm_dialog.dart';
 import '../../../shared/widgets/error_view.dart';
 import '../../../shared/widgets/loading_button.dart';
 import '../../../shared/widgets/section_label.dart';
+import '../../admin/presentation/admin_shell.dart';
 import '../../auth/data/auth_repository.dart';
 import '../data/form_schema_repository.dart';
 import '../domain/form_schema.dart';
@@ -48,6 +49,7 @@ class _FormBuilderScreenState extends ConsumerState<FormBuilderScreen> {
       }
     });
     return Scaffold(
+      drawer: adminDrawerOrNull(context, '/admin/form-builder'),
       appBar: AppBar(
         title: const Text('Constructor de formularios'),
         actions: [

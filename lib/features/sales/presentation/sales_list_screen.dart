@@ -12,6 +12,7 @@ import '../../../shared/widgets/error_view.dart';
 import '../../../shared/widgets/hero_banner.dart';
 import '../../../shared/widgets/range_filter_bar.dart';
 import '../../../shared/widgets/skeleton.dart';
+import '../../admin/presentation/admin_shell.dart';
 import '../data/sales_repository.dart';
 import '../domain/sale.dart';
 import 'widgets/sale_card.dart';
@@ -74,6 +75,7 @@ class _SalesListScreenState extends ConsumerState<SalesListScreen> {
       salesByRangeProvider(SalesDateRange(start: _start, end: _end)),
     );
     return Scaffold(
+      drawer: adminDrawerOrNull(context, '/admin/sales'),
       appBar: AppBar(
         title: const Text('Ventas'),
         actions: [

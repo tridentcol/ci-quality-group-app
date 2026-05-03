@@ -5,6 +5,7 @@ import '../../../core/utils/dates.dart';
 import '../../../core/utils/time_picker.dart';
 import '../../hours/data/work_schedule_repository.dart';
 import '../../hours/domain/work_schedule.dart';
+import 'admin_shell.dart';
 
 /// Pantalla de configuración global de la jornada laboral.
 ///
@@ -186,6 +187,7 @@ class _WorkScheduleSettingsScreenState
     final scheduleAsync = ref.watch(workScheduleProvider);
 
     return Scaffold(
+      drawer: adminDrawerOrNull(context, '/admin/settings/schedule'),
       appBar: AppBar(
         title: const Text('Configuración de jornada'),
         actions: [

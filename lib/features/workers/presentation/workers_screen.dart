@@ -7,6 +7,7 @@ import '../../../shared/widgets/confirm_dialog.dart';
 import '../../../shared/widgets/empty_state.dart';
 import '../../../shared/widgets/error_view.dart';
 import '../../../shared/widgets/skeleton.dart';
+import '../../admin/presentation/admin_shell.dart';
 import '../data/workers_repository.dart';
 import '../domain/worker.dart';
 
@@ -84,6 +85,7 @@ class _WorkersScreenState extends ConsumerState<WorkersScreen> {
         ? ref.watch(allWorkersProvider)
         : ref.watch(activeWorkersProvider);
     return Scaffold(
+      drawer: adminDrawerOrNull(context, '/admin/workers'),
       appBar: AppBar(
         title: const Text('Trabajadores'),
         actions: [

@@ -11,6 +11,7 @@ import '../../../shared/widgets/error_view.dart';
 import '../../../shared/widgets/hero_banner.dart';
 import '../../../shared/widgets/range_filter_bar.dart';
 import '../../../shared/widgets/skeleton.dart';
+import '../../admin/presentation/admin_shell.dart';
 import '../../workers/data/workers_repository.dart';
 import '../data/hours_repository.dart';
 import '../domain/hours_categories.dart';
@@ -71,6 +72,7 @@ class _HoursAdminScreenState extends ConsumerState<HoursAdminScreen> {
     );
     final workers = ref.watch(allWorkersProvider).valueOrNull ?? const [];
     return Scaffold(
+      drawer: adminDrawerOrNull(context, '/admin/hours'),
       appBar: AppBar(
         title: const Text('Horas laboradas'),
         actions: [

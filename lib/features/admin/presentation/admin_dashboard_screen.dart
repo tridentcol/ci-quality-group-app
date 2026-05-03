@@ -5,9 +5,39 @@ import 'package:go_router/go_router.dart';
 import '../../../shared/widgets/app_logo.dart';
 import '../../../shared/widgets/section_label.dart';
 import '../../auth/data/auth_repository.dart';
+import 'admin_metrics_screen.dart';
+import 'admin_shell.dart';
 
+/// Pantalla home del panel admin. Es responsive:
+///
+///  - **Wide / desktop (≥ 700 px)**: muestra el dashboard de métricas
+///    directamente como contenido. La navegación a otros módulos
+///    (ventas, horas, usuarios, etc.) la maneja el `AdminShell` con
+///    su NavigationRail persistente a la izquierda.
+///  - **Mobile / narrow (< 700 px)**: muestra el grid de tiles clásico
+///    para tap rápido + un Drawer accesible desde el AppBar para
+///    navegación más densa.
 class AdminDashboardScreen extends ConsumerWidget {
   const AdminDashboardScreen({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth >= 700) {
+          // En wide, el shell ya provee la nav. Mostramos las métricas
+          // directamente, sin AppBar duplicada (la sub-pantalla
+          // AdminMetricsScreen ya trae su propio Scaffold/AppBar).
+          return const AdminMetricsScreen();
+        }
+        return const _NarrowDashboard();
+      },
+    );
+  }
+}
+
+class _NarrowDashboard extends ConsumerWidget {
+  const _NarrowDashboard();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -24,6 +54,7 @@ class AdminDashboardScreen extends ConsumerWidget {
           ),
         ],
       ),
+      drawer: const AdminNavigationDrawer(location: '/admin'),
       body: ListView(
         padding: const EdgeInsets.all(20),
         children: [

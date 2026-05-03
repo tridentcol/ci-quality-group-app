@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../features/admin/presentation/admin_dashboard_screen.dart';
 import '../../features/admin/presentation/admin_metrics_screen.dart';
+import '../../features/admin/presentation/admin_shell.dart';
 import '../../features/admin/presentation/master_list_detail_screen.dart';
 import '../../features/admin/presentation/master_lists_screen.dart';
 import '../../features/admin/presentation/user_form_screen.dart';
@@ -87,83 +88,95 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/', builder: (_, __) => const _SplashScreen()),
       GoRoute(path: '/login', builder: (_, __) => const LoginScreen()),
 
-      // Admin
-      GoRoute(
-        path: '/admin',
-        builder: (_, __) => const AdminDashboardScreen(),
+      // Admin: todas las rutas /admin/* viven dentro de un ShellRoute
+      // que provee el AdminShell — NavigationRail persistente en wide
+      // screens, drawer-on-AppBar en mobile (cada pantalla decide si
+      // expone el drawer o no).
+      ShellRoute(
+        builder: (context, state, child) => AdminShell(
+          location: state.uri.toString(),
+          child: child,
+        ),
         routes: [
           GoRoute(
-            path: 'master-lists',
-            builder: (_, __) => const MasterListsScreen(),
+            path: '/admin',
+            builder: (_, __) => const AdminDashboardScreen(),
             routes: [
               GoRoute(
-                path: ':listId',
-                builder: (_, state) => MasterListDetailScreen(
-                    listId: state.pathParameters['listId']!),
-              ),
-            ],
-          ),
-          GoRoute(
-            path: 'sales',
-            builder: (_, __) => const SalesListScreen(),
-          ),
-          GoRoute(
-            path: 'hours',
-            builder: (_, __) => const HoursAdminScreen(),
-            routes: [
-              GoRoute(
-                path: 'manual',
-                builder: (_, __) => const ManualHoursEntryScreen(),
+                path: 'master-lists',
+                builder: (_, __) => const MasterListsScreen(),
                 routes: [
                   GoRoute(
-                    path: ':entryId',
-                    builder: (_, state) => ManualHoursEntryScreen(
-                      entryId: state.pathParameters['entryId']!,
+                    path: ':listId',
+                    builder: (_, state) => MasterListDetailScreen(
+                      listId: state.pathParameters['listId']!,
                     ),
                   ),
                 ],
               ),
-            ],
-          ),
-          GoRoute(
-            path: 'metrics',
-            builder: (_, __) => const AdminMetricsScreen(),
-          ),
-          GoRoute(
-            path: 'settings/schedule',
-            builder: (_, __) => const WorkScheduleSettingsScreen(),
-          ),
-          GoRoute(
-            path: 'form-builder',
-            builder: (_, __) => const FormBuilderScreen(module: 'sales'),
-          ),
-          GoRoute(
-            path: 'users',
-            builder: (_, __) => const UsersScreen(),
-            routes: [
               GoRoute(
-                path: 'new',
-                builder: (_, __) => const UserFormScreen(),
+                path: 'sales',
+                builder: (_, __) => const SalesListScreen(),
               ),
               GoRoute(
-                path: ':uid',
-                builder: (_, state) =>
-                    _EditUserRoute(uid: state.pathParameters['uid']!),
+                path: 'hours',
+                builder: (_, __) => const HoursAdminScreen(),
+                routes: [
+                  GoRoute(
+                    path: 'manual',
+                    builder: (_, __) => const ManualHoursEntryScreen(),
+                    routes: [
+                      GoRoute(
+                        path: ':entryId',
+                        builder: (_, state) => ManualHoursEntryScreen(
+                          entryId: state.pathParameters['entryId']!,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ),
-            ],
-          ),
-          GoRoute(
-            path: 'workers',
-            builder: (_, __) => const WorkersScreen(),
-            routes: [
               GoRoute(
-                path: 'new',
-                builder: (_, __) => const WorkerFormScreen(),
+                path: 'metrics',
+                builder: (_, __) => const AdminMetricsScreen(),
               ),
               GoRoute(
-                path: ':id/edit',
-                builder: (_, state) =>
-                    _EditWorkerRoute(workerId: state.pathParameters['id']!),
+                path: 'settings/schedule',
+                builder: (_, __) => const WorkScheduleSettingsScreen(),
+              ),
+              GoRoute(
+                path: 'form-builder',
+                builder: (_, __) => const FormBuilderScreen(module: 'sales'),
+              ),
+              GoRoute(
+                path: 'users',
+                builder: (_, __) => const UsersScreen(),
+                routes: [
+                  GoRoute(
+                    path: 'new',
+                    builder: (_, __) => const UserFormScreen(),
+                  ),
+                  GoRoute(
+                    path: ':uid',
+                    builder: (_, state) =>
+                        _EditUserRoute(uid: state.pathParameters['uid']!),
+                  ),
+                ],
+              ),
+              GoRoute(
+                path: 'workers',
+                builder: (_, __) => const WorkersScreen(),
+                routes: [
+                  GoRoute(
+                    path: 'new',
+                    builder: (_, __) => const WorkerFormScreen(),
+                  ),
+                  GoRoute(
+                    path: ':id/edit',
+                    builder: (_, state) => _EditWorkerRoute(
+                        workerId: state.pathParameters['id']!),
+                  ),
+                ],
               ),
             ],
           ),

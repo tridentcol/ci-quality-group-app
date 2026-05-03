@@ -9,6 +9,7 @@ import '../../../core/utils/dates.dart';
 import '../../../core/utils/money.dart';
 import '../../../shared/widgets/error_view.dart';
 import '../../../shared/widgets/kpi_card.dart';
+import 'admin_shell.dart';
 import '../../../shared/widgets/range_filter_bar.dart';
 import '../../hours/data/hours_repository.dart';
 import '../../hours/domain/hours_categories.dart';
@@ -58,6 +59,7 @@ class _AdminMetricsScreenState extends ConsumerState<AdminMetricsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      drawer: adminDrawerOrNull(context, '/admin'),
       appBar: AppBar(
         title: const Text('Métricas y gráficas'),
       ),
