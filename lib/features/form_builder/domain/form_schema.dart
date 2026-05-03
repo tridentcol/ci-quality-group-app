@@ -1,5 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import '../../../core/utils/clock.dart';
+
 /// Tipo de campo soportado por el constructor de formularios.
 enum FieldType {
   text,
@@ -132,7 +134,7 @@ class FormSchema {
         'module': module,
         'version': version,
         'fields': fields.map((f) => f.toMap()).toList(),
-        'updatedAt': Timestamp.fromDate(updatedAt),
+        'updatedAt': Timestamp.fromDate(AppClock.toInstant(updatedAt)),
         'updatedBy': updatedBy,
       };
 
@@ -145,7 +147,8 @@ class FormSchema {
       fields: (data['fields'] as List)
           .map((f) => FieldDefinition.fromMap(f as Map<String, dynamic>))
           .toList(),
-      updatedAt: (data['updatedAt'] as Timestamp).toDate(),
+      updatedAt:
+          AppClock.fromInstant((data['updatedAt'] as Timestamp).toDate()),
       updatedBy: data['updatedBy'] as String?,
     );
   }
@@ -156,7 +159,7 @@ class FormSchema {
         id: 'sales_v1',
         module: 'sales',
         version: 1,
-        updatedAt: DateTime.now(),
+        updatedAt: AppClock.now(),
         fields: [
           const FieldDefinition(
             id: 'date',

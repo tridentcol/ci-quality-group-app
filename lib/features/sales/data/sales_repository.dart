@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants/firestore_paths.dart';
+import '../../../core/utils/clock.dart';
 import '../../auth/data/auth_repository.dart';
 import '../domain/sale.dart';
 
@@ -40,7 +41,7 @@ class SalesRepository {
     required String createdByName,
     Map<String, dynamic> customFields = const {},
   }) async {
-    final now = DateTime.now();
+    final now = AppClock.now();
     final docRef = _col.doc();
 
     return _firestore.runTransaction<Sale>((txn) async {
@@ -106,7 +107,7 @@ class SalesRepository {
       if (paymentMethod != null) 'paymentMethod': paymentMethod,
       if (payerName != null) 'payerName': payerName,
       if (customFields != null) 'customFields': customFields,
-      'updatedAt': Timestamp.fromDate(DateTime.now()),
+      'updatedAt': Timestamp.fromDate(AppClock.toInstant(AppClock.now())),
     };
     if (quantity != null || unitPrice != null) {
       // Recalculamos el total cuando cambia cantidad o precio.

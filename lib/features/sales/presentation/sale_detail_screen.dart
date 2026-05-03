@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/utils/clock.dart';
 import '../../../core/utils/dates.dart';
 import '../../../core/utils/money.dart';
 import '../../auth/data/auth_repository.dart';
@@ -48,7 +49,7 @@ class _SaleDetailBody extends ConsumerWidget {
     if (profile.uid != sale.createdBy) return false;
     final until = sale.editableUntil;
     if (until == null) return false;
-    return DateTime.now().isBefore(until);
+    return AppClock.now().isBefore(until);
   }
 
   Future<void> _confirmDelete(BuildContext context, WidgetRef ref) async {
@@ -162,7 +163,7 @@ class _SaleDetailBody extends ConsumerWidget {
                   Padding(
                     padding: const EdgeInsets.only(top: 8),
                     child: Text(
-                      DateTime.now().isBefore(sale.editableUntil!)
+                      AppClock.now().isBefore(sale.editableUntil!)
                           ? 'Editable hasta ${formatDateTime(sale.editableUntil!)}'
                           : 'Ya pasó la ventana de edición. Solo el admin puede modificar.',
                       style: theme.textTheme.bodySmall?.copyWith(

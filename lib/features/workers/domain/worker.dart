@@ -1,5 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import '../../../core/utils/clock.dart';
+
 /// Trabajador operativo. No es usuario de la app — solo se le registran horas.
 class Worker {
   const Worker({
@@ -65,9 +67,10 @@ class Worker {
         'active': active,
         'createdAt': createdAt == null
             ? FieldValue.serverTimestamp()
-            : Timestamp.fromDate(createdAt!),
-        'deactivatedAt':
-            deactivatedAt == null ? null : Timestamp.fromDate(deactivatedAt!),
+            : Timestamp.fromDate(AppClock.toInstant(createdAt!)),
+        'deactivatedAt': deactivatedAt == null
+            ? null
+            : Timestamp.fromDate(AppClock.toInstant(deactivatedAt!)),
       };
 
   factory Worker.fromSnapshot(DocumentSnapshot<Map<String, dynamic>> snap) {
@@ -82,8 +85,12 @@ class Worker {
       phone: data['phone'] as String?,
       bank: data['bank'] as String?,
       active: (data['active'] as bool?) ?? true,
-      createdAt: (data['createdAt'] as Timestamp?)?.toDate(),
-      deactivatedAt: (data['deactivatedAt'] as Timestamp?)?.toDate(),
+      createdAt: data['createdAt'] == null
+          ? null
+          : AppClock.fromInstant((data['createdAt'] as Timestamp).toDate()),
+      deactivatedAt: data['deactivatedAt'] == null
+          ? null
+          : AppClock.fromInstant((data['deactivatedAt'] as Timestamp).toDate()),
     );
   }
 }

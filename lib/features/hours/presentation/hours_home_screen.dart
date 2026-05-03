@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/utils/clock.dart';
 import '../../../core/utils/dates.dart';
 import '../../auth/data/auth_repository.dart';
 import '../../workers/data/workers_repository.dart';
@@ -208,7 +209,7 @@ class _TodayHeader extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Hoy ${formatDate(DateTime.now())}',
+            'Hoy ${formatDate(AppClock.now())}',
             style: theme.textTheme.bodySmall?.copyWith(color: Colors.white70),
           ),
           const SizedBox(height: 6),

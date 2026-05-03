@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import '../../../core/utils/clock.dart';
 import 'hours_categories.dart';
 
 /// Registro de horas de un trabajador en un día específico.
@@ -61,18 +62,25 @@ class HoursEntry {
   Map<String, dynamic> toMap() => {
         'workerId': workerId,
         'workerName': workerName,
-        'workDate': Timestamp.fromDate(workDate),
-        'checkIn': Timestamp.fromDate(checkIn),
-        'checkOut': checkOut == null ? null : Timestamp.fromDate(checkOut!),
-        'closedAt': closedAt == null ? null : Timestamp.fromDate(closedAt!),
+        'workDate': Timestamp.fromDate(AppClock.toInstant(workDate)),
+        'checkIn': Timestamp.fromDate(AppClock.toInstant(checkIn)),
+        'checkOut': checkOut == null
+            ? null
+            : Timestamp.fromDate(AppClock.toInstant(checkOut!)),
+        'closedAt': closedAt == null
+            ? null
+            : Timestamp.fromDate(AppClock.toInstant(closedAt!)),
         'note': note,
         'breakdown': breakdown.toMinutesMap(),
         'createdBy': createdBy,
         'createdByName': createdByName,
-        'createdAt': Timestamp.fromDate(createdAt),
-        'updatedAt': updatedAt == null ? null : Timestamp.fromDate(updatedAt!),
-        'editableUntil':
-            editableUntil == null ? null : Timestamp.fromDate(editableUntil!),
+        'createdAt': Timestamp.fromDate(AppClock.toInstant(createdAt)),
+        'updatedAt': updatedAt == null
+            ? null
+            : Timestamp.fromDate(AppClock.toInstant(updatedAt!)),
+        'editableUntil': editableUntil == null
+            ? null
+            : Timestamp.fromDate(AppClock.toInstant(editableUntil!)),
         'customFields': customFields,
       };
 
@@ -82,19 +90,28 @@ class HoursEntry {
       id: snap.id,
       workerId: data['workerId'] as String,
       workerName: data['workerName'] as String,
-      workDate: (data['workDate'] as Timestamp).toDate(),
-      checkIn: (data['checkIn'] as Timestamp).toDate(),
-      checkOut: (data['checkOut'] as Timestamp?)?.toDate(),
-      closedAt: (data['closedAt'] as Timestamp?)?.toDate(),
+      workDate: AppClock.fromInstant((data['workDate'] as Timestamp).toDate()),
+      checkIn: AppClock.fromInstant((data['checkIn'] as Timestamp).toDate()),
+      checkOut: data['checkOut'] == null
+          ? null
+          : AppClock.fromInstant((data['checkOut'] as Timestamp).toDate()),
+      closedAt: data['closedAt'] == null
+          ? null
+          : AppClock.fromInstant((data['closedAt'] as Timestamp).toDate()),
       note: data['note'] as String?,
       breakdown: HoursBreakdown.fromMinutesMap(
         Map<String, dynamic>.from(data['breakdown'] as Map? ?? const {}),
       ),
       createdBy: data['createdBy'] as String,
       createdByName: data['createdByName'] as String,
-      createdAt: (data['createdAt'] as Timestamp).toDate(),
-      updatedAt: (data['updatedAt'] as Timestamp?)?.toDate(),
-      editableUntil: (data['editableUntil'] as Timestamp?)?.toDate(),
+      createdAt:
+          AppClock.fromInstant((data['createdAt'] as Timestamp).toDate()),
+      updatedAt: data['updatedAt'] == null
+          ? null
+          : AppClock.fromInstant((data['updatedAt'] as Timestamp).toDate()),
+      editableUntil: data['editableUntil'] == null
+          ? null
+          : AppClock.fromInstant((data['editableUntil'] as Timestamp).toDate()),
       customFields:
           Map<String, dynamic>.from(data['customFields'] as Map? ?? const {}),
     );

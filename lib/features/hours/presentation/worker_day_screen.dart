@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/utils/clock.dart';
 import '../../../core/utils/dates.dart';
 import '../../auth/data/auth_repository.dart';
 import '../../workers/data/workers_repository.dart';
@@ -35,7 +36,7 @@ class _WorkerDayScreenState extends ConsumerState<WorkerDayScreen> {
   @override
   void initState() {
     super.initState();
-    _date = widget.date ?? DateTime.now();
+    _date = widget.date ?? AppClock.now();
   }
 
   Future<void> _openDay(Worker worker) async {
@@ -43,7 +44,7 @@ class _WorkerDayScreenState extends ConsumerState<WorkerDayScreen> {
     try {
       final profile = ref.read(currentProfileProvider).valueOrNull;
       if (profile == null) throw StateError('Sesión inválida.');
-      final now = DateTime.now();
+      final now = AppClock.now();
       final checkIn = isSameDay(now, _date)
           ? now
           : DateTime(_date.year, _date.month, _date.day, 7, 0);
@@ -71,7 +72,7 @@ class _WorkerDayScreenState extends ConsumerState<WorkerDayScreen> {
   }) async {
     final initial = checkIn
         ? entry.checkIn
-        : (entry.checkOut ?? DateTime.now());
+        : (entry.checkOut ?? AppClock.now());
     final pickedTime = await showTimePicker(
       context: context,
       initialTime: TimeOfDay(hour: initial.hour, minute: initial.minute),
@@ -115,7 +116,7 @@ class _WorkerDayScreenState extends ConsumerState<WorkerDayScreen> {
     try {
       await ref.read(hoursRepositoryProvider).updateEntry(
             entry.id,
-            checkOut: DateTime.now(),
+            checkOut: AppClock.now(),
             schedule: schedule,
           );
     } finally {
@@ -232,7 +233,7 @@ class _WorkerDayScreenState extends ConsumerState<WorkerDayScreen> {
     if (profile == null) return false;
     if (profile.role.id == 'admin') return true;
     if (entry.editableUntil == null) return true; // día abierto
-    return DateTime.now().isBefore(entry.editableUntil!);
+    return AppClock.now().isBefore(entry.editableUntil!);
   }
 
   @override
@@ -525,7 +526,7 @@ class _EditableHint extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final stillEditable = DateTime.now().isBefore(until);
+    final stillEditable = AppClock.now().isBefore(until);
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(

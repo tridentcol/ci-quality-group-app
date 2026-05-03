@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants/firestore_paths.dart';
+import '../../../core/utils/clock.dart';
 import '../../../core/utils/dates.dart';
 import '../../auth/data/auth_repository.dart';
 import '../domain/hours_calculator.dart';
@@ -56,7 +57,7 @@ class HoursRepository {
       return HoursEntry.fromSnapshot(existing);
     }
 
-    final now = DateTime.now();
+    final now = AppClock.now();
     final entry = HoursEntry(
       id: id,
       workerId: workerId,
@@ -93,7 +94,7 @@ class HoursRepository {
       'checkIn': Timestamp.fromDate(newCheckIn),
       if (newCheckOut != null) 'checkOut': Timestamp.fromDate(newCheckOut),
       if (note != null) 'note': note,
-      'updatedAt': Timestamp.fromDate(DateTime.now()),
+      'updatedAt': Timestamp.fromDate(AppClock.toInstant(AppClock.now())),
     };
 
     if (closedAt != null) {
@@ -121,7 +122,7 @@ class HoursRepository {
     await updateEntry(
       id,
       checkOut: checkOut,
-      closedAt: DateTime.now(),
+      closedAt: AppClock.now(),
       schedule: schedule,
     );
   }
@@ -132,7 +133,7 @@ class HoursRepository {
       'closedAt': null,
       'editableUntil': null,
       'breakdown': HoursBreakdown().toMinutesMap(),
-      'updatedAt': Timestamp.fromDate(DateTime.now()),
+      'updatedAt': Timestamp.fromDate(AppClock.toInstant(AppClock.now())),
     });
   }
 
@@ -147,11 +148,14 @@ class HoursRepository {
   /// Stream de todas las entradas de hoy, indexadas por workerId. Sirve para
   /// pintar el estado del día en la pantalla del encargado.
   Stream<Map<String, HoursEntry>> watchTodayByWorker() {
-    final today = startOfDay(DateTime.now());
+    final today = startOfDay(AppClock.now());
     final tomorrow = today.add(const Duration(days: 1));
     return _col
-        .where('workDate', isGreaterThanOrEqualTo: Timestamp.fromDate(today))
-        .where('workDate', isLessThan: Timestamp.fromDate(tomorrow))
+        .where('workDate',
+            isGreaterThanOrEqualTo:
+                Timestamp.fromDate(AppClock.toInstant(today)))
+        .where('workDate',
+            isLessThan: Timestamp.fromDate(AppClock.toInstant(tomorrow)))
         .snapshots()
         .map((snap) {
       final map = <String, HoursEntry>{};
@@ -165,8 +169,11 @@ class HoursRepository {
 
   Stream<List<HoursEntry>> watchByRange(DateTime start, DateTime end) {
     return _col
-        .where('workDate', isGreaterThanOrEqualTo: Timestamp.fromDate(start))
-        .where('workDate', isLessThanOrEqualTo: Timestamp.fromDate(end))
+        .where('workDate',
+            isGreaterThanOrEqualTo:
+                Timestamp.fromDate(AppClock.toInstant(start)))
+        .where('workDate',
+            isLessThanOrEqualTo: Timestamp.fromDate(AppClock.toInstant(end)))
         .snapshots()
         .map((snap) {
       final list = snap.docs.map(HoursEntry.fromSnapshot).toList()
@@ -184,10 +191,12 @@ class HoursRepository {
         _col.where('workerId', isEqualTo: workerId);
     if (start != null) {
       q = q.where('workDate',
-          isGreaterThanOrEqualTo: Timestamp.fromDate(start));
+          isGreaterThanOrEqualTo:
+              Timestamp.fromDate(AppClock.toInstant(start)));
     }
     if (end != null) {
-      q = q.where('workDate', isLessThanOrEqualTo: Timestamp.fromDate(end));
+      q = q.where('workDate',
+          isLessThanOrEqualTo: Timestamp.fromDate(AppClock.toInstant(end)));
     }
     return q.snapshots().map((snap) {
       final list = snap.docs.map(HoursEntry.fromSnapshot).toList()

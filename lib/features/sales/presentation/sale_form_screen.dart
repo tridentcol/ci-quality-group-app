@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/utils/clock.dart';
 import '../../../core/utils/dates.dart';
 import '../../../core/utils/money.dart';
 import '../../../shared/widgets/master_list_field.dart';
@@ -27,7 +28,7 @@ class _SaleFormScreenState extends ConsumerState<SaleFormScreen> {
   final _quantityCtrl = TextEditingController();
   final _unitPriceCtrl = TextEditingController();
 
-  DateTime _date = DateTime.now();
+  DateTime _date = AppClock.now();
   String _documentType = 'Cédula';
   String? _provider;
   String? _material;
@@ -84,7 +85,7 @@ class _SaleFormScreenState extends ConsumerState<SaleFormScreen> {
       context: context,
       initialDate: _date,
       firstDate: DateTime(2020),
-      lastDate: DateTime.now().add(const Duration(days: 1)),
+      lastDate: AppClock.now().add(const Duration(days: 1)),
     );
     if (picked != null) setState(() => _date = picked);
   }

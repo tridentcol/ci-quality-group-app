@@ -1,8 +1,10 @@
 import 'package:intl/intl.dart';
 
+// Formatos locales en español de Colombia. La hora se imprime con AM/PM
+// (`h:mm a` → "7:30 a. m.") porque es la convención esperada por los usuarios.
 final DateFormat _dmy = DateFormat('dd/MM/yyyy', 'es_CO');
-final DateFormat _dmyHm = DateFormat('dd/MM/yyyy HH:mm', 'es_CO');
-final DateFormat _hm = DateFormat('HH:mm', 'es_CO');
+final DateFormat _dmyHm = DateFormat('dd/MM/yyyy h:mm a', 'es_CO');
+final DateFormat _hm = DateFormat('h:mm a', 'es_CO');
 final DateFormat _monthYear = DateFormat('MMMM yyyy', 'es_CO');
 
 String formatDate(DateTime d) => _dmy.format(d);

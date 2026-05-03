@@ -1,5 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import '../../../core/utils/clock.dart';
+
 /// Una venta registrada en la app.
 ///
 /// Los campos "core" (los del formato original) son tipados; los campos
@@ -75,7 +77,7 @@ class Sale {
 
   Map<String, dynamic> toMap() => {
         'consecutive': consecutive,
-        'date': Timestamp.fromDate(date),
+        'date': Timestamp.fromDate(AppClock.toInstant(date)),
         'documentType': documentType,
         'documentNumber': documentNumber,
         'providerName': providerName,
@@ -89,10 +91,13 @@ class Sale {
         'payerName': payerName,
         'createdBy': createdBy,
         'createdByName': createdByName,
-        'createdAt': Timestamp.fromDate(createdAt),
-        'updatedAt': updatedAt == null ? null : Timestamp.fromDate(updatedAt!),
-        'editableUntil':
-            editableUntil == null ? null : Timestamp.fromDate(editableUntil!),
+        'createdAt': Timestamp.fromDate(AppClock.toInstant(createdAt)),
+        'updatedAt': updatedAt == null
+            ? null
+            : Timestamp.fromDate(AppClock.toInstant(updatedAt!)),
+        'editableUntil': editableUntil == null
+            ? null
+            : Timestamp.fromDate(AppClock.toInstant(editableUntil!)),
         'customFields': customFields,
       };
 
@@ -101,7 +106,7 @@ class Sale {
     return Sale(
       id: snap.id,
       consecutive: data['consecutive'] as String,
-      date: (data['date'] as Timestamp).toDate(),
+      date: AppClock.fromInstant((data['date'] as Timestamp).toDate()),
       documentType: data['documentType'] as String,
       documentNumber: data['documentNumber'] as String,
       providerName: data['providerName'] as String,
@@ -115,9 +120,14 @@ class Sale {
       payerName: data['payerName'] as String,
       createdBy: data['createdBy'] as String,
       createdByName: data['createdByName'] as String,
-      createdAt: (data['createdAt'] as Timestamp).toDate(),
-      updatedAt: (data['updatedAt'] as Timestamp?)?.toDate(),
-      editableUntil: (data['editableUntil'] as Timestamp?)?.toDate(),
+      createdAt:
+          AppClock.fromInstant((data['createdAt'] as Timestamp).toDate()),
+      updatedAt: data['updatedAt'] == null
+          ? null
+          : AppClock.fromInstant((data['updatedAt'] as Timestamp).toDate()),
+      editableUntil: data['editableUntil'] == null
+          ? null
+          : AppClock.fromInstant((data['editableUntil'] as Timestamp).toDate()),
       customFields:
           Map<String, dynamic>.from(data['customFields'] as Map? ?? const {}),
     );

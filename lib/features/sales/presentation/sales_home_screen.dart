@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/utils/clock.dart';
 import '../../../core/utils/dates.dart';
 import '../../../core/utils/money.dart';
 import '../../auth/data/auth_repository.dart';
@@ -99,14 +100,14 @@ class SalesHomeScreen extends ConsumerWidget {
   }
 
   num _todaysTotal(List<Sale> sales) {
-    final today = DateTime.now();
+    final today = AppClock.now();
     return sales
         .where((s) => isSameDay(s.date, today))
         .fold<num>(0, (sum, s) => sum + s.totalValue);
   }
 
   int _todaysCount(List<Sale> sales) {
-    final today = DateTime.now();
+    final today = AppClock.now();
     return sales.where((s) => isSameDay(s.date, today)).length;
   }
 }

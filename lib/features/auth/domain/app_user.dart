@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../../../core/constants/roles.dart';
+import '../../../core/utils/clock.dart';
 
 /// Usuario de la app (admin / control de ventas / control de horas).
 ///
@@ -34,7 +35,7 @@ class AppUser {
         'active': active,
         'createdAt': createdAt == null
             ? FieldValue.serverTimestamp()
-            : Timestamp.fromDate(createdAt!),
+            : Timestamp.fromDate(AppClock.toInstant(createdAt!)),
       };
 
   factory AppUser.fromSnapshot(DocumentSnapshot<Map<String, dynamic>> snap) {
@@ -45,7 +46,9 @@ class AppUser {
       fullName: data['fullName'] as String,
       role: AppRole.fromId(data['role'] as String),
       active: (data['active'] as bool?) ?? true,
-      createdAt: (data['createdAt'] as Timestamp?)?.toDate(),
+      createdAt: data['createdAt'] == null
+          ? null
+          : AppClock.fromInstant((data['createdAt'] as Timestamp).toDate()),
     );
   }
 }

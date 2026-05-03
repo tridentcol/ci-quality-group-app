@@ -5,6 +5,7 @@ import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants/firestore_paths.dart';
+import '../../../core/utils/clock.dart';
 import '../../auth/data/auth_repository.dart';
 import '../domain/worker.dart';
 
@@ -67,7 +68,7 @@ class WorkersRepository {
       phone: phone?.trim(),
       bank: bank?.trim(),
       active: true,
-      createdAt: DateTime.now(),
+      createdAt: AppClock.now(),
     );
     await ref.set(worker.toMap());
     return worker;
@@ -99,7 +100,7 @@ class WorkersRepository {
   Future<void> deactivate(String id) async {
     await _col.doc(id).update({
       'active': false,
-      'deactivatedAt': Timestamp.fromDate(DateTime.now()),
+      'deactivatedAt': Timestamp.fromDate(AppClock.toInstant(AppClock.now())),
     });
   }
 
@@ -123,7 +124,7 @@ class WorkersRepository {
     final list = (json['workers'] as List).cast<Map<String, dynamic>>();
 
     final batch = _firestore.batch();
-    final now = DateTime.now();
+    final now = AppClock.now();
     for (final entry in list) {
       final ref = _col.doc();
       batch.set(ref, {
@@ -135,7 +136,7 @@ class WorkersRepository {
         'phone': entry['phone'],
         'bank': entry['bank'],
         'active': entry['active'] ?? true,
-        'createdAt': Timestamp.fromDate(now),
+        'createdAt': Timestamp.fromDate(AppClock.toInstant(now)),
         'deactivatedAt': null,
       });
     }

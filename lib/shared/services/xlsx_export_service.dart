@@ -44,7 +44,7 @@ class XlsxExportService {
     sheet.appendRow(headers.map<CellValue>((h) => TextCellValue(h)).toList());
 
     final dateFmt = DateFormat('dd/MM/yyyy', 'es_CO');
-    final dateTimeFmt = DateFormat('dd/MM/yyyy HH:mm', 'es_CO');
+    final dateTimeFmt = DateFormat('dd/MM/yyyy h:mm a', 'es_CO');
 
     for (final s in sales) {
       sheet.appendRow(<CellValue>[
@@ -138,7 +138,7 @@ class XlsxExportService {
     sheet.appendRow(headers.map<CellValue>((h) => TextCellValue(h)).toList());
 
     final dateFmt = DateFormat('dd/MM/yyyy', 'es_CO');
-    final timeFmt = DateFormat('HH:mm', 'es_CO');
+    final timeFmt = DateFormat('h:mm a', 'es_CO');
     final weekdayFmt = DateFormat('EEEE', 'es_CO');
 
     final sorted = [...entries]

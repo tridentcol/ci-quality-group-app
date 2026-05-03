@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/utils/clock.dart';
 import '../../../core/utils/dates.dart';
 import '../../../shared/services/xlsx_export_service.dart';
 import '../../workers/data/workers_repository.dart';
@@ -26,7 +27,7 @@ class _HoursAdminScreenState extends ConsumerState<HoursAdminScreen> {
   @override
   void initState() {
     super.initState();
-    final now = DateTime.now();
+    final now = AppClock.now();
     _start = startOfMonth(now);
     _end = endOfMonth(now);
   }
@@ -35,7 +36,7 @@ class _HoursAdminScreenState extends ConsumerState<HoursAdminScreen> {
     final picked = await showDateRangePicker(
       context: context,
       firstDate: DateTime(2020),
-      lastDate: DateTime.now().add(const Duration(days: 1)),
+      lastDate: AppClock.now().add(const Duration(days: 1)),
       initialDateRange: DateTimeRange(start: _start, end: _end),
     );
     if (picked != null) {
