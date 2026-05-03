@@ -44,6 +44,18 @@ class _HoursHomeScreenState extends ConsumerState<HoursHomeScreen> {
             entries: today.valueOrNull ?? const {},
             workers: workers.valueOrNull ?? const [],
           ),
+          if (today.hasError)
+            _DiagnosticBanner(
+              source: 'hours_entries',
+              error: today.error!,
+              onRetry: () => ref.invalidate(todayHoursByWorkerProvider),
+            ),
+          if (workers.hasError)
+            _DiagnosticBanner(
+              source: 'workers',
+              error: workers.error!,
+              onRetry: () => ref.invalidate(activeWorkersProvider),
+            ),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
             child: TextField(
@@ -57,7 +69,15 @@ class _HoursHomeScreenState extends ConsumerState<HoursHomeScreen> {
           Expanded(
             child: workers.when(
               loading: () => const Center(child: CircularProgressIndicator()),
-              error: (e, _) => Center(child: Text('Error: $e')),
+              error: (e, _) => Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Text(
+                    'No se pudo leer la lista de trabajadores.\n\n$e',
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ),
               data: (data) {
                 final filtered = _query.isEmpty
                     ? data
@@ -98,6 +118,63 @@ class _HoursHomeScreenState extends ConsumerState<HoursHomeScreen> {
                   },
                 );
               },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DiagnosticBanner extends StatelessWidget {
+  const _DiagnosticBanner({
+    required this.source,
+    required this.error,
+    required this.onRetry,
+  });
+
+  final String source;
+  final Object error;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.error.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: theme.colorScheme.error.withValues(alpha: 0.4)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.error_outline,
+              size: 18, color: theme.colorScheme.error),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '$source: $error',
+                  style: theme.textTheme.bodySmall
+                      ?.copyWith(color: theme.colorScheme.error),
+                ),
+                const SizedBox(height: 4),
+                TextButton(
+                  onPressed: onRetry,
+                  style: TextButton.styleFrom(
+                    padding: EdgeInsets.zero,
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  child: const Text('Reintentar'),
+                ),
+              ],
             ),
           ),
         ],
