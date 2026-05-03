@@ -11,7 +11,6 @@ import '../../../core/utils/money.dart';
 import '../../../shared/widgets/error_view.dart';
 import '../../../shared/widgets/loading_button.dart';
 import '../../../shared/widgets/master_list_field.dart';
-import '../../../shared/widgets/section_label.dart';
 import '../../auth/data/auth_repository.dart';
 import '../../form_builder/data/form_schema_repository.dart';
 import '../../form_builder/domain/form_schema.dart';
@@ -193,214 +192,202 @@ class _SaleFormScreenState extends ConsumerState<SaleFormScreen> {
   @override
   Widget build(BuildContext context) {
     final keyboardInset = MediaQuery.viewInsetsOf(context).bottom;
+    final schemaAsync = ref.watch(formSchemaProvider('sales'));
+    final role = ref.watch(currentProfileProvider.select(
+      (a) => a.valueOrNull?.role,
+    ));
     return Scaffold(
       appBar: AppBar(
         title: Text(_isEdit ? 'Editar venta' : 'Nueva venta'),
       ),
-      body: AbsorbPointer(
-        absorbing: _saving,
-        child: Form(
-          key: _formKey,
-          autovalidateMode: AutovalidateMode.onUserInteraction,
-          child: ListView(
-            padding: EdgeInsets.fromLTRB(16, 16, 16, 96 + keyboardInset),
-            children: [
-              if (_isEdit) ...[
-                _ConsecutiveBadge(consecutive: widget.editingSale!.consecutive),
-                const SizedBox(height: 16),
-              ],
-              const SectionLabel('Información de la venta'),
-              const SizedBox(height: 8),
-              _DateField(value: _date, onTap: _pickDate),
-              const SizedBox(height: 12),
-              DropdownButtonFormField<String>(
-                value: _documentType,
-                decoration:
-                    const InputDecoration(labelText: 'Tipo de documento'),
-                items: const [
-                  DropdownMenuItem(value: 'Cédula', child: Text('Cédula')),
-                  DropdownMenuItem(value: 'NIT', child: Text('NIT')),
+      body: schemaAsync.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (e, _) => AppErrorView(error: e),
+        data: (schema) => AbsorbPointer(
+          absorbing: _saving,
+          child: Form(
+            key: _formKey,
+            autovalidateMode: AutovalidateMode.onUserInteraction,
+            child: ListView(
+              padding: EdgeInsets.fromLTRB(16, 16, 16, 96 + keyboardInset),
+              children: [
+                if (_isEdit) ...[
+                  _ConsecutiveBadge(
+                      consecutive: widget.editingSale!.consecutive),
+                  const SizedBox(height: 16),
                 ],
-                onChanged: (v) {
-                  if (v == null) return;
-                  setState(() => _documentType = v);
-                },
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: _docNumberCtrl,
-                keyboardType: TextInputType.text,
-                decoration:
-                    const InputDecoration(labelText: 'Número de documento'),
-                validator: (v) => (v == null || v.trim().isEmpty)
-                    ? 'Este campo es obligatorio.'
-                    : null,
-              ),
-              const SizedBox(height: 12),
-              MasterListField(
-                listId: 'providers',
-                label: 'Nombre del cliente',
-                initialValue: _provider,
-                required: true,
-                onChanged: (v) => setState(() => _provider = v),
-                helperText: 'Si no existe, escríbelo y queda como sugerencia.',
-              ),
-              const SizedBox(height: 24),
-              const SectionLabel('Material y cantidad'),
-              const SizedBox(height: 8),
-              MasterListField(
-                listId: 'materials',
-                label: 'Material',
-                initialValue: _material,
-                required: true,
-                onChanged: (v) => setState(() {
-                  _material = v;
-                  if (v != _laminaMaterial) _materialVariant = null;
-                }),
-              ),
-              if (_material == _laminaMaterial) ...[
-                const SizedBox(height: 12),
-                MasterListField(
-                  listId: 'lamina_brands',
-                  label: 'Tipo de lámina',
-                  initialValue: _materialVariant,
-                  onChanged: (v) => setState(() => _materialVariant = v),
+                ..._renderSchemaFields(schema, role),
+                if (_formError != null) ...[
+                  const SizedBox(height: 16),
+                  FormErrorBanner(message: _formError!),
+                ],
+                const SizedBox(height: 24),
+                LoadingButton(
+                  onPressed: _submit,
+                  loading: _saving,
+                  label: _isEdit ? 'Guardar cambios' : 'Registrar venta',
                 ),
               ],
-              const SizedBox(height: 12),
-              Consumer(
-                builder: (context, ref, _) {
-                  final isAdmin = ref.watch(currentProfileProvider.select(
-                    (a) => a.valueOrNull?.role == AppRole.admin,
-                  ));
-                  if (!isAdmin) return const SizedBox.shrink();
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: MasterListField(
-                      listId: 'units',
-                      label: 'Unidad de medida',
-                      initialValue: _unit,
-                      required: true,
-                      allowSuggestions: false,
-                      onChanged: (v) =>
-                          setState(() => _unit = v ?? _defaultUnit),
-                    ),
-                  );
-                },
-              ),
-              TextFormField(
-                controller: _quantityCtrl,
-                keyboardType:
-                    const TextInputType.numberWithOptions(decimal: true),
-                inputFormatters: [
-                  FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
-                ],
-                decoration: InputDecoration(
-                  labelText: 'Cantidad',
-                  helperText: _unit,
-                ),
-                validator: _validatePositiveNumber,
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: _unitPriceCtrl,
-                keyboardType:
-                    const TextInputType.numberWithOptions(decimal: true),
-                inputFormatters: [
-                  FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
-                ],
-                decoration: const InputDecoration(
-                  labelText: 'Valor unitario',
-                  prefixText: r'$ ',
-                ),
-                validator: _validatePositiveNumber,
-              ),
-              const SizedBox(height: 12),
-              _TotalCard(
-                quantityCtrl: _quantityCtrl,
-                unitPriceCtrl: _unitPriceCtrl,
-              ),
-              const SizedBox(height: 24),
-              const SectionLabel('Pago'),
-              const SizedBox(height: 8),
-              MasterListField(
-                listId: 'payment_methods',
-                label: 'Método de pago',
-                initialValue: _paymentMethod,
-                required: true,
-                allowSuggestions: false,
-                onChanged: (v) =>
-                    setState(() => _paymentMethod = v ?? _defaultPaymentMethod),
-              ),
-              const SizedBox(height: 12),
-              MasterListField(
-                listId: 'payers',
-                label: 'Quién recibe',
-                initialValue: _payer,
-                required: true,
-                onChanged: (v) => setState(() => _payer = v),
-                helperText: 'Si no existe, escríbelo y queda como sugerencia.',
-              ),
-              // Campos custom definidos por el admin en el constructor de
-              // formularios. Solo aparecen los que el rol puede ver.
-              _CustomFieldsBlock(controller: _customFieldsController),
-              if (_formError != null) ...[
-                const SizedBox(height: 16),
-                FormErrorBanner(message: _formError!),
-              ],
-              const SizedBox(height: 24),
-              LoadingButton(
-                onPressed: _submit,
-                loading: _saving,
-                label: _isEdit ? 'Guardar cambios' : 'Registrar venta',
-              ),
-            ],
+            ),
           ),
         ),
       ),
     );
   }
-}
 
-/// Bloque que renderiza los campos custom (no-core) del schema de ventas.
-/// Si el admin no agregó nada, no ocupa espacio.
-class _CustomFieldsBlock extends ConsumerWidget {
-  const _CustomFieldsBlock({required this.controller});
+  /// Renderiza los campos del formulario en el orden que el admin definió
+  /// en el Constructor de formularios. Los campos `coreField` tienen
+  /// widgets específicos con su lógica (controllers, validators,
+  /// condicionales como Tipo de lámina ↔ Material LAMINA). Los campos
+  /// no-core se delegan a `buildDynamicField` del renderer dinámico.
+  List<Widget> _renderSchemaFields(FormSchema schema, AppRole? role) {
+    final widgets = <Widget>[];
+    for (final f in schema.fields) {
+      // Visibilidad por rol según el schema. Si el campo no está marcado
+      // como visible para el rol activo, lo omitimos por completo.
+      if (role != null && !f.visibleToRoles.contains(role.id)) continue;
 
-  final DynamicFormController controller;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final schemaAsync = ref.watch(formSchemaProvider('sales'));
-    return schemaAsync.maybeWhen(
-      data: (schema) {
-        final custom = schema.fields.where((f) => !f.coreField).toList();
-        if (custom.isEmpty) return const SizedBox.shrink();
-        // Construye un sub-schema con solo los custom para reusar el
-        // renderer.
-        final subSchema = FormSchema(
-          id: schema.id,
-          module: schema.module,
-          version: schema.version,
-          fields: custom,
-          updatedAt: schema.updatedAt,
-          updatedBy: schema.updatedBy,
+      Widget? w;
+      if (f.coreField) {
+        w = _buildCoreField(f);
+      } else {
+        w = buildDynamicField(
+          field: f,
+          controller: _customFieldsController,
+          role: role,
         );
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const SizedBox(height: 24),
-            const SectionLabel('Campos adicionales'),
-            const SizedBox(height: 8),
-            DynamicFormRenderer(
-              schema: subSchema,
-              controller: controller,
-            ),
+      }
+      if (w == null) continue;
+
+      if (widgets.isNotEmpty) widgets.add(const SizedBox(height: 12));
+      widgets.add(w);
+    }
+    return widgets;
+  }
+
+  /// Mapea cada `id` de campo core al widget que lleva su lógica
+  /// específica. Devuelve `null` si el campo está oculto por una
+  /// condición (ej. Tipo de lámina solo aplica si Material == LAMINA).
+  Widget? _buildCoreField(FieldDefinition f) {
+    switch (f.id) {
+      case 'date':
+        return _DateField(value: _date, onTap: _pickDate);
+      case 'documentType':
+        return DropdownButtonFormField<String>(
+          value: _documentType,
+          decoration: InputDecoration(labelText: f.label),
+          items: const [
+            DropdownMenuItem(value: 'Cédula', child: Text('Cédula')),
+            DropdownMenuItem(value: 'NIT', child: Text('NIT')),
           ],
+          onChanged: (v) {
+            if (v == null) return;
+            setState(() => _documentType = v);
+          },
         );
-      },
-      orElse: () => const SizedBox.shrink(),
-    );
+      case 'documentNumber':
+        return TextFormField(
+          controller: _docNumberCtrl,
+          keyboardType: TextInputType.text,
+          decoration: InputDecoration(labelText: f.label),
+          validator: (v) => (f.required && (v == null || v.trim().isEmpty))
+              ? 'Este campo es obligatorio.'
+              : null,
+        );
+      case 'providerName':
+        return MasterListField(
+          listId: f.masterListId ?? 'providers',
+          label: f.label,
+          initialValue: _provider,
+          required: f.required,
+          onChanged: (v) => setState(() => _provider = v),
+          helperText:
+              f.helperText ?? 'Si no existe, escríbelo y queda como sugerencia.',
+        );
+      case 'material':
+        return MasterListField(
+          listId: f.masterListId ?? 'materials',
+          label: f.label,
+          initialValue: _material,
+          required: f.required,
+          onChanged: (v) => setState(() {
+            _material = v;
+            if (v != _laminaMaterial) _materialVariant = null;
+          }),
+        );
+      case 'materialVariant':
+        // Condicional: solo aparece cuando el material es LAMINA.
+        if (_material != _laminaMaterial) return null;
+        return MasterListField(
+          listId: f.masterListId ?? 'lamina_brands',
+          label: f.label,
+          initialValue: _materialVariant,
+          onChanged: (v) => setState(() => _materialVariant = v),
+        );
+      case 'unit':
+        return MasterListField(
+          listId: f.masterListId ?? 'units',
+          label: f.label,
+          initialValue: _unit,
+          required: f.required,
+          allowSuggestions: false,
+          onChanged: (v) => setState(() => _unit = v ?? _defaultUnit),
+        );
+      case 'quantity':
+        return TextFormField(
+          controller: _quantityCtrl,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          inputFormatters: [
+            FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
+          ],
+          decoration: InputDecoration(
+            labelText: f.label,
+            helperText: f.helperText ?? _unit,
+          ),
+          validator: _validatePositiveNumber,
+        );
+      case 'unitPrice':
+        return TextFormField(
+          controller: _unitPriceCtrl,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          inputFormatters: [
+            FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
+          ],
+          decoration: InputDecoration(
+            labelText: f.label,
+            prefixText: r'$ ',
+          ),
+          validator: _validatePositiveNumber,
+        );
+      case 'totalValue':
+        return _TotalCard(
+          label: f.label,
+          quantityCtrl: _quantityCtrl,
+          unitPriceCtrl: _unitPriceCtrl,
+        );
+      case 'paymentMethod':
+        return MasterListField(
+          listId: f.masterListId ?? 'payment_methods',
+          label: f.label,
+          initialValue: _paymentMethod,
+          required: f.required,
+          allowSuggestions: false,
+          onChanged: (v) =>
+              setState(() => _paymentMethod = v ?? _defaultPaymentMethod),
+        );
+      case 'payerName':
+        return MasterListField(
+          listId: f.masterListId ?? 'payers',
+          label: f.label,
+          initialValue: _payer,
+          required: f.required,
+          onChanged: (v) => setState(() => _payer = v),
+          helperText:
+              f.helperText ?? 'Si no existe, escríbelo y queda como sugerencia.',
+        );
+      default:
+        return null;
+    }
   }
 }
 
@@ -436,10 +423,12 @@ class _DateField extends StatelessWidget {
 /// solo este widget rebuildea cuando cambia el texto, no toda la pantalla.
 class _TotalCard extends StatelessWidget {
   const _TotalCard({
+    required this.label,
     required this.quantityCtrl,
     required this.unitPriceCtrl,
   });
 
+  final String label;
   final TextEditingController quantityCtrl;
   final TextEditingController unitPriceCtrl;
 
@@ -475,7 +464,7 @@ class _TotalCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Valor total',
+                      label,
                       style: theme.textTheme.labelLarge?.copyWith(
                         color: theme.colorScheme.primary,
                       ),

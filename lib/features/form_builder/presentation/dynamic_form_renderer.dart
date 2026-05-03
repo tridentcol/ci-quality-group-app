@@ -126,39 +126,67 @@ class DynamicFormRenderer extends ConsumerWidget {
   }
 
   Widget _renderField(FieldDefinition field, AppRole? role) {
-    final readonly = role != null && !field.editableByRoles.contains(role.id);
     final override = coreFieldOverrides[field.id];
     if (override != null) return override(field);
-    switch (field.type) {
-      case FieldType.text:
-        return _TextFieldWidget(
-            field: field, controller: controller, readonly: readonly);
-      case FieldType.multiline:
-        return _TextFieldWidget(
-            field: field,
-            controller: controller,
-            readonly: readonly,
-            maxLines: 4);
-      case FieldType.number:
-      case FieldType.decimal:
-        return _NumberFieldWidget(
-            field: field, controller: controller, readonly: readonly);
-      case FieldType.toggle:
-        return _ToggleWidget(
-            field: field, controller: controller, readonly: readonly);
-      case FieldType.dropdown:
-        return _DropdownWidget(
-            field: field, controller: controller, readonly: readonly);
-      case FieldType.masterListReference:
-        return _MasterListWidget(
-            field: field, controller: controller, readonly: readonly);
-      case FieldType.date:
-        return _DateWidget(field: field, controller: controller);
-      case FieldType.datetime:
-        return _DateTimeWidget(field: field, controller: controller);
-      case FieldType.computed:
-        return _ComputedWidget(field: field, controller: controller);
-    }
+    return buildDynamicField(field: field, controller: controller, role: role);
+  }
+}
+
+/// Renderiza UN solo campo del schema dinámico. Útil para pantallas que
+/// quieren intercalar campos del schema con su propia UI hardcoded
+/// (ej. SaleFormScreen, donde los core fields tienen widgets específicos
+/// y los no-core se renderizan con esto).
+Widget buildDynamicField({
+  required FieldDefinition field,
+  required DynamicFormController controller,
+  required AppRole? role,
+}) {
+  final readonly = role != null && !field.editableByRoles.contains(role.id);
+  switch (field.type) {
+    case FieldType.text:
+      return _TextFieldWidget(
+        field: field,
+        controller: controller,
+        readonly: readonly,
+      );
+    case FieldType.multiline:
+      return _TextFieldWidget(
+        field: field,
+        controller: controller,
+        readonly: readonly,
+        maxLines: 4,
+      );
+    case FieldType.number:
+    case FieldType.decimal:
+      return _NumberFieldWidget(
+        field: field,
+        controller: controller,
+        readonly: readonly,
+      );
+    case FieldType.toggle:
+      return _ToggleWidget(
+        field: field,
+        controller: controller,
+        readonly: readonly,
+      );
+    case FieldType.dropdown:
+      return _DropdownWidget(
+        field: field,
+        controller: controller,
+        readonly: readonly,
+      );
+    case FieldType.masterListReference:
+      return _MasterListWidget(
+        field: field,
+        controller: controller,
+        readonly: readonly,
+      );
+    case FieldType.date:
+      return _DateWidget(field: field, controller: controller);
+    case FieldType.datetime:
+      return _DateTimeWidget(field: field, controller: controller);
+    case FieldType.computed:
+      return _ComputedWidget(field: field, controller: controller);
   }
 }
 
