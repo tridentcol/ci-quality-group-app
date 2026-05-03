@@ -5,7 +5,10 @@ import 'package:go_router/go_router.dart';
 import '../../features/admin/presentation/admin_dashboard_screen.dart';
 import '../../features/admin/presentation/master_list_detail_screen.dart';
 import '../../features/admin/presentation/master_lists_screen.dart';
+import '../../features/admin/presentation/user_form_screen.dart';
+import '../../features/admin/presentation/users_screen.dart';
 import '../../features/admin/presentation/work_schedule_settings_screen.dart';
+import '../../features/auth/data/users_repository.dart';
 import '../../features/auth/data/auth_repository.dart';
 import '../../features/auth/presentation/login_screen.dart';
 import '../../features/hours/presentation/hours_admin_screen.dart';
@@ -129,6 +132,21 @@ final routerProvider = Provider<GoRouter>((ref) {
             builder: (_, __) => const WorkScheduleSettingsScreen(),
           ),
           GoRoute(
+            path: 'users',
+            builder: (_, __) => const UsersScreen(),
+            routes: [
+              GoRoute(
+                path: 'new',
+                builder: (_, __) => const UserFormScreen(),
+              ),
+              GoRoute(
+                path: ':uid',
+                builder: (_, state) =>
+                    _EditUserRoute(uid: state.pathParameters['uid']!),
+              ),
+            ],
+          ),
+          GoRoute(
             path: 'workers',
             builder: (_, __) => const WorkersScreen(),
             routes: [
@@ -178,6 +196,33 @@ final routerProvider = Provider<GoRouter>((ref) {
     ],
   );
 });
+
+/// Carga el usuario por uid y muestra el formulario de edición.
+class _EditUserRoute extends ConsumerWidget {
+  const _EditUserRoute({required this.uid});
+  final String uid;
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final user = ref.watch(userByIdProvider(uid));
+    return user.when(
+      loading: () => const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      ),
+      error: (e, _) => Scaffold(
+        appBar: AppBar(),
+        body: Center(child: Text('Error: $e')),
+      ),
+      data: (u) {
+        if (u == null) {
+          return const Scaffold(
+            body: Center(child: Text('Usuario no encontrado.')),
+          );
+        }
+        return UserFormScreen(editing: u);
+      },
+    );
+  }
+}
 
 /// Carga el trabajador por id y muestra el formulario de edición.
 class _EditWorkerRoute extends ConsumerWidget {
