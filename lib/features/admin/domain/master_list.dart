@@ -72,7 +72,8 @@ class MasterListItem {
         'userSuggested': userSuggested,
       };
 
-  factory MasterListItem.fromSnapshot(DocumentSnapshot<Map<String, dynamic>> snap) {
+  factory MasterListItem.fromSnapshot(
+      DocumentSnapshot<Map<String, dynamic>> snap) {
     final data = snap.data()!;
     return MasterListItem(
       id: snap.id,

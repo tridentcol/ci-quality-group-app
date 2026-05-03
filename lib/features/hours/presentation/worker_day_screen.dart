@@ -76,9 +76,8 @@ class _WorkerDayScreenState extends ConsumerState<WorkerDayScreen> {
     HoursEntry entry, {
     required bool checkIn,
   }) async {
-    final initial = checkIn
-        ? entry.checkIn
-        : (entry.checkOut ?? AppClock.now());
+    final initial =
+        checkIn ? entry.checkIn : (entry.checkOut ?? AppClock.now());
     final pickedTime = await showAppTimePicker(
       context: context,
       initialTime: TimeOfDay(hour: initial.hour, minute: initial.minute),
@@ -140,11 +139,11 @@ class _WorkerDayScreenState extends ConsumerState<WorkerDayScreen> {
       if (updated == null) return;
       entry = updated;
     }
+    if (!mounted) return;
     final ok = await showConfirmDialog(
       context,
       title: 'Cerrar día',
-      message:
-          'Se cerrará el día con entrada ${formatTime(entry.checkIn)} y '
+      message: 'Se cerrará el día con entrada ${formatTime(entry.checkIn)} y '
           'salida ${formatTime(entry.checkOut!)}. Después tendrás 24 h para '
           'corregir antes de que solo el admin pueda editar.',
       confirmLabel: 'Cerrar día',
@@ -255,7 +254,8 @@ class _WorkerDayScreenState extends ConsumerState<WorkerDayScreen> {
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   child: entry == null
-                      ? _NoEntryView(busy: _busy, onOpen: () => _openDay(worker))
+                      ? _NoEntryView(
+                          busy: _busy, onOpen: () => _openDay(worker))
                       : Column(
                           children: [
                             _TimesCard(
@@ -279,16 +279,16 @@ class _WorkerDayScreenState extends ConsumerState<WorkerDayScreen> {
                             if (entry.editableUntil != null && !entry.isOpen)
                               Padding(
                                 padding: const EdgeInsets.only(bottom: 12),
-                                child: _EditableHint(until: entry.editableUntil!),
+                                child:
+                                    _EditableHint(until: entry.editableUntil!),
                               ),
                             Row(
                               children: [
                                 if (entry.isOpen)
                                   Expanded(
                                     child: FilledButton.icon(
-                                      onPressed: _busy
-                                          ? null
-                                          : () => _closeDay(entry),
+                                      onPressed:
+                                          _busy ? null : () => _closeDay(entry),
                                       icon: const Icon(
                                           Icons.check_circle_outline),
                                       label: const Text('Cerrar día'),
@@ -311,9 +311,8 @@ class _WorkerDayScreenState extends ConsumerState<WorkerDayScreen> {
                               Padding(
                                 padding: const EdgeInsets.only(top: 12),
                                 child: TextButton.icon(
-                                  onPressed: _busy
-                                      ? null
-                                      : () => _deleteEntry(entry),
+                                  onPressed:
+                                      _busy ? null : () => _deleteEntry(entry),
                                   icon: const Icon(Icons.delete_outline),
                                   label: const Text('Eliminar registro'),
                                   style: TextButton.styleFrom(
@@ -469,9 +468,7 @@ class _TimeBlock extends StatelessWidget {
             ),
             const SizedBox(height: 2),
             Text(
-              time != null
-                  ? formatTime(time!)
-                  : placeholderAction ?? '—',
+              time != null ? formatTime(time!) : placeholderAction ?? '—',
               style: theme.textTheme.titleLarge?.copyWith(
                 color: time != null
                     ? theme.colorScheme.onSurface

@@ -19,8 +19,9 @@ class SalesRepository {
   CollectionReference<Map<String, dynamic>> get _col =>
       _firestore.collection(FirestorePaths.sales);
 
-  DocumentReference<Map<String, dynamic>> get _counterRef =>
-      _firestore.collection(FirestorePaths.counters).doc(FirestorePaths.salesCounter);
+  DocumentReference<Map<String, dynamic>> get _counterRef => _firestore
+      .collection(FirestorePaths.counters)
+      .doc(FirestorePaths.salesCounter);
 
   /// Crea una nueva venta. El cliente arma la mayoría de campos; el
   /// repositorio se encarga del consecutivo, fechas de auditoría y la

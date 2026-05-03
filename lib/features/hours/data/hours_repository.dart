@@ -32,8 +32,7 @@ class HoursRepository {
   /// Construye el id determinístico de un registro: `<workerId>_<YYYYMMDD>`.
   /// Garantiza una sola entrada por trabajador-día sin necesidad de índices.
   static String entryIdFor(String workerId, DateTime date) {
-    final ymd =
-        '${date.year.toString().padLeft(4, '0')}'
+    final ymd = '${date.year.toString().padLeft(4, '0')}'
         '${date.month.toString().padLeft(2, '0')}'
         '${date.day.toString().padLeft(2, '0')}';
     return '${workerId}_$ymd';
@@ -285,8 +284,7 @@ class HoursRepository {
     DateTime? start,
     DateTime? end,
   }) {
-    Query<Map<String, dynamic>> q =
-        _col.where('workerId', isEqualTo: workerId);
+    Query<Map<String, dynamic>> q = _col.where('workerId', isEqualTo: workerId);
     if (start != null) {
       q = q.where('workDate',
           isGreaterThanOrEqualTo:
@@ -342,8 +340,7 @@ class WorkerDayQuery {
       other.date.day == date.day;
 
   @override
-  int get hashCode =>
-      Object.hash(workerId, date.year, date.month, date.day);
+  int get hashCode => Object.hash(workerId, date.year, date.month, date.day);
 }
 
 /// Registro de horas de un trabajador en un día específico (cualquier fecha,
@@ -373,7 +370,9 @@ class HoursDateRange {
 final hoursByRangeProvider = StreamProvider.family
     .autoDispose<List<HoursEntry>, HoursDateRange>((ref, range) {
   ref.watch(authStateProvider);
-  return ref.watch(hoursRepositoryProvider).watchByRange(range.start, range.end);
+  return ref
+      .watch(hoursRepositoryProvider)
+      .watchByRange(range.start, range.end);
 });
 
 final hoursEntryByIdProvider =

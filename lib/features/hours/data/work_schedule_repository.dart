@@ -45,8 +45,7 @@ class WorkScheduleRepository {
   }
 }
 
-final workScheduleRepositoryProvider =
-    Provider<WorkScheduleRepository>((ref) {
+final workScheduleRepositoryProvider = Provider<WorkScheduleRepository>((ref) {
   return WorkScheduleRepository(FirebaseFirestore.instance);
 });
 

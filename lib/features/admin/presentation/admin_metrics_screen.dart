@@ -26,8 +26,7 @@ class AdminMetricsScreen extends ConsumerStatefulWidget {
   const AdminMetricsScreen({super.key});
 
   @override
-  ConsumerState<AdminMetricsScreen> createState() =>
-      _AdminMetricsScreenState();
+  ConsumerState<AdminMetricsScreen> createState() => _AdminMetricsScreenState();
 }
 
 class _AdminMetricsScreenState extends ConsumerState<AdminMetricsScreen> {
@@ -282,8 +281,7 @@ class _SalesSection extends StatelessWidget {
           child: Center(
             child: Text('Sin ventas en el rango.',
                 style: theme.textTheme.bodyMedium?.copyWith(
-                    color:
-                        theme.colorScheme.onSurface.withValues(alpha: 0.6))),
+                    color: theme.colorScheme.onSurface.withValues(alpha: 0.6))),
           ),
         ),
       );
@@ -363,8 +361,7 @@ class _SalesSection extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Top quien recibe',
-                      style: theme.textTheme.titleMedium),
+                  Text('Top quien recibe', style: theme.textTheme.titleMedium),
                   const SizedBox(height: 12),
                   ...metrics.topPayers.asMap().entries.map(
                         (e) => Padding(
@@ -459,7 +456,8 @@ class _SalesLineChart extends StatelessWidget {
             sideTitles: SideTitles(
               showTitles: true,
               reservedSize: 28,
-              interval: (metrics.dailyTotals.length / 5).clamp(1, 10).toDouble(),
+              interval:
+                  (metrics.dailyTotals.length / 5).clamp(1, 10).toDouble(),
               getTitlesWidget: (v, _) {
                 final i = v.toInt();
                 if (i < 0 || i >= metrics.dailyTotals.length) {
@@ -633,10 +631,8 @@ class _BarRow extends StatelessWidget {
             child: LinearProgressIndicator(
               value: pct.toDouble(),
               minHeight: 8,
-              backgroundColor:
-                  theme.colorScheme.surfaceContainerHighest,
-              valueColor:
-                  AlwaysStoppedAnimation(theme.colorScheme.primary),
+              backgroundColor: theme.colorScheme.surfaceContainerHighest,
+              valueColor: AlwaysStoppedAnimation(theme.colorScheme.primary),
             ),
           ),
         ],
@@ -659,16 +655,14 @@ class _HoursSection extends StatelessWidget {
           child: Center(
             child: Text('Sin registros de horas en el rango.',
                 style: theme.textTheme.bodyMedium?.copyWith(
-                    color:
-                        theme.colorScheme.onSurface.withValues(alpha: 0.6))),
+                    color: theme.colorScheme.onSurface.withValues(alpha: 0.6))),
           ),
         ),
       );
     }
 
-    final paidCategories = HoursCategory.values
-        .where((c) => c != HoursCategory.lunch)
-        .toList();
+    final paidCategories =
+        HoursCategory.values.where((c) => c != HoursCategory.lunch).toList();
     final maxMinutes = paidCategories
         .map((c) => metrics.byCategory[c]!.inMinutes)
         .fold<int>(0, (a, b) => a > b ? a : b);
@@ -711,8 +705,7 @@ class _HoursSection extends StatelessWidget {
                     label: c.label,
                     value: metrics.byCategory[c]!.inMinutes,
                     max: maxMinutes == 0 ? 1 : maxMinutes,
-                    formatter: (v) =>
-                        formatHours(Duration(minutes: v.toInt())),
+                    formatter: (v) => formatHours(Duration(minutes: v.toInt())),
                   ),
                 ),
               ],

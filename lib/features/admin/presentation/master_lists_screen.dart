@@ -37,7 +37,9 @@ class _MasterListsScreenState extends ConsumerState<MasterListsScreen> {
       body: RefreshIndicator(
         onRefresh: () async {
           ref.invalidate(masterListsProvider);
-          await ref.read(masterListsRepositoryProvider).seedDefaults(force: true);
+          await ref
+              .read(masterListsRepositoryProvider)
+              .seedDefaults(force: true);
         },
         child: listsAsync.when(
           loading: () => const SkeletonList(),
@@ -102,7 +104,8 @@ class _MasterListsScreenState extends ConsumerState<MasterListsScreen> {
                               children: [
                                 Text(
                                   list.name,
-                                  style: Theme.of(context).textTheme.titleMedium,
+                                  style:
+                                      Theme.of(context).textTheme.titleMedium,
                                 ),
                                 const SizedBox(height: 2),
                                 Text(

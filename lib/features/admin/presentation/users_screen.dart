@@ -44,7 +44,8 @@ class UsersScreen extends ConsumerWidget {
                   EmptyState(
                     icon: Icons.people_outline,
                     title: 'Sin usuarios',
-                    message: 'Crea el primer usuario con el botón "Nuevo usuario".',
+                    message:
+                        'Crea el primer usuario con el botón "Nuevo usuario".',
                     actionLabel: 'Crear primer usuario',
                     onAction: () => context.push('/admin/users/new'),
                   ),

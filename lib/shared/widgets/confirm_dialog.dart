@@ -31,7 +31,8 @@ Future<bool> showConfirmDialog(
     context: context,
     builder: (ctx) {
       final theme = Theme.of(ctx);
-      final accent = destructive ? theme.colorScheme.error : theme.colorScheme.primary;
+      final accent =
+          destructive ? theme.colorScheme.error : theme.colorScheme.primary;
       return AlertDialog(
         title: Row(
           children: [

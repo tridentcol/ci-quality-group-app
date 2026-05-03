@@ -36,8 +36,8 @@ class HoursCalculator {
   DateTime _nextBreakpointOrEnd(DateTime cursor, DateTime end) {
     final minuteOfDay = cursor.hour * 60 + cursor.minute;
     final candidates = _breakpointMinutes(cursor);
-    final nextMinute = candidates
-        .firstWhere((m) => m > minuteOfDay, orElse: () => 24 * 60);
+    final nextMinute =
+        candidates.firstWhere((m) => m > minuteOfDay, orElse: () => 24 * 60);
 
     final next = DateTime(cursor.year, cursor.month, cursor.day)
         .add(Duration(minutes: nextMinute));
@@ -77,16 +77,22 @@ class HoursCalculator {
     }
 
     if (inOrdinary) {
-      return isDominical ? HoursCategory.sundayOrdinary : HoursCategory.ordinary;
+      return isDominical
+          ? HoursCategory.sundayOrdinary
+          : HoursCategory.ordinary;
     }
 
     final isDayTime = minute >= schedule.dayStart.totalMinutes &&
         minute < schedule.dayEnd.totalMinutes;
 
     if (isDayTime) {
-      return isDominical ? HoursCategory.extraSundayDay : HoursCategory.extraDay;
+      return isDominical
+          ? HoursCategory.extraSundayDay
+          : HoursCategory.extraDay;
     }
-    return isDominical ? HoursCategory.extraSundayNight : HoursCategory.extraNight;
+    return isDominical
+        ? HoursCategory.extraSundayNight
+        : HoursCategory.extraNight;
   }
 
   TimeRange _ordinaryFor(DateTime moment) {

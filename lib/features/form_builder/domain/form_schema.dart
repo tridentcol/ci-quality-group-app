@@ -12,8 +12,10 @@ enum FieldType {
   datetime,
   toggle,
   dropdown,
+
   /// Dropdown enlazado a una lista maestra (proveedores, pagadores, etc.).
   masterListReference,
+
   /// Campo calculado por fórmula simple (`{quantity} * {unitPrice}`).
   computed;
 

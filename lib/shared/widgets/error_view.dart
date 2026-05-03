@@ -28,8 +28,7 @@ class AppErrorView extends StatelessWidget {
         padding: const EdgeInsets.all(16),
         child: Row(
           children: [
-            Icon(Icons.error_outline,
-                color: theme.colorScheme.error, size: 20),
+            Icon(Icons.error_outline, color: theme.colorScheme.error, size: 20),
             const SizedBox(width: 12),
             Expanded(
               child: Text(message, style: theme.textTheme.bodyMedium),
@@ -50,8 +49,7 @@ class AppErrorView extends StatelessWidget {
           children: [
             Icon(Icons.cloud_off_outlined,
                 size: 56,
-                color:
-                    theme.colorScheme.onSurface.withValues(alpha: 0.45)),
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.45)),
             const SizedBox(height: 16),
             Text(
               message,

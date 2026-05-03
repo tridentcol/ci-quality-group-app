@@ -29,7 +29,8 @@ class SaleCard extends StatelessWidget {
               Row(
                 children: [
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                     decoration: BoxDecoration(
                       color: theme.colorScheme.primary,
                       borderRadius: BorderRadius.circular(999),
@@ -75,7 +76,8 @@ class SaleCard extends StatelessWidget {
                         Text(
                           'Cantidad',
                           style: theme.textTheme.labelSmall?.copyWith(
-                            color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                            color: theme.colorScheme.onSurface
+                                .withValues(alpha: 0.5),
                           ),
                         ),
                         Text(
@@ -92,7 +94,8 @@ class SaleCard extends StatelessWidget {
                         Text(
                           'Total',
                           style: theme.textTheme.labelSmall?.copyWith(
-                            color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                            color: theme.colorScheme.onSurface
+                                .withValues(alpha: 0.5),
                           ),
                         ),
                         Text(
@@ -105,7 +108,8 @@ class SaleCard extends StatelessWidget {
                     ),
                   ),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                     decoration: BoxDecoration(
                       color: theme.colorScheme.surfaceContainerHighest,
                       borderRadius: BorderRadius.circular(8),

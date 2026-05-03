@@ -151,13 +151,13 @@ class _DiagnosticBanner extends StatelessWidget {
       decoration: BoxDecoration(
         color: theme.colorScheme.error.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: theme.colorScheme.error.withValues(alpha: 0.4)),
+        border:
+            Border.all(color: theme.colorScheme.error.withValues(alpha: 0.4)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(Icons.error_outline,
-              size: 18, color: theme.colorScheme.error),
+          Icon(Icons.error_outline, size: 18, color: theme.colorScheme.error),
           const SizedBox(width: 8),
           Expanded(
             child: Column(
@@ -322,7 +322,8 @@ class _WorkerHoursCard extends StatelessWidget {
                     Text(
                       worker.role,
                       style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                        color:
+                            theme.colorScheme.onSurface.withValues(alpha: 0.6),
                       ),
                     ),
                     if (hasEntry) ...[
@@ -330,7 +331,8 @@ class _WorkerHoursCard extends StatelessWidget {
                       Text(
                         _summary(entry!),
                         style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+                          color: theme.colorScheme.onSurface
+                              .withValues(alpha: 0.7),
                         ),
                       ),
                     ],
@@ -342,8 +344,8 @@ class _WorkerHoursCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 8, vertical: 4),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(
                       color: color.withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(999),

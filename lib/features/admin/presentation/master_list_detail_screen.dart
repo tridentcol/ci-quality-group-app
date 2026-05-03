@@ -68,9 +68,7 @@ class MasterListDetailScreen extends ConsumerWidget {
     );
     if (!ok) return;
     try {
-      await ref
-          .read(masterListsRepositoryProvider)
-          .deleteItem(listId, item.id);
+      await ref.read(masterListsRepositoryProvider).deleteItem(listId, item.id);
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -80,8 +78,7 @@ class MasterListDetailScreen extends ConsumerWidget {
     }
   }
 
-  Future<void> _approveSuggestion(
-      WidgetRef ref, MasterListItem item) async {
+  Future<void> _approveSuggestion(WidgetRef ref, MasterListItem item) async {
     await ref.read(masterListsRepositoryProvider).updateItem(
           listId,
           item.id,

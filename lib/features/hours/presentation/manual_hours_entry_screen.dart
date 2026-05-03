@@ -286,9 +286,8 @@ class _ManualHoursEntryScreenState
                               ),
                             ))
                         .toList(),
-                    onChanged: _isEdit
-                        ? null
-                        : (w) => setState(() => _worker = w),
+                    onChanged:
+                        _isEdit ? null : (w) => setState(() => _worker = w),
                   ),
                   const SizedBox(height: 24),
                   const SectionLabel('Fecha y horas'),
@@ -411,8 +410,7 @@ class _TappableField extends StatelessWidget {
             if (badge != null) ...[
               const SizedBox(width: 8),
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
                   color: badge!.color.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(999),

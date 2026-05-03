@@ -70,14 +70,16 @@ class AdminDashboardScreen extends ConsumerWidget {
           const SizedBox(height: 8),
           _AdminTile(
             title: 'Ver ventas y exportar',
-            subtitle: 'Movimientos en tiempo real, filtros por fecha, export xlsx.',
+            subtitle:
+                'Movimientos en tiempo real, filtros por fecha, export xlsx.',
             icon: Icons.receipt_long_outlined,
             onTap: () => context.push('/admin/sales'),
           ),
           const SizedBox(height: 10),
           _AdminTile(
             title: 'Registrar nueva venta',
-            subtitle: 'Genera el siguiente consecutivo CQG-XXX automáticamente.',
+            subtitle:
+                'Genera el siguiente consecutivo CQG-XXX automáticamente.',
             icon: Icons.add_circle_outline,
             onTap: () => context.push('/sales/new'),
           ),

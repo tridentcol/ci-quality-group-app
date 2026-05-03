@@ -42,7 +42,8 @@ class KpiCard extends StatelessWidget {
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: theme.textTheme.labelSmall?.copyWith(
-                      color: theme.colorScheme.onSurface.withValues(alpha: 0.65),
+                      color:
+                          theme.colorScheme.onSurface.withValues(alpha: 0.65),
                       height: 1.2,
                     ),
                   ),

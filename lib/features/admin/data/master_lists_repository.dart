@@ -49,8 +49,8 @@ class MasterListsRepository {
           .map(MasterListItem.fromSnapshot)
           .where((item) => item.active)
           .toList()
-        ..sort((a, b) =>
-            a.value.toLowerCase().compareTo(b.value.toLowerCase()));
+        ..sort(
+            (a, b) => a.value.toLowerCase().compareTo(b.value.toLowerCase()));
       return items;
     });
   }
@@ -68,8 +68,7 @@ class MasterListsRepository {
         .map(MasterListItem.fromSnapshot)
         .where((item) => item.active)
         .toList()
-      ..sort((a, b) =>
-          a.value.toLowerCase().compareTo(b.value.toLowerCase()));
+      ..sort((a, b) => a.value.toLowerCase().compareTo(b.value.toLowerCase()));
     return items;
   }
 
@@ -186,7 +185,8 @@ List<Map<String, dynamic>> _defaultListsSeed() => [
         'id': 'lamina_brands',
         'name': 'Tipos de lámina',
         'allowFreeText': true,
-        'description': 'Marcas o variantes específicas para el material LAMINA.',
+        'description':
+            'Marcas o variantes específicas para el material LAMINA.',
         'items': <String>['PEDRO', 'TIPO QUALITY', 'KINGSPAN'],
       },
       {

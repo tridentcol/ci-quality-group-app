@@ -53,8 +53,7 @@ const _firebaseCodes = <String, String>{
   // Firestore
   'permission-denied':
       'No tienes permisos para esta acción. Contacta al admin.',
-  'unavailable':
-      'No se pudo conectar al servidor. Revisa tu conexión.',
+  'unavailable': 'No se pudo conectar al servidor. Revisa tu conexión.',
   'deadline-exceeded':
       'El servidor tardó demasiado en responder. Intenta de nuevo.',
   'cancelled': 'Operación cancelada.',
@@ -65,8 +64,7 @@ const _firebaseCodes = <String, String>{
   'aborted': 'La operación fue cancelada por concurrencia. Intenta de nuevo.',
   'out-of-range': 'Los datos están fuera de rango.',
   'unauthenticated': 'Tu sesión expiró. Vuelve a iniciar sesión.',
-  'resource-exhausted':
-      'Se alcanzó el límite del servicio. Espera un momento.',
+  'resource-exhausted': 'Se alcanzó el límite del servicio. Espera un momento.',
   'data-loss': 'Se perdieron datos durante la operación.',
   'internal': 'Error interno del servidor.',
   'unknown': 'Algo salió mal. Intenta de nuevo.',

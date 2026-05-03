@@ -165,8 +165,7 @@ class _FormBuilderScreenState extends ConsumerState<FormBuilderScreen> {
     final ok = await showConfirmDialog(
       context,
       title: 'Restaurar formulario',
-      message:
-          'Se descartarán los cambios actuales y el formulario volverá al '
+      message: 'Se descartarán los cambios actuales y el formulario volverá al '
           'esquema por defecto. Los datos guardados no se ven afectados.',
       confirmLabel: 'Restaurar',
       destructive: true,
@@ -482,8 +481,10 @@ class _FieldEditorDialogState extends State<_FieldEditorDialog> {
     _formula = TextEditingController(text: f?.formula ?? '');
     _type = f?.type ?? FieldType.text;
     _required = f?.required ?? false;
-    _visibleRoles = {...?f?.visibleToRoles ?? AppRole.values.map((r) => r.id)};
-    _editableRoles = {...?f?.editableByRoles ?? AppRole.values.map((r) => r.id)};
+    _visibleRoles = {...(f?.visibleToRoles ?? AppRole.values.map((r) => r.id))};
+    _editableRoles = {
+      ...(f?.editableByRoles ?? AppRole.values.map((r) => r.id))
+    };
   }
 
   @override
@@ -539,9 +540,8 @@ class _FieldEditorDialogState extends State<_FieldEditorDialog> {
                         child: Text(_FieldRow._typeLabel(t)),
                       ))
                   .toList(),
-              onChanged: _isCore
-                  ? null
-                  : (v) => setState(() => _type = v ?? _type),
+              onChanged:
+                  _isCore ? null : (v) => setState(() => _type = v ?? _type),
             ),
             const SizedBox(height: 12),
             TextField(
@@ -589,8 +589,7 @@ class _FieldEditorDialogState extends State<_FieldEditorDialog> {
               onChanged: (v) => setState(() => _required = v),
             ),
             const SizedBox(height: 8),
-            Text('Visible para',
-                style: theme.textTheme.labelLarge),
+            Text('Visible para', style: theme.textTheme.labelLarge),
             const SizedBox(height: 4),
             Wrap(
               spacing: 6,
@@ -611,8 +610,7 @@ class _FieldEditorDialogState extends State<_FieldEditorDialog> {
               ],
             ),
             const SizedBox(height: 12),
-            Text('Puede editar',
-                style: theme.textTheme.labelLarge),
+            Text('Puede editar', style: theme.textTheme.labelLarge),
             const SizedBox(height: 4),
             Wrap(
               spacing: 6,

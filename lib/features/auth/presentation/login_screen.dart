@@ -76,7 +76,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     Text(
                       'Ingresa con tu usuario corporativo.',
                       style: theme.textTheme.bodyMedium?.copyWith(
-                        color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+                        color:
+                            theme.colorScheme.onSurface.withValues(alpha: 0.7),
                       ),
                       textAlign: TextAlign.center,
                     ),
@@ -128,7 +129,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     Text(
                       '¿Olvidaste tu contraseña? Contacta al administrador.',
                       style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                        color:
+                            theme.colorScheme.onSurface.withValues(alpha: 0.6),
                       ),
                       textAlign: TextAlign.center,
                     ),

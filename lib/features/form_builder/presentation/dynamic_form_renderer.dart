@@ -159,8 +159,8 @@ class _TextFieldWidgetState extends State<_TextFieldWidget> {
   @override
   void initState() {
     super.initState();
-    _ctrl =
-        TextEditingController(text: widget.controller.get(widget.field.id) as String?);
+    _ctrl = TextEditingController(
+        text: widget.controller.get(widget.field.id) as String?);
     _ctrl.addListener(_propagate);
   }
 

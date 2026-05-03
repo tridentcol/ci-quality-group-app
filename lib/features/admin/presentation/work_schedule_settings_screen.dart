@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../../core/utils/dates.dart';
 import '../../../core/utils/time_picker.dart';
@@ -106,7 +105,8 @@ class _WorkScheduleSettingsScreenState
       {required String title}) async {
     final start = await showAppTimePicker(
       context: context,
-      initialTime: TimeOfDay(hour: current.startHour, minute: current.startMinute),
+      initialTime:
+          TimeOfDay(hour: current.startHour, minute: current.startMinute),
       helpText: '$title · inicio',
     );
     if (start == null) return null;
@@ -146,7 +146,8 @@ class _WorkScheduleSettingsScreenState
     setState(() {
       _draft = switch (day) {
         'weekday' => _copyWith(weekdayLunch: r, clearWeekdayLunch: r == null),
-        'saturday' => _copyWith(saturdayLunch: r, clearSaturdayLunch: r == null),
+        'saturday' =>
+          _copyWith(saturdayLunch: r, clearSaturdayLunch: r == null),
         'sunday' => _copyWith(sundayLunch: r, clearSundayLunch: r == null),
         _ => _draft!,
       };
@@ -252,10 +253,9 @@ class _WorkScheduleSettingsScreenState
                     on ? const TimeRange(12, 0, 13, 0) : null,
                   ),
                   onEdit: () async {
-                    final current = draft.weekdayLunch ??
-                        const TimeRange(12, 0, 13, 0);
-                    final r =
-                        await _editRange(current, title: 'Almuerzo L–V');
+                    final current =
+                        draft.weekdayLunch ?? const TimeRange(12, 0, 13, 0);
+                    final r = await _editRange(current, title: 'Almuerzo L–V');
                     if (r != null) _setLunch('weekday', r);
                   },
                 ),
@@ -268,8 +268,8 @@ class _WorkScheduleSettingsScreenState
                     on ? const TimeRange(12, 0, 13, 0) : null,
                   ),
                   onEdit: () async {
-                    final current = draft.saturdayLunch ??
-                        const TimeRange(12, 0, 13, 0);
+                    final current =
+                        draft.saturdayLunch ?? const TimeRange(12, 0, 13, 0);
                     final r =
                         await _editRange(current, title: 'Almuerzo sábado');
                     if (r != null) _setLunch('saturday', r);
@@ -284,10 +284,10 @@ class _WorkScheduleSettingsScreenState
                     on ? const TimeRange(12, 0, 13, 0) : null,
                   ),
                   onEdit: () async {
-                    final current = draft.sundayLunch ??
-                        const TimeRange(12, 0, 13, 0);
-                    final r = await _editRange(current,
-                        title: 'Almuerzo dominical');
+                    final current =
+                        draft.sundayLunch ?? const TimeRange(12, 0, 13, 0);
+                    final r =
+                        await _editRange(current, title: 'Almuerzo dominical');
                     if (r != null) _setLunch('sunday', r);
                   },
                 ),
@@ -347,9 +347,8 @@ class _WorkScheduleSettingsScreenState
                 const SizedBox(height: 8),
                 if (_dirty)
                   TextButton(
-                    onPressed: _busy
-                        ? null
-                        : () => setState(() => _draft = _initial),
+                    onPressed:
+                        _busy ? null : () => setState(() => _draft = _initial),
                     child: const Text('Descartar cambios'),
                   ),
               ],
@@ -435,8 +434,7 @@ class _OrdinaryCard extends StatelessWidget {
               Row(
                 children: [
                   Expanded(
-                    child: Text(label,
-                        style: theme.textTheme.titleMedium),
+                    child: Text(label, style: theme.textTheme.titleMedium),
                   ),
                   Icon(Icons.edit_outlined,
                       size: 18, color: theme.colorScheme.primary),
@@ -449,8 +447,8 @@ class _OrdinaryCard extends StatelessWidget {
                   const SizedBox(width: 8),
                   Icon(Icons.arrow_forward,
                       size: 16,
-                      color: theme.colorScheme.onSurface
-                          .withValues(alpha: 0.5)),
+                      color:
+                          theme.colorScheme.onSurface.withValues(alpha: 0.5)),
                   const SizedBox(width: 8),
                   _ChipTime(label: 'Salida', minutes: range.endMinutes),
                 ],
@@ -460,8 +458,7 @@ class _OrdinaryCard extends StatelessWidget {
                 Text(
                   helper!,
                   style: theme.textTheme.bodySmall?.copyWith(
-                    color:
-                        theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                    color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
                   ),
                 ),
               ],
@@ -536,8 +533,7 @@ class _LunchCard extends StatelessWidget {
                 child: Text(
                   'Sin descuento de almuerzo este día.',
                   style: theme.textTheme.bodySmall?.copyWith(
-                    color:
-                        theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                    color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
                   ),
                 ),
               ),
@@ -576,11 +572,11 @@ class _DayPeriodCard extends StatelessWidget {
               onTap: onEditStart,
               borderRadius: BorderRadius.circular(12),
               child: Padding(
-                padding:
-                    const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+                padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
                 child: Row(
                   children: [
-                    _ChipTime(label: 'Diurno desde', minutes: start.totalMinutes),
+                    _ChipTime(
+                        label: 'Diurno desde', minutes: start.totalMinutes),
                     const Spacer(),
                     Icon(Icons.edit_outlined,
                         size: 18, color: theme.colorScheme.primary),
@@ -595,11 +591,11 @@ class _DayPeriodCard extends StatelessWidget {
               onTap: onEditEnd,
               borderRadius: BorderRadius.circular(12),
               child: Padding(
-                padding:
-                    const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+                padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
                 child: Row(
                   children: [
-                    _ChipTime(label: 'Nocturno desde', minutes: end.totalMinutes),
+                    _ChipTime(
+                        label: 'Nocturno desde', minutes: end.totalMinutes),
                     const Spacer(),
                     Icon(Icons.edit_outlined,
                         size: 18, color: theme.colorScheme.primary),

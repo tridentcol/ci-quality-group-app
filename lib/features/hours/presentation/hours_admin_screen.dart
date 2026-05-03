@@ -80,7 +80,8 @@ class _HoursAdminScreenState extends ConsumerState<HoursAdminScreen> {
                 : () => _export(_filtered(entries.valueOrNull ?? const [])),
             icon: _exporting
                 ? const SizedBox(
-                    width: 18, height: 18,
+                    width: 18,
+                    height: 18,
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
                 : const Icon(Icons.download_outlined),
@@ -96,95 +97,95 @@ class _HoursAdminScreenState extends ConsumerState<HoursAdminScreen> {
         loading: () => const SkeletonList(),
         error: (e, _) => AppErrorView(
           error: e,
-          onRetry: () => ref.invalidate(hoursByRangeProvider(
-              HoursDateRange(start: _start, end: _end))),
+          onRetry: () => ref.invalidate(
+              hoursByRangeProvider(HoursDateRange(start: _start, end: _end))),
         ),
         data: (data) {
           final filtered = _filtered(data);
           final totals = _aggregate(filtered);
           return RefreshIndicator(
-            onRefresh: () async => ref.invalidate(hoursByRangeProvider(
-                HoursDateRange(start: _start, end: _end))),
+            onRefresh: () async => ref.invalidate(
+                hoursByRangeProvider(HoursDateRange(start: _start, end: _end))),
             child: CustomScrollView(
               physics: const AlwaysScrollableScrollPhysics(),
               slivers: [
-              SliverToBoxAdapter(
-                child: HeroBanner(
-                  title: 'Registros del rango',
-                  primaryValue: '${filtered.length}',
-                  secondary:
-                      'registro${filtered.length == 1 ? '' : 's'} cargado${filtered.length == 1 ? '' : 's'}',
+                SliverToBoxAdapter(
+                  child: HeroBanner(
+                    title: 'Registros del rango',
+                    primaryValue: '${filtered.length}',
+                    secondary:
+                        'registro${filtered.length == 1 ? '' : 's'} cargado${filtered.length == 1 ? '' : 's'}',
+                  ),
                 ),
-              ),
-              SliverToBoxAdapter(
-                child: RangeFilterBar(
-                  start: _start,
-                  end: _end,
-                  onChanged: (r) => setState(() {
-                    _start = r.start;
-                    _end = r.end;
-                  }),
+                SliverToBoxAdapter(
+                  child: RangeFilterBar(
+                    start: _start,
+                    end: _end,
+                    onChanged: (r) => setState(() {
+                      _start = r.start;
+                      _end = r.end;
+                    }),
+                  ),
                 ),
-              ),
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-                  child: DropdownButtonFormField<String?>(
-                    value: _workerFilter,
-                    decoration: const InputDecoration(
-                      labelText: 'Filtrar por trabajador',
-                      prefixIcon: Icon(Icons.person_outline),
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                    child: DropdownButtonFormField<String?>(
+                      value: _workerFilter,
+                      decoration: const InputDecoration(
+                        labelText: 'Filtrar por trabajador',
+                        prefixIcon: Icon(Icons.person_outline),
+                      ),
+                      items: [
+                        const DropdownMenuItem(
+                          value: null,
+                          child: Text('Todos los trabajadores'),
+                        ),
+                        ...workers.map((w) => DropdownMenuItem(
+                              value: w.id,
+                              child: Text(w.fullName),
+                            )),
+                      ],
+                      onChanged: (v) => setState(() => _workerFilter = v),
                     ),
-                    items: [
-                      const DropdownMenuItem(
-                        value: null,
-                        child: Text('Todos los trabajadores'),
-                      ),
-                      ...workers.map((w) => DropdownMenuItem(
-                            value: w.id,
-                            child: Text(w.fullName),
-                          )),
-                    ],
-                    onChanged: (v) => setState(() => _workerFilter = v),
                   ),
                 ),
-              ),
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
-                  child: BreakdownCard(
-                    breakdown: totals,
-                    title: 'Totales del rango',
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+                    child: BreakdownCard(
+                      breakdown: totals,
+                      title: 'Totales del rango',
+                    ),
                   ),
                 ),
-              ),
-              if (filtered.isEmpty)
-                const SliverToBoxAdapter(
-                  child: EmptyState(
-                    icon: Icons.schedule_outlined,
-                    title: 'Sin registros en el rango',
-                    message:
-                        'Cambia el rango o crea una entrada manual con el botón inferior.',
+                if (filtered.isEmpty)
+                  const SliverToBoxAdapter(
+                    child: EmptyState(
+                      icon: Icons.schedule_outlined,
+                      title: 'Sin registros en el rango',
+                      message:
+                          'Cambia el rango o crea una entrada manual con el botón inferior.',
+                    ),
+                  )
+                else
+                  SliverList.separated(
+                    separatorBuilder: (_, __) => const SizedBox(height: 8),
+                    itemCount: filtered.length,
+                    itemBuilder: (context, i) {
+                      final e = filtered[i];
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: _HoursEntryCard(
+                          entry: e,
+                          onTap: () =>
+                              context.push('/admin/hours/manual/${e.id}'),
+                        ),
+                      );
+                    },
                   ),
-                )
-              else
-                SliverList.separated(
-                  separatorBuilder: (_, __) => const SizedBox(height: 8),
-                  itemCount: filtered.length,
-                  itemBuilder: (context, i) {
-                    final e = filtered[i];
-                    return Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: _HoursEntryCard(
-                        entry: e,
-                        onTap: () =>
-                            context.push('/admin/hours/manual/${e.id}'),
-                      ),
-                    );
-                  },
-                ),
-              const SliverPadding(padding: EdgeInsets.only(bottom: 32)),
-            ],
+                const SliverPadding(padding: EdgeInsets.only(bottom: 32)),
+              ],
             ),
           );
         },
@@ -205,7 +206,6 @@ class _HoursAdminScreenState extends ConsumerState<HoursAdminScreen> {
     return total;
   }
 }
-
 
 class _HoursEntryCard extends StatelessWidget {
   const _HoursEntryCard({required this.entry, required this.onTap});
@@ -244,7 +244,8 @@ class _HoursEntryCard extends StatelessWidget {
                       '${formatTime(entry.checkIn)}'
                       '${entry.checkOut != null ? " – ${formatTime(entry.checkOut!)}" : ""}',
                       style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                        color:
+                            theme.colorScheme.onSurface.withValues(alpha: 0.6),
                       ),
                     ),
                   ],

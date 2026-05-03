@@ -129,8 +129,7 @@ class _UserFormScreenState extends ConsumerState<UserFormScreen> {
                     color: theme.colorScheme.primary.withValues(alpha: 0.08),
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
-                      color:
-                          theme.colorScheme.primary.withValues(alpha: 0.3),
+                      color: theme.colorScheme.primary.withValues(alpha: 0.3),
                     ),
                   ),
                   child: Row(
@@ -195,8 +194,8 @@ class _UserFormScreenState extends ConsumerState<UserFormScreen> {
                       icon: Icon(_obscurePassword
                           ? Icons.visibility_outlined
                           : Icons.visibility_off_outlined),
-                      onPressed: () => setState(
-                          () => _obscurePassword = !_obscurePassword),
+                      onPressed: () =>
+                          setState(() => _obscurePassword = !_obscurePassword),
                     ),
                   ),
                   validator: (v) {
@@ -219,9 +218,8 @@ class _UserFormScreenState extends ConsumerState<UserFormScreen> {
                           child: Text(r.label),
                         ))
                     .toList(),
-                onChanged: isSelf
-                    ? null
-                    : (r) => setState(() => _role = r ?? _role),
+                onChanged:
+                    isSelf ? null : (r) => setState(() => _role = r ?? _role),
               ),
               const SizedBox(height: 8),
               if (_isEdit)
@@ -232,8 +230,7 @@ class _UserFormScreenState extends ConsumerState<UserFormScreen> {
                     'Si está apagada, el usuario no puede entrar a la app.',
                   ),
                   value: _active,
-                  onChanged:
-                      isSelf ? null : (v) => setState(() => _active = v),
+                  onChanged: isSelf ? null : (v) => setState(() => _active = v),
                 ),
               if (_error != null) ...[
                 const SizedBox(height: 16),

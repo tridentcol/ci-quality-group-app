@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../features/admin/data/master_lists_repository.dart';
-import '../../features/admin/domain/master_list.dart';
 
 /// Campo de formulario que combina:
 ///  - Dropdown clásico cuando la lista NO permite captura libre
@@ -70,8 +69,8 @@ class _MasterListFieldState extends ConsumerState<MasterListField> {
     final itemsAsync = ref.watch(masterListItemsProvider(query));
     final listAsync = ref.watch(masterListMetaProvider(widget.listId));
 
-    final allowFree =
-        (listAsync.valueOrNull?.allowFreeText ?? false) && widget.allowSuggestions;
+    final allowFree = (listAsync.valueOrNull?.allowFreeText ?? false) &&
+        widget.allowSuggestions;
 
     return itemsAsync.when(
       loading: () => _LoadingPlaceholder(label: widget.label),
@@ -259,8 +258,8 @@ class _FreeTextFieldState extends State<_FreeTextField> {
       onFieldSubmitted: (text) async {
         final trimmed = text.trim();
         if (trimmed.isEmpty) return;
-        final exists = widget.values
-            .any((v) => v.toLowerCase() == trimmed.toLowerCase());
+        final exists =
+            widget.values.any((v) => v.toLowerCase() == trimmed.toLowerCase());
         if (!exists) {
           await widget.onSuggestion(trimmed);
         }
@@ -359,8 +358,8 @@ class _LoadingPlaceholder extends StatelessWidget {
   Widget build(BuildContext context) {
     return InputDecorator(
       decoration: InputDecoration(labelText: label),
-      child: Row(
-        children: const [
+      child: const Row(
+        children: [
           SizedBox(
             width: 16,
             height: 16,

@@ -89,9 +89,8 @@ class _WorkerFormScreenState extends ConsumerState<WorkerFormScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-              content: Text(_isEdit
-                  ? 'Trabajador actualizado.'
-                  : 'Trabajador creado.')),
+              content: Text(
+                  _isEdit ? 'Trabajador actualizado.' : 'Trabajador creado.')),
         );
         context.pop();
       }
@@ -119,8 +118,7 @@ class _WorkerFormScreenState extends ConsumerState<WorkerFormScreen> {
             children: [
               TextFormField(
                 controller: _fullName,
-                decoration:
-                    const InputDecoration(labelText: 'Nombre completo'),
+                decoration: const InputDecoration(labelText: 'Nombre completo'),
                 textCapitalization: TextCapitalization.words,
                 validator: (v) =>
                     (v == null || v.trim().isEmpty) ? 'Obligatorio.' : null,

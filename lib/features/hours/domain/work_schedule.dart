@@ -56,17 +56,22 @@ class WorkSchedule {
       };
 
   factory WorkSchedule.fromMap(Map<String, dynamic> map) => WorkSchedule(
-        weekdayOrdinary: TimeRange.fromMap(map['weekdayOrdinary'] as Map<String, dynamic>),
+        weekdayOrdinary:
+            TimeRange.fromMap(map['weekdayOrdinary'] as Map<String, dynamic>),
         weekdayLunch: TimeRange.maybeFromMap(map['weekdayLunch']),
-        saturdayOrdinary: TimeRange.fromMap(map['saturdayOrdinary'] as Map<String, dynamic>),
+        saturdayOrdinary:
+            TimeRange.fromMap(map['saturdayOrdinary'] as Map<String, dynamic>),
         saturdayLunch: TimeRange.maybeFromMap(map['saturdayLunch']),
-        sundayOrdinary: TimeRange.fromMap(map['sundayOrdinary'] as Map<String, dynamic>),
+        sundayOrdinary:
+            TimeRange.fromMap(map['sundayOrdinary'] as Map<String, dynamic>),
         sundayLunch: TimeRange.maybeFromMap(map['sundayLunch']),
-        dayStart: TimeOfDayMinutes.fromMap(map['dayStart'] as Map<String, dynamic>),
+        dayStart:
+            TimeOfDayMinutes.fromMap(map['dayStart'] as Map<String, dynamic>),
         dayEnd: TimeOfDayMinutes.fromMap(map['dayEnd'] as Map<String, dynamic>),
       );
 
-  factory WorkSchedule.fromSnapshot(DocumentSnapshot<Map<String, dynamic>> snap) {
+  factory WorkSchedule.fromSnapshot(
+      DocumentSnapshot<Map<String, dynamic>> snap) {
     final data = snap.data();
     if (data == null) return defaultSchedule;
     return WorkSchedule.fromMap(data);
@@ -88,12 +93,14 @@ class TimeOfDayMinutes {
       TimeOfDayMinutes(map['hour'] as int, map['minute'] as int);
 
   @override
-  String toString() => '${hour.toString().padLeft(2, '0')}:${minute.toString().padLeft(2, '0')}';
+  String toString() =>
+      '${hour.toString().padLeft(2, '0')}:${minute.toString().padLeft(2, '0')}';
 }
 
 /// Intervalo `[start, end)` dentro de un día.
 class TimeRange {
-  const TimeRange(this.startHour, this.startMinute, this.endHour, this.endMinute);
+  const TimeRange(
+      this.startHour, this.startMinute, this.endHour, this.endMinute);
 
   final int startHour;
   final int startMinute;

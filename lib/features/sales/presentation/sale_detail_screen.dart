@@ -115,7 +115,8 @@ class _SaleDetailBody extends ConsumerWidget {
               child: Column(
                 children: [
                   _Row(label: 'Tipo de documento', value: sale.documentType),
-                  _Row(label: 'Número de documento', value: sale.documentNumber),
+                  _Row(
+                      label: 'Número de documento', value: sale.documentNumber),
                   _Row(label: 'Cliente', value: sale.providerName),
                   const Divider(height: 24),
                   _Row(label: 'Material', value: sale.material),
@@ -123,7 +124,9 @@ class _SaleDetailBody extends ConsumerWidget {
                     _Row(label: 'Tipo de lámina', value: sale.materialVariant!),
                   _Row(label: 'Unidad', value: sale.unit),
                   _Row(label: 'Cantidad', value: sale.quantity.toString()),
-                  _Row(label: 'Valor unitario', value: formatCop(sale.unitPrice)),
+                  _Row(
+                      label: 'Valor unitario',
+                      value: formatCop(sale.unitPrice)),
                   _Row(label: 'Valor total', value: formatCop(sale.totalValue)),
                   if (sale.customFields.isNotEmpty) ...[
                     const Divider(height: 24),
@@ -135,9 +138,13 @@ class _SaleDetailBody extends ConsumerWidget {
                   _Row(label: 'Quién recibe', value: sale.payerName),
                   const Divider(height: 24),
                   _Row(label: 'Registrada por', value: sale.createdByName),
-                  _Row(label: 'Registrada el', value: formatDateTime(sale.createdAt)),
+                  _Row(
+                      label: 'Registrada el',
+                      value: formatDateTime(sale.createdAt)),
                   if (sale.updatedAt != null)
-                    _Row(label: 'Última edición', value: formatDateTime(sale.updatedAt!)),
+                    _Row(
+                        label: 'Última edición',
+                        value: formatDateTime(sale.updatedAt!)),
                   if (sale.editableUntil != null && !isAdmin)
                     Padding(
                       padding: const EdgeInsets.only(top: 8),
@@ -146,8 +153,8 @@ class _SaleDetailBody extends ConsumerWidget {
                             ? 'Editable hasta ${formatDateTime(sale.editableUntil!)}'
                             : 'Ya pasó la ventana de edición. Solo el admin puede modificar.',
                         style: theme.textTheme.bodySmall?.copyWith(
-                          color:
-                              theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                          color: theme.colorScheme.onSurface
+                              .withValues(alpha: 0.6),
                         ),
                       ),
                     ),
@@ -218,4 +225,3 @@ class _Row extends StatelessWidget {
     );
   }
 }
-

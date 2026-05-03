@@ -204,7 +204,8 @@ class _SaleFormScreenState extends ConsumerState<SaleFormScreen> {
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
                 value: _documentType,
-                decoration: const InputDecoration(labelText: 'Tipo de documento'),
+                decoration:
+                    const InputDecoration(labelText: 'Tipo de documento'),
                 items: const [
                   DropdownMenuItem(value: 'Cédula', child: Text('Cédula')),
                   DropdownMenuItem(value: 'NIT', child: Text('NIT')),
@@ -218,7 +219,8 @@ class _SaleFormScreenState extends ConsumerState<SaleFormScreen> {
               TextFormField(
                 controller: _docNumberCtrl,
                 keyboardType: TextInputType.text,
-                decoration: const InputDecoration(labelText: 'Número de documento'),
+                decoration:
+                    const InputDecoration(labelText: 'Número de documento'),
                 validator: (v) => (v == null || v.trim().isEmpty)
                     ? 'Este campo es obligatorio.'
                     : null,
@@ -316,8 +318,8 @@ class _SaleFormScreenState extends ConsumerState<SaleFormScreen> {
                 initialValue: _paymentMethod,
                 required: true,
                 allowSuggestions: false,
-                onChanged: (v) => setState(
-                    () => _paymentMethod = v ?? _defaultPaymentMethod),
+                onChanged: (v) =>
+                    setState(() => _paymentMethod = v ?? _defaultPaymentMethod),
               ),
               const SizedBox(height: 12),
               MasterListField(

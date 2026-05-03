@@ -98,8 +98,8 @@ final routerProvider = Provider<GoRouter>((ref) {
             routes: [
               GoRoute(
                 path: ':listId',
-                builder: (_, state) =>
-                    MasterListDetailScreen(listId: state.pathParameters['listId']!),
+                builder: (_, state) => MasterListDetailScreen(
+                    listId: state.pathParameters['listId']!),
               ),
             ],
           ),
@@ -162,8 +162,8 @@ final routerProvider = Provider<GoRouter>((ref) {
               ),
               GoRoute(
                 path: ':id/edit',
-                builder: (_, state) => _EditWorkerRoute(
-                    workerId: state.pathParameters['id']!),
+                builder: (_, state) =>
+                    _EditWorkerRoute(workerId: state.pathParameters['id']!),
               ),
             ],
           ),

@@ -53,21 +53,23 @@ class HoursBreakdown {
   HoursBreakdown operator +(HoursBreakdown other) {
     final result = HoursBreakdown();
     for (final c in HoursCategory.values) {
-      result.totals[c] = (totals[c] ?? Duration.zero) + (other.totals[c] ?? Duration.zero);
+      result.totals[c] =
+          (totals[c] ?? Duration.zero) + (other.totals[c] ?? Duration.zero);
     }
     return result;
   }
 
-  Duration get totalPaid =>
-      HoursCategory.values
-          .where((c) => c != HoursCategory.lunch)
-          .map((c) => totals[c] ?? Duration.zero)
-          .fold(Duration.zero, (a, b) => a + b);
+  Duration get totalPaid => HoursCategory.values
+      .where((c) => c != HoursCategory.lunch)
+      .map((c) => totals[c] ?? Duration.zero)
+      .fold(Duration.zero, (a, b) => a + b);
 
   Duration get(HoursCategory c) => totals[c] ?? Duration.zero;
 
-  Map<String, int> toMinutesMap() =>
-      {for (final c in HoursCategory.values) c.id: (totals[c] ?? Duration.zero).inMinutes};
+  Map<String, int> toMinutesMap() => {
+        for (final c in HoursCategory.values)
+          c.id: (totals[c] ?? Duration.zero).inMinutes
+      };
 
   factory HoursBreakdown.fromMinutesMap(Map<String, dynamic> map) {
     final result = HoursBreakdown();

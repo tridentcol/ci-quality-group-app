@@ -44,7 +44,8 @@ class _SalesListScreenState extends ConsumerState<SalesListScreen> {
   Future<void> _export(List<Sale> sales) async {
     if (sales.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No hay ventas en el rango seleccionado.')),
+        const SnackBar(
+            content: Text('No hay ventas en el rango seleccionado.')),
       );
       return;
     }
@@ -83,7 +84,8 @@ class _SalesListScreenState extends ConsumerState<SalesListScreen> {
                   : () => _export(sales.valueOrNull ?? const []),
               icon: _exporting
                   ? const SizedBox(
-                      width: 18, height: 18,
+                      width: 18,
+                      height: 18,
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
                   : const Icon(Icons.download_outlined),

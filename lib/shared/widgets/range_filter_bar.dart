@@ -146,8 +146,7 @@ class RangeFilterBar extends StatelessWidget {
     if (_sameDay(start, weekStart) && _sameDay(end, endOfDay(now))) {
       return _RangePreset.week;
     }
-    if (_sameDay(start, startOfMonth(now)) &&
-        _sameDay(end, endOfMonth(now))) {
+    if (_sameDay(start, startOfMonth(now)) && _sameDay(end, endOfMonth(now))) {
       return _RangePreset.month;
     }
     final last30 = startOfDay(now.subtract(const Duration(days: 29)));
@@ -192,8 +191,8 @@ class _Chip extends StatelessWidget {
         ),
         child: Text(
           label,
-          style: TextStyle(
-              color: fg, fontSize: 12, fontWeight: FontWeight.w600),
+          style:
+              TextStyle(color: fg, fontSize: 12, fontWeight: FontWeight.w600),
         ),
       ),
     );

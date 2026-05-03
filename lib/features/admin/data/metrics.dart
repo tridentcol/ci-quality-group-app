@@ -155,8 +155,7 @@ class HoursMetrics {
     }
 
     final topWorkers = byWorker.entries
-        .map((e) =>
-            (name: workerNames[e.key] ?? e.key, total: e.value))
+        .map((e) => (name: workerNames[e.key] ?? e.key, total: e.value))
         .toList()
       ..sort((a, b) => b.total.compareTo(a.total));
 
@@ -176,9 +175,8 @@ int _ordinal(DateTime d) => d.year * 10000 + d.month * 100 + d.day;
 /// Métricas de ventas memoizadas. Riverpod las recalcula solo cuando
 /// `salesByRangeProvider` emite una lista nueva, no en cada `build()`
 /// de la pantalla.
-final salesMetricsProvider =
-    Provider.family.autoDispose<AsyncValue<SalesMetrics>, SalesDateRange>(
-        (ref, range) {
+final salesMetricsProvider = Provider.family
+    .autoDispose<AsyncValue<SalesMetrics>, SalesDateRange>((ref, range) {
   final sales = ref.watch(salesByRangeProvider(range));
   return sales.whenData((list) => SalesMetrics.compute(
         list,
@@ -188,9 +186,8 @@ final salesMetricsProvider =
 });
 
 /// Métricas de horas memoizadas (igual que las de ventas).
-final hoursMetricsProvider =
-    Provider.family.autoDispose<AsyncValue<HoursMetrics>, HoursDateRange>(
-        (ref, range) {
+final hoursMetricsProvider = Provider.family
+    .autoDispose<AsyncValue<HoursMetrics>, HoursDateRange>((ref, range) {
   final entries = ref.watch(hoursByRangeProvider(range));
   return entries.whenData(HoursMetrics.compute);
 });

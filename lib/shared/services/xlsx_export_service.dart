@@ -252,8 +252,7 @@ class XlsxExportService {
     final headers = _hoursHeaders;
     sheet.appendRow(headers.map<CellValue>((h) => TextCellValue(h)).toList());
 
-    final sorted = [...entries]
-      ..sort((a, b) {
+    final sorted = [...entries]..sort((a, b) {
         final byDate = a.workDate.compareTo(b.workDate);
         if (byDate != 0) return byDate;
         return a.workerName.compareTo(b.workerName);
@@ -268,7 +267,8 @@ class XlsxExportService {
         .map((e) => e.breakdown)
         .fold<HoursBreakdown>(HoursBreakdown(), (a, b) => a + b);
     sheet.appendRow(_hoursTotalRow('TOTAL SEMANA', weekTotals));
-    _stylizeTotalRow(sheet, rowIndex: sorted.length + 1, columns: headers.length);
+    _stylizeTotalRow(sheet,
+        rowIndex: sorted.length + 1, columns: headers.length);
 
     _stylizeHeader(sheet, columns: headers.length);
     _applyColumnWidths(sheet, _hoursColumnWidths);
@@ -338,7 +338,8 @@ class XlsxExportService {
     ]);
 
     _stylizeHeader(sheet, columns: headers.length);
-    _stylizeTotalRow(sheet, rowIndex: names.length + 1, columns: headers.length);
+    _stylizeTotalRow(sheet,
+        rowIndex: names.length + 1, columns: headers.length);
     _applyColumnWidths(sheet, widths);
   }
 
@@ -449,8 +450,8 @@ class XlsxExportService {
     );
     for (var col = 0; col < columns; col++) {
       sheet
-          .cell(CellIndex.indexByColumnRow(
-              columnIndex: col, rowIndex: rowIndex))
+          .cell(
+              CellIndex.indexByColumnRow(columnIndex: col, rowIndex: rowIndex))
           .cellStyle = style;
     }
   }
