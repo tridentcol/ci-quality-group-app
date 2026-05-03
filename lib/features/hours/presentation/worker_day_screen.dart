@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/utils/clock.dart';
 import '../../../core/utils/dates.dart';
+import '../../../core/utils/time_picker.dart';
 import '../../auth/data/auth_repository.dart';
 import '../../workers/data/workers_repository.dart';
 import '../../workers/domain/worker.dart';
@@ -73,9 +74,10 @@ class _WorkerDayScreenState extends ConsumerState<WorkerDayScreen> {
     final initial = checkIn
         ? entry.checkIn
         : (entry.checkOut ?? AppClock.now());
-    final pickedTime = await showTimePicker(
+    final pickedTime = await showAppTimePicker(
       context: context,
       initialTime: TimeOfDay(hour: initial.hour, minute: initial.minute),
+      helpText: checkIn ? 'Hora de entrada' : 'Hora de salida',
     );
     if (pickedTime == null) return;
     final newDt = DateTime(
