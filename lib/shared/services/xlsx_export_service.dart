@@ -183,8 +183,15 @@ class XlsxExportService {
     );
   }
 
-  /// Construye el workbook de UN mes: hojas semanales (Lun–Dom) +
+  /// Construye el workbook de UN mes: hojas semanales (por día-de-mes) +
   /// resumen por trabajador del mes.
+  ///
+  /// Convención de semanas: en lugar de Lun–Dom (que cruza meses), las
+  /// semanas se cortan por bloques de 7 días dentro del mes:
+  ///   Semana 1 = días 1-7, Semana 2 = 8-14, Semana 3 = 15-21,
+  ///   Semana 4 = 22-28, Semana 5 = 29 hasta el último día del mes.
+  /// Así el cierre mensual cubre exactamente el mes natural y la semana
+  /// final ajusta su tamaño según el mes (28-31 días).
   static Excel _buildMonthlyHoursWorkbook({
     required List<HoursEntry> monthEntries,
     required DateTime monthDate,
@@ -192,37 +199,45 @@ class XlsxExportService {
     final excel = Excel.createExcel();
     excel.delete('Sheet1');
 
-    final firstDayOfMonth = DateTime(monthDate.year, monthDate.month, 1);
-    final firstDayOfNextMonth =
-        DateTime(monthDate.year, monthDate.month + 1, 1);
-    final lastDayOfMonth =
-        firstDayOfNextMonth.subtract(const Duration(days: 1));
+    // El último día del mes se obtiene pidiendo "día 0 del mes siguiente",
+    // truco clásico que respeta los meses de 28/29/30/31 días.
+    final daysInMonth = DateTime(monthDate.year, monthDate.month + 1, 0).day;
 
-    // Construye una lista de semanas (Lun–Dom) que se intersectan con el mes.
+    // Construye los bloques de semana 1..N por día-de-mes. La última
+    // semana se trunca al último día real del mes.
     final weeks = <_WeekRange>[];
-    var weekStart = _mondayOfWeek(firstDayOfMonth);
-    while (!weekStart.isAfter(lastDayOfMonth)) {
-      final weekEnd = weekStart.add(const Duration(days: 6));
-      weeks.add(_WeekRange(start: weekStart, end: weekEnd));
-      weekStart = weekStart.add(const Duration(days: 7));
+    var weekFirstDay = 1;
+    while (weekFirstDay <= daysInMonth) {
+      final weekLastDay = (weekFirstDay + 6).clamp(1, daysInMonth);
+      weeks.add(_WeekRange(
+        start: DateTime(monthDate.year, monthDate.month, weekFirstDay),
+        end: DateTime(monthDate.year, monthDate.month, weekLastDay),
+      ));
+      weekFirstDay += 7;
     }
 
-    // Asigna cada entrada a su semana.
-    final entriesByWeekStart = <DateTime, List<HoursEntry>>{};
+    // Asigna cada entrada a su semana según el día-de-mes de workDate.
+    final entriesByWeekIndex = <int, List<HoursEntry>>{};
     for (final e in monthEntries) {
-      final wkStart = _mondayOfWeek(e.workDate);
-      entriesByWeekStart.putIfAbsent(wkStart, () => []).add(e);
+      // Solo entradas dentro del mes; las que cayeran fuera por algún
+      // motivo (no debería pasar dado el agrupamiento previo) se ignoran.
+      if (e.workDate.year != monthDate.year ||
+          e.workDate.month != monthDate.month) {
+        continue;
+      }
+      final weekIdx = ((e.workDate.day - 1) ~/ 7).clamp(0, weeks.length - 1);
+      entriesByWeekIndex.putIfAbsent(weekIdx, () => []).add(e);
     }
 
     int weekNum = 0;
-    for (final wk in weeks) {
-      final wkEntries = entriesByWeekStart[wk.start] ?? const [];
+    for (var i = 0; i < weeks.length; i++) {
+      final wkEntries = entriesByWeekIndex[i] ?? const [];
       if (wkEntries.isEmpty) continue; // skip semanas sin registros
       weekNum++;
       _appendWeekSheet(
         excel: excel,
         weekNumber: weekNum,
-        week: wk,
+        week: weeks[i],
         entries: wkEntries,
       );
     }
@@ -466,11 +481,6 @@ class XlsxExportService {
   static String _sanitizeSheetName(String raw) {
     final cleaned = raw.replaceAll(RegExp(r'[\\/\?\*\[\]:]'), '-');
     return cleaned.length <= 31 ? cleaned : cleaned.substring(0, 31);
-  }
-
-  static DateTime _mondayOfWeek(DateTime d) {
-    final daysFromMonday = d.weekday - DateTime.monday; // monday=1
-    return DateTime(d.year, d.month, d.day - daysFromMonday);
   }
 
   static Future<void> _saveAndShare({
