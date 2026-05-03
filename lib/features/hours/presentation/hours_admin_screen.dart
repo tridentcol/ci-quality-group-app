@@ -48,6 +48,7 @@ class _HoursAdminScreenState extends ConsumerState<HoursAdminScreen> {
     setState(() => _exporting = true);
     try {
       await XlsxExportService.exportHours(
+        context: context,
         entries: entries,
         rangeStart: _start,
         rangeEnd: _end,

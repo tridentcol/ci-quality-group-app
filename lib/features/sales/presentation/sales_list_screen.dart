@@ -52,6 +52,7 @@ class _SalesListScreenState extends ConsumerState<SalesListScreen> {
     setState(() => _exporting = true);
     try {
       await XlsxExportService.exportSales(
+        context: context,
         sales: sales,
         rangeStart: _start,
         rangeEnd: _end,

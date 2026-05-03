@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:excel/excel.dart';
+import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
@@ -18,12 +19,23 @@ class XlsxExportService {
   static const _headerHexFg = '#FFFFFF';
   static const _summaryHexBg = '#E8F0E9';
 
+  /// Calcula la posición de origen para el share sheet en iPad. iOS exige
+  /// un `Rect` ancla cuando es iPad o el sistema crashea con assertion.
+  /// Para iPhone es opcional. Usamos un cuadro pequeño en la esquina
+  /// superior derecha (donde típicamente está el botón de exportar) como
+  /// fallback razonable cuando no tenemos un widget origin específico.
+  static Rect _shareOrigin(BuildContext context) {
+    final size = MediaQuery.of(context).size;
+    return Rect.fromLTWH(size.width - 80, 80, 40, 40);
+  }
+
   // -------------------- VENTAS --------------------
 
   /// Exporta una lista de ventas en formato tabular (una venta por fila).
   /// Filtra por rango antes de generar; si la lista llega vacía, lanza error
   /// para que el caller muestre snackbar.
   static Future<void> exportSales({
+    required BuildContext context,
     required List<Sale> sales,
     required DateTime rangeStart,
     required DateTime rangeEnd,
@@ -114,6 +126,7 @@ class XlsxExportService {
       message:
           'Exportación de ventas del ${dateFmt.format(rangeStart)} al ${dateFmt.format(rangeEnd)} '
           '(${sales.length} registros).',
+      sharePositionOrigin: _shareOrigin(context),
     );
   }
 
@@ -124,6 +137,7 @@ class XlsxExportService {
   /// registros y una hoja de "Resumen del mes" agregada por trabajador.
   /// Las semanas vacías no se generan.
   static Future<void> exportHours({
+    required BuildContext context,
     required List<HoursEntry> entries,
     required DateTime rangeStart,
     required DateTime rangeEnd,
@@ -180,6 +194,7 @@ class XlsxExportService {
       files,
       subject: 'Horas laboradas CI Quality Group',
       text: shareText,
+      sharePositionOrigin: _shareOrigin(context),
     );
   }
 
@@ -488,6 +503,7 @@ class XlsxExportService {
     required String filename,
     required String subject,
     required String message,
+    required Rect sharePositionOrigin,
   }) async {
     final bytes = excel.save(fileName: filename);
     if (bytes == null) throw StateError('No se pudo serializar el Excel.');
@@ -504,6 +520,7 @@ class XlsxExportService {
       ],
       subject: subject,
       text: message,
+      sharePositionOrigin: sharePositionOrigin,
     );
   }
 }
