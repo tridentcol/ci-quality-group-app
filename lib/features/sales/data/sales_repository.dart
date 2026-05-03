@@ -148,6 +148,15 @@ class SalesRepository {
     return Sale.fromSnapshot(snap);
   }
 
+  /// Stream reactivo a un solo doc. Lo usa SaleDetailScreen para que las
+  /// ediciones se reflejen sin tener que invalidar el cache.
+  Stream<Sale?> watchSale(String id) {
+    return _col
+        .doc(id)
+        .snapshots()
+        .map((snap) => snap.exists ? Sale.fromSnapshot(snap) : null);
+  }
+
   static String _formatConsecutive(int value) {
     final padded = value.toString().padLeft(3, '0');
     return 'CQG-$padded';
@@ -182,4 +191,13 @@ final salesByRangeProvider =
 final recentSalesProvider = StreamProvider.autoDispose<List<Sale>>((ref) {
   ref.watch(authStateProvider);
   return ref.watch(salesRepositoryProvider).watchRecent();
+});
+
+/// Stream a una venta específica. Mantener actualizado en vivo (en lugar
+/// de FutureProvider con cache) hace que al volver de editar se vea el
+/// cambio inmediato.
+final saleByIdProvider =
+    StreamProvider.family.autoDispose<Sale?, String>((ref, id) {
+  ref.watch(authStateProvider);
+  return ref.watch(salesRepositoryProvider).watchSale(id);
 });

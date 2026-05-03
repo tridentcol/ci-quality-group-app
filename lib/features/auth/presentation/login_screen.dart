@@ -1,8 +1,10 @@
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/utils/errors.dart';
 import '../../../shared/widgets/app_logo.dart';
+import '../../../shared/widgets/error_view.dart';
+import '../../../shared/widgets/loading_button.dart';
 import '../data/auth_repository.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
@@ -38,41 +40,27 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             username: _usernameCtrl.text.trim(),
             password: _passwordCtrl.text,
           );
-    } on FirebaseAuthException catch (e) {
-      setState(() => _error = _translate(e.code));
-    } catch (_) {
-      setState(() => _error = 'No fue posible iniciar sesión. Intenta de nuevo.');
+    } catch (e) {
+      setState(() => _error = friendlyError(e));
     } finally {
       if (mounted) setState(() => _loading = false);
     }
   }
 
-  String _translate(String code) {
-    return switch (code) {
-      'invalid-credential' || 'invalid-login-credentials' || 'wrong-password' =>
-        'Usuario o contraseña incorrectos.',
-      'user-not-found' => 'Ese usuario no existe.',
-      'user-disabled' => 'Tu usuario está deshabilitado. Contacta al admin.',
-      'network-request-failed' =>
-        'Sin conexión. Revisa tu internet e intenta otra vez.',
-      'too-many-requests' =>
-        'Demasiados intentos. Espera un minuto e intenta de nuevo.',
-      _ => 'Error de autenticación ($code).',
-    };
-  }
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final keyboardInset = MediaQuery.viewInsetsOf(context).bottom;
     return Scaffold(
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+            padding: EdgeInsets.fromLTRB(24, 32, 24, 32 + keyboardInset),
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 420),
               child: Form(
                 key: _formKey,
+                autovalidateMode: AutovalidateMode.onUserInteraction,
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -128,45 +116,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     ),
                     if (_error != null) ...[
                       const SizedBox(height: 16),
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: theme.colorScheme.error.withValues(alpha: 0.08),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: theme.colorScheme.error.withValues(alpha: 0.4),
-                          ),
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(Icons.error_outline,
-                                size: 18, color: theme.colorScheme.error),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                _error!,
-                                style: theme.textTheme.bodyMedium?.copyWith(
-                                  color: theme.colorScheme.error,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
+                      FormErrorBanner(message: _error!),
                     ],
                     const SizedBox(height: 24),
-                    FilledButton(
-                      onPressed: _loading ? null : _submit,
-                      child: _loading
-                          ? const SizedBox(
-                              height: 20,
-                              width: 20,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2.4,
-                                color: Colors.white,
-                              ),
-                            )
-                          : const Text('Entrar'),
+                    LoadingButton(
+                      onPressed: _submit,
+                      loading: _loading,
+                      label: 'Entrar',
                     ),
                     const SizedBox(height: 16),
                     Text(

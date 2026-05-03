@@ -4,8 +4,13 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/utils/clock.dart';
 import '../../../core/utils/dates.dart';
+import '../../../core/utils/errors.dart';
 import '../../../shared/services/xlsx_export_service.dart';
+import '../../../shared/widgets/empty_state.dart';
+import '../../../shared/widgets/error_view.dart';
+import '../../../shared/widgets/hero_banner.dart';
 import '../../../shared/widgets/range_filter_bar.dart';
+import '../../../shared/widgets/skeleton.dart';
 import '../../workers/data/workers_repository.dart';
 import '../data/hours_repository.dart';
 import '../domain/hours_categories.dart';
@@ -50,7 +55,7 @@ class _HoursAdminScreenState extends ConsumerState<HoursAdminScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error al exportar: $e')),
+          SnackBar(content: Text('Error al exportar: ${friendlyError(e)}')),
         );
       }
     } finally {
@@ -64,7 +69,6 @@ class _HoursAdminScreenState extends ConsumerState<HoursAdminScreen> {
       hoursByRangeProvider(HoursDateRange(start: _start, end: _end)),
     );
     final workers = ref.watch(allWorkersProvider).valueOrNull ?? const [];
-    final theme = Theme.of(context);
     return Scaffold(
       appBar: AppBar(
         title: const Text('Horas laboradas'),
@@ -89,15 +93,28 @@ class _HoursAdminScreenState extends ConsumerState<HoursAdminScreen> {
         label: const Text('Entrada manual'),
       ),
       body: entries.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('Error: $e')),
+        loading: () => const SkeletonList(),
+        error: (e, _) => AppErrorView(
+          error: e,
+          onRetry: () => ref.invalidate(hoursByRangeProvider(
+              HoursDateRange(start: _start, end: _end))),
+        ),
         data: (data) {
           final filtered = _filtered(data);
           final totals = _aggregate(filtered);
-          return CustomScrollView(
-            slivers: [
+          return RefreshIndicator(
+            onRefresh: () async => ref.invalidate(hoursByRangeProvider(
+                HoursDateRange(start: _start, end: _end))),
+            child: CustomScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              slivers: [
               SliverToBoxAdapter(
-                child: _RangeBanner(count: filtered.length),
+                child: HeroBanner(
+                  title: 'Registros del rango',
+                  primaryValue: '${filtered.length}',
+                  secondary:
+                      'registro${filtered.length == 1 ? '' : 's'} cargado${filtered.length == 1 ? '' : 's'}',
+                ),
               ),
               SliverToBoxAdapter(
                 child: RangeFilterBar(
@@ -142,17 +159,12 @@ class _HoursAdminScreenState extends ConsumerState<HoursAdminScreen> {
                 ),
               ),
               if (filtered.isEmpty)
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.all(32),
-                    child: Center(
-                      child: Text(
-                        'No hay registros en este rango.',
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
-                        ),
-                      ),
-                    ),
+                const SliverToBoxAdapter(
+                  child: EmptyState(
+                    icon: Icons.schedule_outlined,
+                    title: 'Sin registros en el rango',
+                    message:
+                        'Cambia el rango o crea una entrada manual con el botón inferior.',
                   ),
                 )
               else
@@ -173,6 +185,7 @@ class _HoursAdminScreenState extends ConsumerState<HoursAdminScreen> {
                 ),
               const SliverPadding(padding: EdgeInsets.only(bottom: 32)),
             ],
+            ),
           );
         },
       ),
@@ -193,38 +206,6 @@ class _HoursAdminScreenState extends ConsumerState<HoursAdminScreen> {
   }
 }
 
-class _RangeBanner extends StatelessWidget {
-  const _RangeBanner({required this.count});
-  final int count;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.primary,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Registros del rango',
-            style: theme.textTheme.bodySmall?.copyWith(color: Colors.white70),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            '$count registro${count == 1 ? '' : 's'}',
-            style: theme.textTheme.headlineSmall?.copyWith(color: Colors.white),
-          ),
-        ],
-      ),
-    );
-  }
-}
 
 class _HoursEntryCard extends StatelessWidget {
   const _HoursEntryCard({required this.entry, required this.onTap});

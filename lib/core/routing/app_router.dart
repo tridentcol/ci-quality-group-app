@@ -9,13 +9,16 @@ import '../../features/admin/presentation/master_lists_screen.dart';
 import '../../features/admin/presentation/user_form_screen.dart';
 import '../../features/admin/presentation/users_screen.dart';
 import '../../features/admin/presentation/work_schedule_settings_screen.dart';
-import '../../features/auth/data/users_repository.dart';
 import '../../features/auth/data/auth_repository.dart';
+import '../../features/auth/data/users_repository.dart';
 import '../../features/auth/presentation/login_screen.dart';
+import '../../features/form_builder/presentation/form_builder_screen.dart';
 import '../../features/hours/presentation/hours_admin_screen.dart';
 import '../../features/hours/presentation/hours_home_screen.dart';
 import '../../features/hours/presentation/manual_hours_entry_screen.dart';
 import '../../features/hours/presentation/worker_day_screen.dart';
+import '../../features/sales/data/sales_repository.dart';
+import '../../features/sales/domain/sale.dart';
 import '../../features/sales/presentation/sale_detail_screen.dart';
 import '../../features/sales/presentation/sale_form_screen.dart';
 import '../../features/sales/presentation/sales_home_screen.dart';
@@ -27,16 +30,10 @@ import '../constants/roles.dart';
 
 /// Notifier que GoRouter escucha. Lo creamos UNA sola vez y lo reusamos
 /// para evitar acumular listeners cada vez que cambia el estado de auth.
-final _routerRefreshProvider = Provider<ChangeNotifier>((ref) {
-  final notifier = ChangeNotifier();
-  ref.listen(authStateProvider, (_, __) {
-    // ignore: invalid_use_of_visible_for_testing_member, invalid_use_of_protected_member
-    notifier.notifyListeners();
-  });
-  ref.listen(currentProfileProvider, (_, __) {
-    // ignore: invalid_use_of_visible_for_testing_member, invalid_use_of_protected_member
-    notifier.notifyListeners();
-  });
+final _routerRefreshProvider = Provider<ValueNotifier<int>>((ref) {
+  final notifier = ValueNotifier<int>(0);
+  ref.listen(authStateProvider, (_, __) => notifier.value++);
+  ref.listen(currentProfileProvider, (_, __) => notifier.value++);
   ref.onDispose(notifier.dispose);
   return notifier;
 });
@@ -137,6 +134,10 @@ final routerProvider = Provider<GoRouter>((ref) {
             builder: (_, __) => const WorkScheduleSettingsScreen(),
           ),
           GoRoute(
+            path: 'form-builder',
+            builder: (_, __) => const FormBuilderScreen(module: 'sales'),
+          ),
+          GoRoute(
             path: 'users',
             builder: (_, __) => const UsersScreen(),
             routes: [
@@ -182,6 +183,20 @@ final routerProvider = Provider<GoRouter>((ref) {
             path: ':id',
             builder: (_, state) =>
                 SaleDetailScreen(saleId: state.pathParameters['id']!),
+            routes: [
+              GoRoute(
+                path: 'edit',
+                builder: (_, state) {
+                  final extra = state.extra;
+                  if (extra is Sale) {
+                    return SaleFormScreen(editingSale: extra);
+                  }
+                  // Fallback: si llegó por deep link sin `extra`, carga vía
+                  // provider para no romper.
+                  return _EditSaleRoute(saleId: state.pathParameters['id']!);
+                },
+              ),
+            ],
           ),
         ],
       ),
@@ -202,56 +217,71 @@ final routerProvider = Provider<GoRouter>((ref) {
   );
 });
 
-/// Carga el usuario por uid y muestra el formulario de edición.
+/// Helper que envuelve un `AsyncValue` para mostrar loading/error/no-data
+/// con el mismo Scaffold que las pantallas de edición usan tres veces.
+Widget _asyncEntityScreen<T>({
+  required AsyncValue<T?> async,
+  required String notFoundLabel,
+  required Widget Function(T value) onData,
+}) {
+  return async.when(
+    loading: () => const Scaffold(
+      body: Center(child: CircularProgressIndicator()),
+    ),
+    error: (e, _) => Scaffold(
+      appBar: AppBar(),
+      body: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Center(child: Text('Error: $e')),
+      ),
+    ),
+    data: (value) {
+      if (value == null) {
+        return Scaffold(
+          appBar: AppBar(),
+          body: Center(child: Text(notFoundLabel)),
+        );
+      }
+      return onData(value);
+    },
+  );
+}
+
 class _EditUserRoute extends ConsumerWidget {
   const _EditUserRoute({required this.uid});
   final String uid;
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final user = ref.watch(userByIdProvider(uid));
-    return user.when(
-      loading: () => const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      ),
-      error: (e, _) => Scaffold(
-        appBar: AppBar(),
-        body: Center(child: Text('Error: $e')),
-      ),
-      data: (u) {
-        if (u == null) {
-          return const Scaffold(
-            body: Center(child: Text('Usuario no encontrado.')),
-          );
-        }
-        return UserFormScreen(editing: u);
-      },
+    return _asyncEntityScreen(
+      async: ref.watch(userByIdProvider(uid)),
+      notFoundLabel: 'Usuario no encontrado.',
+      onData: (u) => UserFormScreen(editing: u),
     );
   }
 }
 
-/// Carga el trabajador por id y muestra el formulario de edición.
 class _EditWorkerRoute extends ConsumerWidget {
   const _EditWorkerRoute({required this.workerId});
   final String workerId;
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final worker = ref.watch(workerByIdProvider(workerId));
-    return worker.when(
-      loading: () => const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      ),
-      error: (e, _) => Scaffold(
-        appBar: AppBar(),
-        body: Center(child: Text('Error: $e')),
-      ),
-      data: (w) {
-        if (w == null) {
-          return const Scaffold(
-            body: Center(child: Text('Trabajador no encontrado.')),
-          );
-        }
-        return WorkerFormScreen(editing: w);
-      },
+    return _asyncEntityScreen(
+      async: ref.watch(workerByIdProvider(workerId)),
+      notFoundLabel: 'Trabajador no encontrado.',
+      onData: (w) => WorkerFormScreen(editing: w),
+    );
+  }
+}
+
+class _EditSaleRoute extends ConsumerWidget {
+  const _EditSaleRoute({required this.saleId});
+  final String saleId;
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return _asyncEntityScreen(
+      async: ref.watch(saleByIdProvider(saleId)),
+      notFoundLabel: 'Venta no encontrada.',
+      onData: (s) => SaleFormScreen(editingSale: s),
     );
   }
 }
@@ -267,54 +297,60 @@ class _SplashScreen extends ConsumerWidget {
       body: Center(
         child: profile.when(
           loading: () => const CircularProgressIndicator(),
-          error: (e, _) => Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.error_outline,
-                    size: 48, color: theme.colorScheme.error),
-                const SizedBox(height: 12),
-                Text(
-                  'No se pudo cargar tu perfil.\n$e',
-                  textAlign: TextAlign.center,
-                  style: theme.textTheme.bodyMedium,
-                ),
-                const SizedBox(height: 16),
-                FilledButton(
-                  onPressed: () => ref.read(authRepositoryProvider).signOut(),
-                  child: const Text('Cerrar sesión'),
-                ),
-              ],
-            ),
+          error: (e, _) => _AuthErrorView(
+            icon: Icons.error_outline,
+            message: 'No se pudo cargar tu perfil.\n$e',
+            onSignOut: () => ref.read(authRepositoryProvider).signOut(),
+            theme: theme,
           ),
           data: (user) {
             if (user == null) {
-              return Padding(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.lock_outline,
-                        size: 48, color: theme.colorScheme.error),
-                    const SizedBox(height: 12),
-                    Text(
-                      'Tu cuenta no tiene un perfil asignado. Contacta al administrador.',
-                      textAlign: TextAlign.center,
-                      style: theme.textTheme.bodyMedium,
-                    ),
-                    const SizedBox(height: 16),
-                    FilledButton(
-                      onPressed: () => ref.read(authRepositoryProvider).signOut(),
-                      child: const Text('Cerrar sesión'),
-                    ),
-                  ],
-                ),
+              return _AuthErrorView(
+                icon: Icons.lock_outline,
+                message:
+                    'Tu cuenta no tiene un perfil asignado. Contacta al administrador.',
+                onSignOut: () => ref.read(authRepositoryProvider).signOut(),
+                theme: theme,
               );
             }
             return const CircularProgressIndicator();
           },
         ),
+      ),
+    );
+  }
+}
+
+class _AuthErrorView extends StatelessWidget {
+  const _AuthErrorView({
+    required this.icon,
+    required this.message,
+    required this.onSignOut,
+    required this.theme,
+  });
+
+  final IconData icon;
+  final String message;
+  final VoidCallback onSignOut;
+  final ThemeData theme;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 48, color: theme.colorScheme.error),
+          const SizedBox(height: 12),
+          Text(message,
+              textAlign: TextAlign.center, style: theme.textTheme.bodyMedium),
+          const SizedBox(height: 16),
+          FilledButton(
+            onPressed: onSignOut,
+            child: const Text('Cerrar sesión'),
+          ),
+        ],
       ),
     );
   }

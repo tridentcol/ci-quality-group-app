@@ -97,7 +97,7 @@ final usersRepositoryProvider = Provider<UsersRepository>((ref) {
   return UsersRepository(FirebaseFirestore.instance);
 });
 
-final allUsersProvider = StreamProvider<List<AppUser>>((ref) {
+final allUsersProvider = StreamProvider.autoDispose<List<AppUser>>((ref) {
   ref.watch(authStateProvider);
   return ref.watch(usersRepositoryProvider).watchAll();
 });

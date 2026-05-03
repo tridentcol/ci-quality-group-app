@@ -2,9 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/clock.dart';
 import '../../../core/utils/dates.dart';
+import '../../../core/utils/errors.dart';
 import '../../../core/utils/time_picker.dart';
+import '../../../shared/widgets/confirm_dialog.dart';
+import '../../../shared/widgets/error_view.dart';
+import '../../../shared/widgets/loading_button.dart';
+import '../../../shared/widgets/section_label.dart';
 import '../../auth/data/auth_repository.dart';
 import '../../workers/data/workers_repository.dart';
 import '../../workers/domain/worker.dart';
@@ -40,18 +46,24 @@ class _ManualHoursEntryScreenState
   DateTime _date = AppClock.now();
   TimeOfDay _checkIn = const TimeOfDay(hour: 7, minute: 0);
   TimeOfDay _checkOut = const TimeOfDay(hour: 16, minute: 0);
-  bool _initialized = false;
   bool _busy = false;
   String? _formError;
   HoursEntry? _editing;
 
   bool get _isEdit => widget.entryId != null;
 
-  Future<void> _loadEditing() async {
-    if (_initialized) return;
-    _initialized = true;
-    if (!_isEdit) return;
+  @override
+  void initState() {
+    super.initState();
+    if (_isEdit) {
+      // Carga del registro al entrar. Se hace en un postFrameCallback para
+      // que el `ref.read(allWorkersProvider)` ya tenga datos del Stream.
+      WidgetsBinding.instance.addPostFrameCallback((_) => _loadEditing());
+    }
+  }
 
+  Future<void> _loadEditing() async {
+    if (!_isEdit || !mounted) return;
     setState(() => _busy = true);
     try {
       final entry =
@@ -77,11 +89,13 @@ class _ManualHoursEntryScreenState
           active: false,
         ),
       );
+      if (!mounted) return;
       setState(() {
         _editing = entry;
         _worker = worker;
         _date = entry.workDate;
-        _checkIn = TimeOfDay(hour: entry.checkIn.hour, minute: entry.checkIn.minute);
+        _checkIn =
+            TimeOfDay(hour: entry.checkIn.hour, minute: entry.checkIn.minute);
         if (entry.checkOut != null) {
           _checkOut = TimeOfDay(
             hour: entry.checkOut!.hour,
@@ -89,6 +103,12 @@ class _ManualHoursEntryScreenState
           );
         }
       });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(friendlyError(e))),
+        );
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -131,12 +151,12 @@ class _ManualHoursEntryScreenState
   ({String label, Color color})? _dateBadge() {
     final today = AppClock.now();
     if (isSameDay(_date, today)) {
-      return (label: 'Hoy', color: Colors.green);
+      return (label: 'Hoy', color: AppColors.success);
     }
     if (_date.isBefore(today)) {
-      return (label: 'Pasado', color: Colors.blueGrey);
+      return (label: 'Pasado', color: AppColors.info);
     }
-    return (label: 'Futuro', color: Colors.orange);
+    return (label: 'Futuro', color: AppColors.warning);
   }
 
   DateTime _composeCheckIn() => DateTime(
@@ -194,7 +214,7 @@ class _ManualHoursEntryScreenState
         context.pop();
       }
     } catch (e) {
-      setState(() => _formError = 'No se pudo guardar: $e');
+      setState(() => _formError = friendlyError(e));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -202,30 +222,25 @@ class _ManualHoursEntryScreenState
 
   Future<void> _delete() async {
     if (_editing == null) return;
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Eliminar registro'),
-        content: const Text(
-          'Esto borra el registro permanentemente. ¿Continuar?',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancelar'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Eliminar'),
-          ),
-        ],
-      ),
+    final ok = await showConfirmDialog(
+      context,
+      title: 'Eliminar registro',
+      message: 'Esto borra el registro permanentemente.',
+      confirmLabel: 'Eliminar',
+      destructive: true,
+      icon: Icons.delete_outline,
     );
-    if (ok != true) return;
+    if (!ok) return;
     setState(() => _busy = true);
     try {
       await ref.read(hoursRepositoryProvider).deleteEntry(_editing!.id);
       if (mounted) context.pop();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(friendlyError(e))),
+        );
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -233,9 +248,8 @@ class _ManualHoursEntryScreenState
 
   @override
   Widget build(BuildContext context) {
-    WidgetsBinding.instance.addPostFrameCallback((_) => _loadEditing());
-
     final theme = Theme.of(context);
+    final keyboardInset = MediaQuery.viewInsetsOf(context).bottom;
     final workers = ref.watch(allWorkersProvider);
     final schedule =
         ref.watch(workScheduleProvider).valueOrNull ?? const WorkSchedule();
@@ -248,14 +262,15 @@ class _ManualHoursEntryScreenState
         absorbing: _busy,
         child: workers.when(
           loading: () => const Center(child: CircularProgressIndicator()),
-          error: (e, _) => Center(child: Text('Error: $e')),
+          error: (e, _) => AppErrorView(error: e),
           data: (workersList) {
             return Form(
               key: _formKey,
+              autovalidateMode: AutovalidateMode.onUserInteraction,
               child: ListView(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
+                padding: EdgeInsets.fromLTRB(16, 16, 16, 96 + keyboardInset),
                 children: [
-                  _SectionLabel('Trabajador'),
+                  const SectionLabel('Trabajador'),
                   const SizedBox(height: 8),
                   DropdownButtonFormField<Worker>(
                     value: _worker,
@@ -276,7 +291,7 @@ class _ManualHoursEntryScreenState
                         : (w) => setState(() => _worker = w),
                   ),
                   const SizedBox(height: 24),
-                  _SectionLabel('Fecha y horas'),
+                  const SectionLabel('Fecha y horas'),
                   const SizedBox(height: 8),
                   _TappableField(
                     label: 'Fecha',
@@ -308,7 +323,7 @@ class _ManualHoursEntryScreenState
                     ],
                   ),
                   const SizedBox(height: 24),
-                  _SectionLabel('Vista previa del desglose'),
+                  const SectionLabel('Vista previa del desglose'),
                   const SizedBox(height: 8),
                   Builder(builder: (context) {
                     final inDt = _composeCheckIn();
@@ -333,34 +348,14 @@ class _ManualHoursEntryScreenState
                   }),
                   if (_formError != null) ...[
                     const SizedBox(height: 16),
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: theme.colorScheme.error.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: theme.colorScheme.error.withValues(alpha: 0.4),
-                        ),
-                      ),
-                      child: Text(
-                        _formError!,
-                        style: TextStyle(color: theme.colorScheme.error),
-                      ),
-                    ),
+                    FormErrorBanner(message: _formError!),
                   ],
                   const SizedBox(height: 24),
-                  FilledButton(
-                    onPressed: _busy ? null : _submit,
-                    child: _busy
-                        ? const SizedBox(
-                            height: 20,
-                            width: 20,
-                            child: CircularProgressIndicator(
-                                color: Colors.white, strokeWidth: 2.4),
-                          )
-                        : Text(_isEdit
-                            ? 'Guardar cambios'
-                            : 'Crear registro cerrado'),
+                  LoadingButton(
+                    onPressed: _submit,
+                    loading: _busy,
+                    label:
+                        _isEdit ? 'Guardar cambios' : 'Crear registro cerrado',
                   ),
                   if (_isEdit) ...[
                     const SizedBox(height: 12),
@@ -383,21 +378,6 @@ class _ManualHoursEntryScreenState
   }
 }
 
-class _SectionLabel extends StatelessWidget {
-  const _SectionLabel(this.text);
-  final String text;
-  @override
-  Widget build(BuildContext context) {
-    return Text(
-      text.toUpperCase(),
-      style: Theme.of(context).textTheme.labelLarge?.copyWith(
-            color: Theme.of(context).colorScheme.primary,
-            letterSpacing: 1.2,
-          ),
-    );
-  }
-}
-
 class _TappableField extends StatelessWidget {
   const _TappableField({
     required this.label,
@@ -415,6 +395,7 @@ class _TappableField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(12),
@@ -422,9 +403,7 @@ class _TappableField extends StatelessWidget {
         decoration: InputDecoration(
           labelText: label,
           prefixIcon: Icon(icon),
-          suffixIcon: onTap == null
-              ? null
-              : const Icon(Icons.chevron_right),
+          suffixIcon: onTap == null ? null : const Icon(Icons.chevron_right),
         ),
         child: Row(
           children: [
@@ -443,9 +422,8 @@ class _TappableField extends StatelessWidget {
                 ),
                 child: Text(
                   badge!.label,
-                  style: TextStyle(
+                  style: theme.textTheme.labelSmall?.copyWith(
                     color: badge!.color,
-                    fontSize: 11,
                     fontWeight: FontWeight.w600,
                   ),
                 ),

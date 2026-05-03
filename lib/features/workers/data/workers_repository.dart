@@ -48,6 +48,13 @@ class WorkersRepository {
     return Worker.fromSnapshot(snap);
   }
 
+  Stream<Worker?> watchWorker(String id) {
+    return _col
+        .doc(id)
+        .snapshots()
+        .map((snap) => snap.exists ? Worker.fromSnapshot(snap) : null);
+  }
+
   Future<Worker> create({
     required String fullName,
     required String idNumber,
@@ -156,12 +163,18 @@ final activeWorkersProvider = StreamProvider<List<Worker>>((ref) {
   return ref.watch(workersRepositoryProvider).watchActive();
 });
 
-final allWorkersProvider = StreamProvider<List<Worker>>((ref) {
+/// Lista completa (incluye inactivos). Solo se usa en el panel admin →
+/// autoDispose para no quedar escuchando después de salir.
+final allWorkersProvider = StreamProvider.autoDispose<List<Worker>>((ref) {
   ref.watch(authStateProvider);
   return ref.watch(workersRepositoryProvider).watchAll();
 });
 
+/// Stream a un worker por id. Antes era `FutureProvider` y se cacheaba el
+/// resultado, lo que dejaba la pantalla de edición con datos viejos al
+/// reabrirla después de modificar.
 final workerByIdProvider =
-    FutureProvider.family.autoDispose<Worker?, String>((ref, id) {
-  return ref.watch(workersRepositoryProvider).getWorker(id);
+    StreamProvider.family.autoDispose<Worker?, String>((ref, id) {
+  ref.watch(authStateProvider);
+  return ref.watch(workersRepositoryProvider).watchWorker(id);
 });

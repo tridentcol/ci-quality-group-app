@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -306,11 +308,23 @@ final hoursRepositoryProvider = Provider<HoursRepository>((ref) {
   return HoursRepository(FirebaseFirestore.instance);
 });
 
+/// Stream del estado de "hoy" para todos los trabajadores. Se reinvalida
+/// automáticamente a la medianoche de Bogotá para que la pantalla del
+/// encargado renueve sus rangos sin necesidad de reiniciar la app.
 final todayHoursByWorkerProvider =
-    StreamProvider<Map<String, HoursEntry>>((ref) {
+    StreamProvider.autoDispose<Map<String, HoursEntry>>((ref) {
   // Re-crea el listener al cambiar la sesión para que arranque siempre con
   // el token correcto y no quede atascado en permission-denied.
   ref.watch(authStateProvider);
+
+  // Programa la auto-invalidación 5 segundos después de medianoche para
+  // que `watchTodayByWorker` se re-cree con los nuevos límites del día.
+  final now = AppClock.now();
+  final tomorrow = startOfDay(now).add(const Duration(days: 1));
+  final untilMidnight = tomorrow.difference(now) + const Duration(seconds: 5);
+  final timer = Timer(untilMidnight, ref.invalidateSelf);
+  ref.onDispose(timer.cancel);
+
   return ref.watch(hoursRepositoryProvider).watchTodayByWorker();
 });
 

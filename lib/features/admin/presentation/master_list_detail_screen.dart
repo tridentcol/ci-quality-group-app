@@ -1,120 +1,126 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/utils/errors.dart';
+import '../../../shared/widgets/confirm_dialog.dart';
+import '../../../shared/widgets/empty_state.dart';
+import '../../../shared/widgets/error_view.dart';
+import '../../../shared/widgets/skeleton.dart';
 import '../data/master_lists_repository.dart';
 import '../domain/master_list.dart';
 
-class MasterListDetailScreen extends ConsumerStatefulWidget {
+class MasterListDetailScreen extends ConsumerWidget {
   const MasterListDetailScreen({super.key, required this.listId});
 
   final String listId;
 
-  @override
-  ConsumerState<MasterListDetailScreen> createState() =>
-      _MasterListDetailScreenState();
-}
-
-class _MasterListDetailScreenState
-    extends ConsumerState<MasterListDetailScreen> {
-  Future<MasterList?>? _listFuture;
-
-  @override
-  void initState() {
-    super.initState();
-    _listFuture =
-        ref.read(masterListsRepositoryProvider).getList(widget.listId);
-  }
-
-  Future<void> _addItem() async {
+  Future<void> _addItem(BuildContext context, WidgetRef ref) async {
     final value = await _promptValue(context, title: 'Nueva opción');
     if (value == null || value.isEmpty) return;
-    await ref
-        .read(masterListsRepositoryProvider)
-        .addItem(widget.listId, value: value);
+    try {
+      await ref
+          .read(masterListsRepositoryProvider)
+          .addItem(listId, value: value);
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(friendlyError(e))),
+        );
+      }
+    }
   }
 
-  Future<void> _editItem(MasterListItem item) async {
+  Future<void> _editItem(
+      BuildContext context, WidgetRef ref, MasterListItem item) async {
     final value = await _promptValue(
       context,
       title: 'Editar opción',
       initial: item.value,
     );
     if (value == null || value.isEmpty || value == item.value) return;
-    await ref
-        .read(masterListsRepositoryProvider)
-        .updateItem(widget.listId, item.id, value: value, userSuggested: false);
+    try {
+      await ref.read(masterListsRepositoryProvider).updateItem(
+            listId,
+            item.id,
+            value: value,
+            userSuggested: false,
+          );
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(friendlyError(e))),
+        );
+      }
+    }
   }
 
-  Future<void> _deleteItem(MasterListItem item) async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Eliminar opción'),
-        content: Text(
+  Future<void> _deleteItem(
+      BuildContext context, WidgetRef ref, MasterListItem item) async {
+    final ok = await showConfirmDialog(
+      context,
+      title: 'Eliminar opción',
+      message:
           'Se eliminará "${item.value}" de la lista. Las ventas o registros '
           'que ya la usen no se verán afectados.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancelar'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Eliminar'),
-          ),
-        ],
-      ),
+      confirmLabel: 'Eliminar',
+      destructive: true,
+      icon: Icons.delete_outline,
     );
-    if (confirm != true) return;
-    await ref
-        .read(masterListsRepositoryProvider)
-        .deleteItem(widget.listId, item.id);
+    if (!ok) return;
+    try {
+      await ref
+          .read(masterListsRepositoryProvider)
+          .deleteItem(listId, item.id);
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(friendlyError(e))),
+        );
+      }
+    }
   }
 
-  Future<void> _approveSuggestion(MasterListItem item) async {
+  Future<void> _approveSuggestion(
+      WidgetRef ref, MasterListItem item) async {
     await ref.read(masterListsRepositoryProvider).updateItem(
-          widget.listId,
+          listId,
           item.id,
           userSuggested: false,
         );
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final items = ref.watch(
-      masterListItemsProvider(MasterListItemsQuery(listId: widget.listId)),
+      masterListItemsProvider(MasterListItemsQuery(listId: listId)),
     );
+    final meta = ref.watch(masterListMetaProvider(listId));
 
     return Scaffold(
       appBar: AppBar(
-        title: FutureBuilder<MasterList?>(
-          future: _listFuture,
-          builder: (context, snap) =>
-              Text(snap.data?.name ?? 'Lista maestra'),
-        ),
+        title: Text(meta.valueOrNull?.name ?? 'Lista maestra'),
       ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: _addItem,
+        onPressed: () => _addItem(context, ref),
         icon: const Icon(Icons.add),
         label: const Text('Agregar'),
       ),
       body: items.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Padding(
-          padding: const EdgeInsets.all(24),
-          child: Center(child: Text(e.toString())),
+        loading: () => const SkeletonList(),
+        error: (e, _) => AppErrorView(
+          error: e,
+          onRetry: () => ref.invalidate(
+            masterListItemsProvider(MasterListItemsQuery(listId: listId)),
+          ),
         ),
         data: (data) {
           if (data.isEmpty) {
-            return const Center(
-              child: Padding(
-                padding: EdgeInsets.all(24),
-                child: Text(
-                  'Esta lista no tiene opciones todavía.\nUsa el botón Agregar.',
-                  textAlign: TextAlign.center,
-                ),
-              ),
+            return EmptyState(
+              icon: Icons.list_alt_outlined,
+              title: 'Lista vacía',
+              message: 'Esta lista no tiene opciones todavía.',
+              actionLabel: 'Agregar primera opción',
+              onAction: () => _addItem(context, ref),
             );
           }
           return ListView.separated(
@@ -129,9 +135,9 @@ class _MasterListDetailScreenState
                       const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                   title: Text(item.value),
                   subtitle: item.userSuggested
-                      ? const Text(
+                      ? Text(
                           'Sugerida por un usuario · sin formalizar',
-                          style: TextStyle(fontSize: 12),
+                          style: Theme.of(context).textTheme.labelSmall,
                         )
                       : null,
                   trailing: Row(
@@ -142,17 +148,17 @@ class _MasterListDetailScreenState
                           tooltip: 'Aprobar sugerencia',
                           icon: const Icon(Icons.check_circle_outline),
                           color: Theme.of(context).colorScheme.primary,
-                          onPressed: () => _approveSuggestion(item),
+                          onPressed: () => _approveSuggestion(ref, item),
                         ),
                       IconButton(
                         tooltip: 'Editar',
                         icon: const Icon(Icons.edit_outlined),
-                        onPressed: () => _editItem(item),
+                        onPressed: () => _editItem(context, ref, item),
                       ),
                       IconButton(
                         tooltip: 'Eliminar',
                         icon: const Icon(Icons.delete_outline),
-                        onPressed: () => _deleteItem(item),
+                        onPressed: () => _deleteItem(context, ref, item),
                       ),
                     ],
                   ),
@@ -166,33 +172,64 @@ class _MasterListDetailScreenState
   }
 }
 
+/// Diálogo de captura de un valor de texto. El controller se crea/dispone
+/// dentro de un StatefulBuilder para no leakear (el patrón anterior lo
+/// dejaba colgando en cada apertura).
 Future<String?> _promptValue(
   BuildContext context, {
   required String title,
   String? initial,
-}) {
-  final controller = TextEditingController(text: initial);
+}) async {
   return showDialog<String>(
     context: context,
-    builder: (ctx) => AlertDialog(
-      title: Text(title),
+    builder: (ctx) => _PromptDialog(title: title, initial: initial),
+  );
+}
+
+class _PromptDialog extends StatefulWidget {
+  const _PromptDialog({required this.title, this.initial});
+  final String title;
+  final String? initial;
+  @override
+  State<_PromptDialog> createState() => _PromptDialogState();
+}
+
+class _PromptDialogState extends State<_PromptDialog> {
+  late final TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.initial);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(widget.title),
       content: TextField(
-        controller: controller,
+        controller: _controller,
         autofocus: true,
         decoration: const InputDecoration(hintText: 'Valor'),
         textInputAction: TextInputAction.done,
-        onSubmitted: (v) => Navigator.pop(ctx, v.trim()),
+        onSubmitted: (v) => Navigator.pop(context, v.trim()),
       ),
       actions: [
         TextButton(
-          onPressed: () => Navigator.pop(ctx, null),
+          onPressed: () => Navigator.pop(context, null),
           child: const Text('Cancelar'),
         ),
         FilledButton(
-          onPressed: () => Navigator.pop(ctx, controller.text.trim()),
+          onPressed: () => Navigator.pop(context, _controller.text.trim()),
           child: const Text('Guardar'),
         ),
       ],
-    ),
-  );
+    );
+  }
 }

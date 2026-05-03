@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../shared/widgets/app_logo.dart';
+import '../../../shared/widgets/section_label.dart';
 import '../../auth/data/auth_repository.dart';
 
 class AdminDashboardScreen extends ConsumerWidget {
@@ -45,7 +46,8 @@ class AdminDashboardScreen extends ConsumerWidget {
                         Text(
                           'Estás conectado como administrador.',
                           style: theme.textTheme.bodyMedium?.copyWith(
-                            color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+                            color: theme.colorScheme.onSurface
+                                .withValues(alpha: 0.7),
                           ),
                         ),
                       ],
@@ -64,7 +66,7 @@ class AdminDashboardScreen extends ConsumerWidget {
             onTap: () => context.push('/admin/metrics'),
           ),
           const SizedBox(height: 24),
-          Text('VENTAS', style: _sectionStyle(context)),
+          const SectionLabel('Ventas'),
           const SizedBox(height: 8),
           _AdminTile(
             title: 'Ver ventas y exportar',
@@ -80,7 +82,7 @@ class AdminDashboardScreen extends ConsumerWidget {
             onTap: () => context.push('/sales/new'),
           ),
           const SizedBox(height: 24),
-          Text('CONFIGURACIÓN', style: _sectionStyle(context)),
+          const SectionLabel('Configuración'),
           const SizedBox(height: 8),
           _AdminTile(
             title: 'Listas maestras',
@@ -98,13 +100,21 @@ class AdminDashboardScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 10),
           _AdminTile(
+            title: 'Constructor de formularios',
+            subtitle:
+                'Reordena, oculta o agrega campos al formulario de ventas.',
+            icon: Icons.dynamic_form_outlined,
+            onTap: () => context.push('/admin/form-builder'),
+          ),
+          const SizedBox(height: 10),
+          _AdminTile(
             title: 'Usuarios de la app',
             subtitle: 'Crea, edita y activa/desactiva cuentas.',
             icon: Icons.manage_accounts_outlined,
             onTap: () => context.push('/admin/users'),
           ),
           const SizedBox(height: 24),
-          Text('HORAS', style: _sectionStyle(context)),
+          const SectionLabel('Horas'),
           const SizedBox(height: 8),
           _AdminTile(
             title: 'Horas laboradas',
@@ -128,26 +138,11 @@ class AdminDashboardScreen extends ConsumerWidget {
             icon: Icons.engineering_outlined,
             onTap: () => context.push('/admin/workers'),
           ),
-          const SizedBox(height: 24),
-          Text('PRÓXIMAMENTE', style: _sectionStyle(context)),
-          const SizedBox(height: 8),
-          const _AdminTile(
-            title: 'Constructor de formularios',
-            subtitle: 'Agrega o reordena campos del formulario de ventas.',
-            icon: Icons.dynamic_form_outlined,
-            onTap: null,
-          ),
           const SizedBox(height: 32),
         ],
       ),
     );
   }
-
-  TextStyle? _sectionStyle(BuildContext context) =>
-      Theme.of(context).textTheme.labelLarge?.copyWith(
-            color: Theme.of(context).colorScheme.primary,
-            letterSpacing: 1.2,
-          );
 }
 
 class _AdminTile extends StatelessWidget {
@@ -174,7 +169,7 @@ class _AdminTile extends StatelessWidget {
         child: Opacity(
           opacity: disabled ? 0.5 : 1,
           child: Padding(
-            padding: const EdgeInsets.all(18),
+            padding: const EdgeInsets.all(16),
             child: Row(
               children: [
                 Container(
@@ -196,7 +191,8 @@ class _AdminTile extends StatelessWidget {
                       Text(
                         subtitle,
                         style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurface.withValues(alpha: 0.65),
+                          color: theme.colorScheme.onSurface
+                              .withValues(alpha: 0.65),
                         ),
                       ),
                     ],

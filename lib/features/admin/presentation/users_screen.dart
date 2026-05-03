@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../core/constants/roles.dart';
+import '../../../shared/widgets/empty_state.dart';
+import '../../../shared/widgets/error_view.dart';
+import '../../../shared/widgets/role_pill.dart';
+import '../../../shared/widgets/skeleton.dart';
 import '../../auth/data/auth_repository.dart';
 import '../../auth/data/users_repository.dart';
 import '../../auth/domain/app_user.dart';
@@ -12,8 +15,10 @@ class UsersScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final users = ref.watch(allUsersProvider);
-    final me = ref.watch(currentProfileProvider).valueOrNull;
+    final usersAsync = ref.watch(allUsersProvider);
+    final myUid = ref.watch(currentProfileProvider.select(
+      (a) => a.valueOrNull?.uid,
+    ));
     final theme = Theme.of(context);
 
     return Scaffold(
@@ -23,27 +28,44 @@ class UsersScreen extends ConsumerWidget {
         icon: const Icon(Icons.person_add_outlined),
         label: const Text('Nuevo usuario'),
       ),
-      body: users.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('Error: $e')),
-        data: (data) {
-          if (data.isEmpty) {
-            return const Center(child: Text('No hay usuarios todavía.'));
-          }
-          return ListView.separated(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
-            itemCount: data.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 10),
-            itemBuilder: (context, i) {
-              final u = data[i];
-              return _UserCard(
-                user: u,
-                isSelf: me?.uid == u.uid,
-                onTap: () => context.push('/admin/users/${u.uid}'),
+      body: RefreshIndicator(
+        onRefresh: () async => ref.invalidate(allUsersProvider),
+        child: usersAsync.when(
+          loading: () => const SkeletonList(),
+          error: (e, _) => AppErrorView(
+            error: e,
+            onRetry: () => ref.invalidate(allUsersProvider),
+          ),
+          data: (data) {
+            if (data.isEmpty) {
+              return ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                children: [
+                  EmptyState(
+                    icon: Icons.people_outline,
+                    title: 'Sin usuarios',
+                    message: 'Crea el primer usuario con el botón "Nuevo usuario".',
+                    actionLabel: 'Crear primer usuario',
+                    onAction: () => context.push('/admin/users/new'),
+                  ),
+                ],
               );
-            },
-          );
-        },
+            }
+            return ListView.separated(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
+              itemCount: data.length,
+              separatorBuilder: (_, __) => const SizedBox(height: 10),
+              itemBuilder: (context, i) {
+                final u = data[i];
+                return _UserCard(
+                  user: u,
+                  isSelf: myUid == u.uid,
+                  onTap: () => context.push('/admin/users/${u.uid}'),
+                );
+              },
+            );
+          },
+        ),
       ),
       bottomNavigationBar: SafeArea(
         child: Padding(
@@ -77,11 +99,7 @@ class _UserCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final color = switch (user.role) {
-      AppRole.admin => theme.colorScheme.primary,
-      AppRole.sales => Colors.blueAccent,
-      AppRole.hours => Colors.deepOrangeAccent,
-    };
+    final color = RolePill.colorOf(user.role);
     return Card(
       child: InkWell(
         onTap: onTap,
@@ -116,7 +134,7 @@ class _UserCard extends StatelessWidget {
                         if (isSelf)
                           Container(
                             padding: const EdgeInsets.symmetric(
-                                horizontal: 6, vertical: 2),
+                                horizontal: 8, vertical: 2),
                             decoration: BoxDecoration(
                               color: theme.colorScheme.primary
                                   .withValues(alpha: 0.15),
@@ -132,28 +150,35 @@ class _UserCard extends StatelessWidget {
                           ),
                       ],
                     ),
-                    const SizedBox(height: 2),
+                    const SizedBox(height: 4),
                     Text(
-                      '@${user.username} · ${user.role.label}',
+                      '@${user.username}',
                       style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurface.withValues(alpha: 0.65),
+                        color:
+                            theme.colorScheme.onSurface.withValues(alpha: 0.65),
                       ),
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        RolePill(role: user.role, compact: true),
+                        const SizedBox(width: 6),
+                        if (!user.active)
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: theme.colorScheme.surfaceContainerHighest,
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                            child: Text('Inactivo',
+                                style: theme.textTheme.labelSmall),
+                          ),
+                      ],
                     ),
                   ],
                 ),
               ),
-              if (!user.active)
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: theme.colorScheme.surfaceContainerHighest,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    'Inactivo',
-                    style: theme.textTheme.labelSmall,
-                  ),
-                ),
             ],
           ),
         ),

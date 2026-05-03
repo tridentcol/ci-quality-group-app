@@ -1,6 +1,10 @@
-import '../../sales/domain/sale.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../hours/data/hours_repository.dart';
 import '../../hours/domain/hours_categories.dart';
 import '../../hours/domain/hours_entry.dart';
+import '../../sales/data/sales_repository.dart';
+import '../../sales/domain/sale.dart';
 
 /// Resumen agregado de ventas para mostrar en el dashboard del admin.
 class SalesMetrics {
@@ -168,3 +172,25 @@ class HoursMetrics {
 }
 
 int _ordinal(DateTime d) => d.year * 10000 + d.month * 100 + d.day;
+
+/// Métricas de ventas memoizadas. Riverpod las recalcula solo cuando
+/// `salesByRangeProvider` emite una lista nueva, no en cada `build()`
+/// de la pantalla.
+final salesMetricsProvider =
+    Provider.family.autoDispose<AsyncValue<SalesMetrics>, SalesDateRange>(
+        (ref, range) {
+  final sales = ref.watch(salesByRangeProvider(range));
+  return sales.whenData((list) => SalesMetrics.compute(
+        list,
+        rangeStart: range.start,
+        rangeEnd: range.end,
+      ));
+});
+
+/// Métricas de horas memoizadas (igual que las de ventas).
+final hoursMetricsProvider =
+    Provider.family.autoDispose<AsyncValue<HoursMetrics>, HoursDateRange>(
+        (ref, range) {
+  final entries = ref.watch(hoursByRangeProvider(range));
+  return entries.whenData(HoursMetrics.compute);
+});

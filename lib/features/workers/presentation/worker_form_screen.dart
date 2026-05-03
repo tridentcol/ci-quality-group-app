@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/utils/errors.dart';
+import '../../../shared/widgets/error_view.dart';
+import '../../../shared/widgets/loading_button.dart';
 import '../../../shared/widgets/master_list_field.dart';
 import '../data/workers_repository.dart';
 import '../domain/worker.dart';
@@ -93,7 +96,7 @@ class _WorkerFormScreenState extends ConsumerState<WorkerFormScreen> {
         context.pop();
       }
     } catch (e) {
-      setState(() => _error = 'No se pudo guardar: $e');
+      setState(() => _error = friendlyError(e));
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -101,6 +104,7 @@ class _WorkerFormScreenState extends ConsumerState<WorkerFormScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final keyboardInset = MediaQuery.viewInsetsOf(context).bottom;
     return Scaffold(
       appBar: AppBar(
         title: Text(_isEdit ? 'Editar trabajador' : 'Nuevo trabajador'),
@@ -109,8 +113,9 @@ class _WorkerFormScreenState extends ConsumerState<WorkerFormScreen> {
         absorbing: _saving,
         child: Form(
           key: _formKey,
+          autovalidateMode: AutovalidateMode.onUserInteraction,
           child: ListView(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
+            padding: EdgeInsets.fromLTRB(16, 16, 16, 96 + keyboardInset),
             children: [
               TextFormField(
                 controller: _fullName,
@@ -161,33 +166,13 @@ class _WorkerFormScreenState extends ConsumerState<WorkerFormScreen> {
               ),
               if (_error != null) ...[
                 const SizedBox(height: 16),
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Theme.of(context)
-                        .colorScheme
-                        .error
-                        .withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    _error!,
-                    style: TextStyle(
-                        color: Theme.of(context).colorScheme.error),
-                  ),
-                ),
+                FormErrorBanner(message: _error!),
               ],
               const SizedBox(height: 24),
-              FilledButton(
-                onPressed: _saving ? null : _submit,
-                child: _saving
-                    ? const SizedBox(
-                        height: 20,
-                        width: 20,
-                        child: CircularProgressIndicator(
-                            color: Colors.white, strokeWidth: 2.4),
-                      )
-                    : Text(_isEdit ? 'Guardar cambios' : 'Crear trabajador'),
+              LoadingButton(
+                onPressed: _submit,
+                loading: _saving,
+                label: _isEdit ? 'Guardar cambios' : 'Crear trabajador',
               ),
             ],
           ),

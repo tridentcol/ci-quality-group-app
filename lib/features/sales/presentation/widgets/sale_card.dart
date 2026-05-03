@@ -36,10 +36,9 @@ class SaleCard extends StatelessWidget {
                     ),
                     child: Text(
                       sale.consecutive,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: theme.colorScheme.onPrimary,
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
                   ),

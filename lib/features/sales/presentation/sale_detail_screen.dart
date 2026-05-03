@@ -2,13 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/constants/roles.dart';
 import '../../../core/utils/clock.dart';
 import '../../../core/utils/dates.dart';
+import '../../../core/utils/errors.dart';
 import '../../../core/utils/money.dart';
+import '../../../shared/widgets/confirm_dialog.dart';
+import '../../../shared/widgets/error_view.dart';
+import '../../../shared/widgets/hero_banner.dart';
 import '../../auth/data/auth_repository.dart';
 import '../data/sales_repository.dart';
 import '../domain/sale.dart';
-import 'sale_form_screen.dart';
 
 /// Detalle de una venta. Permite editar/anular cuando:
 ///  - El usuario es admin (siempre).
@@ -20,15 +24,18 @@ class SaleDetailScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final saleFuture = ref.watch(_saleByIdProvider(saleId));
+    final saleAsync = ref.watch(saleByIdProvider(saleId));
     return Scaffold(
       appBar: AppBar(title: const Text('Detalle de venta')),
-      body: saleFuture.when(
+      body: saleAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('Error: $e')),
+        error: (e, _) => AppErrorView(
+          error: e,
+          onRetry: () => ref.invalidate(saleByIdProvider(saleId)),
+        ),
         data: (sale) {
           if (sale == null) {
-            return const Center(child: Text('La venta no existe.'));
+            return const Center(child: Text('Esta venta ya no existe.'));
           }
           return _SaleDetailBody(sale: sale);
         },
@@ -45,7 +52,7 @@ class _SaleDetailBody extends ConsumerWidget {
   bool _canEdit(WidgetRef ref) {
     final profile = ref.read(currentProfileProvider).valueOrNull;
     if (profile == null) return false;
-    if (profile.role.id == 'admin') return true;
+    if (profile.role == AppRole.admin) return true;
     if (profile.uid != sale.createdBy) return false;
     final until = sale.editableUntil;
     if (until == null) return false;
@@ -53,33 +60,30 @@ class _SaleDetailBody extends ConsumerWidget {
   }
 
   Future<void> _confirmDelete(BuildContext context, WidgetRef ref) async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Anular venta'),
-        content: Text(
-          '¿Seguro que deseas anular la venta ${sale.consecutive}? '
-          'No se puede deshacer.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancelar'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Anular'),
-          ),
-        ],
-      ),
+    final ok = await showConfirmDialog(
+      context,
+      title: 'Anular venta',
+      message:
+          '¿Seguro que deseas anular la venta ${sale.consecutive}? No se puede deshacer.',
+      confirmLabel: 'Anular',
+      destructive: true,
+      icon: Icons.delete_outline,
     );
-    if (ok != true) return;
-    await ref.read(salesRepositoryProvider).deleteSale(sale.id);
-    if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Venta ${sale.consecutive} anulada.')),
-      );
-      context.pop();
+    if (!ok) return;
+    try {
+      await ref.read(salesRepositoryProvider).deleteSale(sale.id);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Venta ${sale.consecutive} anulada.')),
+        );
+        context.pop();
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(friendlyError(e))),
+        );
+      }
     }
   }
 
@@ -87,119 +91,96 @@ class _SaleDetailBody extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final canEdit = _canEdit(ref);
-    final profile = ref.watch(currentProfileProvider).valueOrNull;
-    final isAdmin = profile?.role.id == 'admin';
+    final isAdmin = ref.watch(currentProfileProvider.select(
+      (a) => a.valueOrNull?.role == AppRole.admin,
+    ));
 
     return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+      padding: const EdgeInsets.fromLTRB(0, 0, 0, 32),
       children: [
-        Container(
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: theme.colorScheme.primary,
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  const Icon(Icons.tag, color: Colors.white, size: 18),
-                  const SizedBox(width: 6),
-                  Text(
-                    sale.consecutive,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const Spacer(),
-                  Text(
-                    formatDate(sale.date),
-                    style: const TextStyle(color: Colors.white70),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              Text(
-                formatCop(sale.totalValue),
-                style: theme.textTheme.headlineMedium?.copyWith(color: Colors.white),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                '${sale.quantity} ${sale.unit.toLowerCase()} · ${sale.material}'
-                '${sale.materialVariant != null ? ' · ${sale.materialVariant}' : ''}',
-                style: const TextStyle(color: Colors.white70),
-              ),
-            ],
-          ),
+        HeroBanner(
+          title: '${sale.consecutive} · ${formatDate(sale.date)}',
+          primaryValue: formatCop(sale.totalValue),
+          secondary: '${sale.quantity} ${sale.unit.toLowerCase()} · '
+              '${sale.material}'
+              '${sale.materialVariant != null ? ' · ${sale.materialVariant}' : ''}',
+          icon: Icons.tag,
         ),
         const SizedBox(height: 16),
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              children: [
-                _Row(label: 'Tipo de documento', value: sale.documentType),
-                _Row(label: 'Número de documento', value: sale.documentNumber),
-                _Row(label: 'Cliente', value: sale.providerName),
-                const Divider(height: 24),
-                _Row(label: 'Material', value: sale.material),
-                if (sale.materialVariant != null)
-                  _Row(label: 'Tipo de lámina', value: sale.materialVariant!),
-                _Row(label: 'Unidad', value: sale.unit),
-                _Row(label: 'Cantidad', value: sale.quantity.toString()),
-                _Row(label: 'Valor unitario', value: formatCop(sale.unitPrice)),
-                _Row(label: 'Valor total', value: formatCop(sale.totalValue)),
-                const Divider(height: 24),
-                _Row(label: 'Método de pago', value: sale.paymentMethod),
-                _Row(label: 'Quién recibe', value: sale.payerName),
-                const Divider(height: 24),
-                _Row(label: 'Registrada por', value: sale.createdByName),
-                _Row(label: 'Registrada el', value: formatDateTime(sale.createdAt)),
-                if (sale.updatedAt != null)
-                  _Row(label: 'Última edición', value: formatDateTime(sale.updatedAt!)),
-                if (sale.editableUntil != null && !isAdmin)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 8),
-                    child: Text(
-                      AppClock.now().isBefore(sale.editableUntil!)
-                          ? 'Editable hasta ${formatDateTime(sale.editableUntil!)}'
-                          : 'Ya pasó la ventana de edición. Solo el admin puede modificar.',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                children: [
+                  _Row(label: 'Tipo de documento', value: sale.documentType),
+                  _Row(label: 'Número de documento', value: sale.documentNumber),
+                  _Row(label: 'Cliente', value: sale.providerName),
+                  const Divider(height: 24),
+                  _Row(label: 'Material', value: sale.material),
+                  if (sale.materialVariant != null)
+                    _Row(label: 'Tipo de lámina', value: sale.materialVariant!),
+                  _Row(label: 'Unidad', value: sale.unit),
+                  _Row(label: 'Cantidad', value: sale.quantity.toString()),
+                  _Row(label: 'Valor unitario', value: formatCop(sale.unitPrice)),
+                  _Row(label: 'Valor total', value: formatCop(sale.totalValue)),
+                  if (sale.customFields.isNotEmpty) ...[
+                    const Divider(height: 24),
+                    for (final entry in sale.customFields.entries)
+                      _Row(label: entry.key, value: entry.value.toString()),
+                  ],
+                  const Divider(height: 24),
+                  _Row(label: 'Método de pago', value: sale.paymentMethod),
+                  _Row(label: 'Quién recibe', value: sale.payerName),
+                  const Divider(height: 24),
+                  _Row(label: 'Registrada por', value: sale.createdByName),
+                  _Row(label: 'Registrada el', value: formatDateTime(sale.createdAt)),
+                  if (sale.updatedAt != null)
+                    _Row(label: 'Última edición', value: formatDateTime(sale.updatedAt!)),
+                  if (sale.editableUntil != null && !isAdmin)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: Text(
+                        AppClock.now().isBefore(sale.editableUntil!)
+                            ? 'Editable hasta ${formatDateTime(sale.editableUntil!)}'
+                            : 'Ya pasó la ventana de edición. Solo el admin puede modificar.',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color:
+                              theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                        ),
                       ),
                     ),
-                  ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
         const SizedBox(height: 16),
         if (canEdit)
-          Row(
-            children: [
-              Expanded(
-                child: FilledButton.icon(
-                  onPressed: () => Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => SaleFormScreen(editingSale: sale),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Row(
+              children: [
+                Expanded(
+                  child: FilledButton.icon(
+                    onPressed: () =>
+                        context.push('/sales/${sale.id}/edit', extra: sale),
+                    icon: const Icon(Icons.edit_outlined),
+                    label: const Text('Editar'),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                if (isAdmin)
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () => _confirmDelete(context, ref),
+                      icon: const Icon(Icons.delete_outline),
+                      label: const Text('Anular'),
                     ),
                   ),
-                  icon: const Icon(Icons.edit_outlined),
-                  label: const Text('Editar'),
-                ),
-              ),
-              const SizedBox(width: 12),
-              if (isAdmin)
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: () => _confirmDelete(context, ref),
-                    icon: const Icon(Icons.delete_outline),
-                    label: const Text('Anular'),
-                  ),
-                ),
-            ],
+              ],
+            ),
           ),
       ],
     );
@@ -238,7 +219,3 @@ class _Row extends StatelessWidget {
   }
 }
 
-final _saleByIdProvider =
-    FutureProvider.family.autoDispose<Sale?, String>((ref, id) {
-  return ref.watch(salesRepositoryProvider).getSale(id);
-});

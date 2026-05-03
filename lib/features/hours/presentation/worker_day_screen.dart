@@ -1,9 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/constants/roles.dart';
 import '../../../core/utils/clock.dart';
 import '../../../core/utils/dates.dart';
+import '../../../core/utils/errors.dart';
 import '../../../core/utils/time_picker.dart';
+import '../../../shared/widgets/confirm_dialog.dart';
+import '../../../shared/widgets/error_view.dart';
+import '../../../shared/widgets/hero_banner.dart';
 import '../../auth/data/auth_repository.dart';
 import '../../workers/data/workers_repository.dart';
 import '../../workers/domain/worker.dart';
@@ -59,7 +64,7 @@ class _WorkerDayScreenState extends ConsumerState<WorkerDayScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error al abrir el día: $e')),
+          SnackBar(content: Text('Error al abrir el día: ${friendlyError(e)}')),
         );
       }
     } finally {
@@ -103,7 +108,7 @@ class _WorkerDayScreenState extends ConsumerState<WorkerDayScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
+          SnackBar(content: Text(friendlyError(e))),
         );
       }
     } finally {
@@ -135,29 +140,17 @@ class _WorkerDayScreenState extends ConsumerState<WorkerDayScreen> {
       if (updated == null) return;
       entry = updated;
     }
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Cerrar día'),
-        content: Text(
+    final ok = await showConfirmDialog(
+      context,
+      title: 'Cerrar día',
+      message:
           'Se cerrará el día con entrada ${formatTime(entry.checkIn)} y '
-          'salida ${formatTime(entry.checkOut!)}. '
-          'Después tendrás 24 h para corregir antes de que solo el admin pueda editar. '
-          '¿Continuar?',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancelar'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Cerrar día'),
-          ),
-        ],
-      ),
+          'salida ${formatTime(entry.checkOut!)}. Después tendrás 24 h para '
+          'corregir antes de que solo el admin pueda editar.',
+      confirmLabel: 'Cerrar día',
+      icon: Icons.check_circle_outline,
     );
-    if (ok != true) return;
+    if (!ok) return;
     final schedule =
         ref.read(workScheduleProvider).valueOrNull ?? const WorkSchedule();
     setState(() => _busy = true);
@@ -176,27 +169,16 @@ class _WorkerDayScreenState extends ConsumerState<WorkerDayScreen> {
   }
 
   Future<void> _reopenDay(HoursEntry entry) async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Reabrir día'),
-        content: const Text(
+    final ok = await showConfirmDialog(
+      context,
+      title: 'Reabrir día',
+      message:
           'Se descartará el desglose calculado y podrás ajustar la entrada o '
-          'salida. ¿Continuar?',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancelar'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Reabrir'),
-          ),
-        ],
-      ),
+          'salida.',
+      confirmLabel: 'Reabrir',
+      icon: Icons.lock_open_outlined,
     );
-    if (ok != true) return;
+    if (!ok) return;
     setState(() => _busy = true);
     try {
       await ref.read(hoursRepositoryProvider).reopenDay(entry.id);
@@ -206,34 +188,31 @@ class _WorkerDayScreenState extends ConsumerState<WorkerDayScreen> {
   }
 
   Future<void> _deleteEntry(HoursEntry entry) async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Eliminar registro'),
-        content: const Text(
-          'Esto borrará por completo el registro de ese día. ¿Continuar?',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancelar'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Eliminar'),
-          ),
-        ],
-      ),
+    final ok = await showConfirmDialog(
+      context,
+      title: 'Eliminar registro',
+      message: 'Esto borrará por completo el registro de ese día.',
+      confirmLabel: 'Eliminar',
+      destructive: true,
+      icon: Icons.delete_outline,
     );
-    if (ok != true) return;
-    await ref.read(hoursRepositoryProvider).deleteEntry(entry.id);
-    if (mounted) Navigator.pop(context);
+    if (!ok) return;
+    try {
+      await ref.read(hoursRepositoryProvider).deleteEntry(entry.id);
+      if (mounted) Navigator.pop(context);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(friendlyError(e))),
+        );
+      }
+    }
   }
 
   bool _canEdit(HoursEntry entry) {
     final profile = ref.read(currentProfileProvider).valueOrNull;
     if (profile == null) return false;
-    if (profile.role.id == 'admin') return true;
+    if (profile.role == AppRole.admin) return true;
     if (entry.editableUntil == null) return true; // día abierto
     return AppClock.now().isBefore(entry.editableUntil!);
   }
@@ -254,132 +233,102 @@ class _WorkerDayScreenState extends ConsumerState<WorkerDayScreen> {
       ),
       body: workerAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('Error: $e')),
+        error: (e, _) => AppErrorView(error: e),
         data: (worker) {
-          if (worker == null) return const Center(child: Text('No existe.'));
+          if (worker == null) {
+            return const Center(child: Text('Este trabajador ya no existe.'));
+          }
           final entry = entryAsync.valueOrNull;
+          final isAdmin = ref.watch(currentProfileProvider.select(
+            (a) => a.valueOrNull?.role == AppRole.admin,
+          ));
           return AbsorbPointer(
             absorbing: _busy,
             child: ListView(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.fromLTRB(0, 0, 0, 32),
               children: [
-                _DateHeader(date: _date, worker: worker),
+                HeroBanner(
+                  title: '${worker.role} · ${formatDate(_date)}',
+                  primaryValue: worker.fullName,
+                ),
                 const SizedBox(height: 16),
-                if (entry == null)
-                  _NoEntryView(busy: _busy, onOpen: () => _openDay(worker))
-                else ...[
-                  _TimesCard(
-                    entry: entry,
-                    canEdit: _canEdit(entry),
-                    onEditCheckIn: () => _editTime(entry, checkIn: true),
-                    onEditCheckOut: () => _editTime(entry, checkIn: false),
-                    onSetCheckOutNow: () => _setCheckOutNow(entry),
-                  ),
-                  const SizedBox(height: 12),
-                  // El desglose por categoría legal (ord, extra diurna,
-                  // dominical, etc.) solo lo ve el admin. El encargado de
-                  // horas no necesita ver esa información detallada.
-                  Consumer(builder: (context, ref, _) {
-                    final isAdmin =
-                        ref.watch(currentProfileProvider).valueOrNull?.role.id ==
-                            'admin';
-                    if (entry.isOpen || !isAdmin) {
-                      return const SizedBox.shrink();
-                    }
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
-                      child: BreakdownCard(breakdown: entry.breakdown),
-                    );
-                  }),
-                  if (entry.editableUntil != null && entry.isOpen == false)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
-                      child: _EditableHint(until: entry.editableUntil!),
-                    ),
-                  Row(
-                    children: [
-                      if (entry.isOpen)
-                        Expanded(
-                          child: FilledButton.icon(
-                            onPressed: _busy ? null : () => _closeDay(entry),
-                            icon: const Icon(Icons.check_circle_outline),
-                            label: const Text('Cerrar día'),
-                          ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: entry == null
+                      ? _NoEntryView(busy: _busy, onOpen: () => _openDay(worker))
+                      : Column(
+                          children: [
+                            _TimesCard(
+                              entry: entry,
+                              canEdit: _canEdit(entry),
+                              onEditCheckIn: () =>
+                                  _editTime(entry, checkIn: true),
+                              onEditCheckOut: () =>
+                                  _editTime(entry, checkIn: false),
+                              onSetCheckOutNow: () => _setCheckOutNow(entry),
+                            ),
+                            const SizedBox(height: 12),
+                            // El desglose por categoría legal solo lo ve el
+                            // admin; el encargado no necesita ese detalle.
+                            if (!entry.isOpen && isAdmin)
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 12),
+                                child:
+                                    BreakdownCard(breakdown: entry.breakdown),
+                              ),
+                            if (entry.editableUntil != null && !entry.isOpen)
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 12),
+                                child: _EditableHint(until: entry.editableUntil!),
+                              ),
+                            Row(
+                              children: [
+                                if (entry.isOpen)
+                                  Expanded(
+                                    child: FilledButton.icon(
+                                      onPressed: _busy
+                                          ? null
+                                          : () => _closeDay(entry),
+                                      icon: const Icon(
+                                          Icons.check_circle_outline),
+                                      label: const Text('Cerrar día'),
+                                    ),
+                                  )
+                                else
+                                  Expanded(
+                                    child: OutlinedButton.icon(
+                                      onPressed: _canEdit(entry) && !_busy
+                                          ? () => _reopenDay(entry)
+                                          : null,
+                                      icon:
+                                          const Icon(Icons.lock_open_outlined),
+                                      label: const Text('Reabrir'),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                            if (isAdmin)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 12),
+                                child: TextButton.icon(
+                                  onPressed: _busy
+                                      ? null
+                                      : () => _deleteEntry(entry),
+                                  icon: const Icon(Icons.delete_outline),
+                                  label: const Text('Eliminar registro'),
+                                  style: TextButton.styleFrom(
+                                    foregroundColor:
+                                        Theme.of(context).colorScheme.error,
+                                  ),
+                                ),
+                              ),
+                          ],
                         ),
-                      if (!entry.isOpen) ...[
-                        Expanded(
-                          child: OutlinedButton.icon(
-                            onPressed: _canEdit(entry) && !_busy
-                                ? () => _reopenDay(entry)
-                                : null,
-                            icon: const Icon(Icons.lock_open_outlined),
-                            label: const Text('Reabrir'),
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                  Consumer(builder: (context, ref, _) {
-                    final isAdmin = ref
-                            .watch(currentProfileProvider)
-                            .valueOrNull
-                            ?.role
-                            .id ==
-                        'admin';
-                    if (!isAdmin) return const SizedBox.shrink();
-                    return Padding(
-                      padding: const EdgeInsets.only(top: 12),
-                      child: TextButton.icon(
-                        onPressed: _busy ? null : () => _deleteEntry(entry),
-                        icon: const Icon(Icons.delete_outline),
-                        label: const Text('Eliminar registro'),
-                        style: TextButton.styleFrom(
-                          foregroundColor: Theme.of(context).colorScheme.error,
-                        ),
-                      ),
-                    );
-                  }),
-                ],
+                ),
               ],
             ),
           );
         },
-      ),
-    );
-  }
-}
-
-class _DateHeader extends StatelessWidget {
-  const _DateHeader({required this.date, required this.worker});
-  final DateTime date;
-  final Worker worker;
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.primary,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            worker.role,
-            style: theme.textTheme.bodySmall?.copyWith(color: Colors.white70),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            worker.fullName,
-            style: theme.textTheme.titleLarge?.copyWith(color: Colors.white),
-          ),
-          const SizedBox(height: 12),
-          Text(
-            formatDate(date),
-            style: theme.textTheme.bodyMedium?.copyWith(color: Colors.white70),
-          ),
-        ],
       ),
     );
   }

@@ -126,7 +126,13 @@ class MasterListsRepository {
   /// La metadata se hace upsert siempre, así rebautizar etiquetas en código
   /// se propaga a las instalaciones existentes. Los items solo se crean en
   /// la primera ejecución para no duplicarlos.
-  Future<void> seedDefaults() async {
+  ///
+  /// Una bandera `_didSeed` evita reescribir las listas en cada visita al
+  /// panel: la primera entrada de la sesión hace el upsert; las siguientes
+  /// son no-op.
+  Future<void> seedDefaults({bool force = false}) async {
+    if (_didSeed && !force) return;
+    _didSeed = true;
     final defaults = _defaultListsSeed();
     for (final spec in defaults) {
       final id = spec['id'] as String;
@@ -150,6 +156,8 @@ class MasterListsRepository {
       await batch.commit();
     }
   }
+
+  static bool _didSeed = false;
 }
 
 List<Map<String, dynamic>> _defaultListsSeed() => [
@@ -208,7 +216,7 @@ final masterListsRepositoryProvider = Provider<MasterListsRepository>((ref) {
   return MasterListsRepository(FirebaseFirestore.instance);
 });
 
-final masterListsProvider = StreamProvider<List<MasterList>>((ref) {
+final masterListsProvider = StreamProvider.autoDispose<List<MasterList>>((ref) {
   ref.watch(authStateProvider);
   return ref.watch(masterListsRepositoryProvider).watchLists();
 });

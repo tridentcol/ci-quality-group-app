@@ -1,10 +1,12 @@
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/roles.dart';
+import '../../../core/utils/errors.dart';
+import '../../../shared/widgets/error_view.dart';
+import '../../../shared/widgets/loading_button.dart';
 import '../../auth/data/auth_repository.dart';
 import '../../auth/data/users_repository.dart';
 import '../../auth/domain/app_user.dart';
@@ -91,31 +93,21 @@ class _UserFormScreenState extends ConsumerState<UserFormScreen> {
         );
         context.pop();
       }
-    } on FirebaseAuthException catch (e) {
-      setState(() => _error = _translateAuth(e.code));
     } catch (e) {
-      setState(() => _error = 'No se pudo guardar: $e');
+      setState(() => _error = friendlyError(e));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
   }
 
-  String _translateAuth(String code) {
-    return switch (code) {
-      'email-already-in-use' || 'email-already-exists' =>
-        'Ya existe un usuario con ese username.',
-      'invalid-email' => 'El username contiene caracteres inválidos.',
-      'weak-password' =>
-        'La contraseña es muy débil. Usa al menos 6 caracteres.',
-      _ => 'Error de Firebase Auth ($code).',
-    };
-  }
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final me = ref.watch(currentProfileProvider).valueOrNull;
-    final isSelf = _isEdit && me?.uid == widget.editing!.uid;
+    final myUid = ref.watch(currentProfileProvider.select(
+      (a) => a.valueOrNull?.uid,
+    ));
+    final isSelf = _isEdit && myUid == widget.editing!.uid;
+    final keyboardInset = MediaQuery.viewInsetsOf(context).bottom;
 
     return Scaffold(
       appBar: AppBar(
@@ -125,8 +117,9 @@ class _UserFormScreenState extends ConsumerState<UserFormScreen> {
         absorbing: _busy,
         child: Form(
           key: _formKey,
+          autovalidateMode: AutovalidateMode.onUserInteraction,
           child: ListView(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
+            padding: EdgeInsets.fromLTRB(16, 16, 16, 96 + keyboardInset),
             children: [
               if (isSelf)
                 Container(
@@ -244,32 +237,13 @@ class _UserFormScreenState extends ConsumerState<UserFormScreen> {
                 ),
               if (_error != null) ...[
                 const SizedBox(height: 16),
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: theme.colorScheme.error.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: theme.colorScheme.error.withValues(alpha: 0.4),
-                    ),
-                  ),
-                  child: Text(
-                    _error!,
-                    style: TextStyle(color: theme.colorScheme.error),
-                  ),
-                ),
+                FormErrorBanner(message: _error!),
               ],
               const SizedBox(height: 24),
-              FilledButton(
-                onPressed: _busy ? null : _submit,
-                child: _busy
-                    ? const SizedBox(
-                        height: 20,
-                        width: 20,
-                        child: CircularProgressIndicator(
-                            color: Colors.white, strokeWidth: 2.4),
-                      )
-                    : Text(_isEdit ? 'Guardar cambios' : 'Crear usuario'),
+              LoadingButton(
+                onPressed: _submit,
+                loading: _busy,
+                label: _isEdit ? 'Guardar cambios' : 'Crear usuario',
               ),
             ],
           ),

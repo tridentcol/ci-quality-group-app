@@ -4,6 +4,9 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/utils/clock.dart';
 import '../../../core/utils/dates.dart';
+import '../../../shared/widgets/empty_state.dart';
+import '../../../shared/widgets/error_view.dart';
+import '../../../shared/widgets/skeleton.dart';
 import '../../auth/data/auth_repository.dart';
 import '../../workers/data/workers_repository.dart';
 import '../../workers/domain/worker.dart';
@@ -25,7 +28,6 @@ class _HoursHomeScreenState extends ConsumerState<HoursHomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final workers = ref.watch(activeWorkersProvider);
     final today = ref.watch(todayHoursByWorkerProvider);
     return Scaffold(
@@ -68,57 +70,58 @@ class _HoursHomeScreenState extends ConsumerState<HoursHomeScreen> {
             ),
           ),
           Expanded(
-            child: workers.when(
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (e, _) => Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: Text(
-                    'No se pudo leer la lista de trabajadores.\n\n$e',
-                    textAlign: TextAlign.center,
-                  ),
-                ),
-              ),
-              data: (data) {
-                final filtered = _query.isEmpty
-                    ? data
-                    : data
-                        .where((w) =>
-                            w.fullName.toLowerCase().contains(_query) ||
-                            w.role.toLowerCase().contains(_query))
-                        .toList();
-                if (filtered.isEmpty) {
-                  return Center(
-                    child: Padding(
-                      padding: const EdgeInsets.all(24),
-                      child: Text(
-                        data.isEmpty
-                            ? 'Aún no hay trabajadores activos. Pídele al admin que los cargue.'
-                            : 'No hay coincidencias.',
-                        textAlign: TextAlign.center,
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          color: theme.colorScheme.onSurface
-                              .withValues(alpha: 0.6),
-                        ),
-                      ),
-                    ),
-                  );
-                }
-                return ListView.separated(
-                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
-                  itemCount: filtered.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 10),
-                  itemBuilder: (context, i) {
-                    final w = filtered[i];
-                    final entry = (today.valueOrNull ?? const {})[w.id];
-                    return _WorkerHoursCard(
-                      worker: w,
-                      entry: entry,
-                      onTap: () => context.push('/hours/${w.id}'),
-                    );
-                  },
-                );
+            child: RefreshIndicator(
+              onRefresh: () async {
+                ref.invalidate(activeWorkersProvider);
+                ref.invalidate(todayHoursByWorkerProvider);
               },
+              child: workers.when(
+                loading: () => const SkeletonList(),
+                error: (e, _) => AppErrorView(
+                  error: e,
+                  onRetry: () => ref.invalidate(activeWorkersProvider),
+                ),
+                data: (data) {
+                  final filtered = _query.isEmpty
+                      ? data
+                      : data
+                          .where((w) =>
+                              w.fullName.toLowerCase().contains(_query) ||
+                              w.role.toLowerCase().contains(_query))
+                          .toList();
+                  if (filtered.isEmpty) {
+                    return ListView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      children: [
+                        EmptyState(
+                          icon: Icons.engineering_outlined,
+                          title: data.isEmpty
+                              ? 'Sin trabajadores activos'
+                              : 'Sin coincidencias',
+                          message: data.isEmpty
+                              ? 'Pídele al admin que los cargue desde el panel.'
+                              : 'Prueba con otro término.',
+                        ),
+                      ],
+                    );
+                  }
+                  return ListView.separated(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
+                    itemCount: filtered.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 10),
+                    itemBuilder: (context, i) {
+                      final w = filtered[i];
+                      final entry = (today.valueOrNull ?? const {})[w.id];
+                      return _WorkerHoursCard(
+                        worker: w,
+                        entry: entry,
+                        onTap: () => context.push('/hours/${w.id}'),
+                      );
+                    },
+                  );
+                },
+              ),
             ),
           ),
         ],
@@ -194,12 +197,21 @@ class _TodayHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final activeIds = workers.map((w) => w.id).toSet();
-    final entriesToday = entries.values.where((e) => activeIds.contains(e.workerId));
-    final closed = entriesToday.where((e) => !e.isOpen).length;
-    final open = entriesToday.where((e) => e.isOpen).length;
+    int closed = 0;
+    int open = 0;
+    for (final e in entries.values) {
+      if (!activeIds.contains(e.workerId)) continue;
+      if (e.isOpen) {
+        open++;
+      } else {
+        closed++;
+      }
+    }
+    final pending = workers.length - open - closed;
+    final onPrimary = theme.colorScheme.onPrimary;
     return Container(
       width: double.infinity,
-      margin: const EdgeInsets.all(16),
+      margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: theme.colorScheme.primary,
@@ -210,19 +222,20 @@ class _TodayHeader extends StatelessWidget {
         children: [
           Text(
             'Hoy ${formatDate(AppClock.now())}',
-            style: theme.textTheme.bodySmall?.copyWith(color: Colors.white70),
+            style: theme.textTheme.bodySmall
+                ?.copyWith(color: onPrimary.withValues(alpha: 0.75)),
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 12),
           Row(
             children: [
-              _Stat(label: 'Abiertos', value: '$open', color: Colors.white),
-              const SizedBox(width: 24),
-              _Stat(label: 'Cerrados', value: '$closed', color: Colors.white),
-              const SizedBox(width: 24),
+              _Stat(label: 'Abiertos', value: '$open', color: onPrimary),
+              const SizedBox(width: 28),
+              _Stat(label: 'Cerrados', value: '$closed', color: onPrimary),
+              const SizedBox(width: 28),
               _Stat(
                 label: 'Sin marcar',
-                value: '${workers.length - open - closed}',
-                color: Colors.white,
+                value: '$pending',
+                color: onPrimary,
               ),
             ],
           ),
@@ -346,6 +359,7 @@ class _WorkerHoursCard extends StatelessWidget {
                       formatHours(entry!.breakdown.totalPaid),
                       style: theme.textTheme.labelLarge?.copyWith(
                         color: theme.colorScheme.primary,
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
                   ],

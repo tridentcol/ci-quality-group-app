@@ -3,9 +3,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/clock.dart';
 import '../../../core/utils/dates.dart';
 import '../../../core/utils/money.dart';
+import '../../../shared/widgets/error_view.dart';
 import '../../../shared/widgets/range_filter_bar.dart';
 import '../../hours/data/hours_repository.dart';
 import '../../hours/domain/hours_categories.dart';
@@ -110,23 +112,16 @@ class _SalesView extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final salesAsync = ref.watch(
-      salesByRangeProvider(SalesDateRange(start: start, end: end)),
+    final metricsAsync = ref.watch(
+      salesMetricsProvider(SalesDateRange(start: start, end: end)),
     );
-    return salesAsync.when(
+    return metricsAsync.when(
       loading: () => const Center(child: CircularProgressIndicator()),
-      error: (e, _) => Center(child: Text('Error en ventas: $e')),
-      data: (sales) {
-        final m = SalesMetrics.compute(
-          sales,
-          rangeStart: start,
-          rangeEnd: end,
-        );
-        return ListView(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
-          children: [_SalesSection(metrics: m, rangeStart: start)],
-        );
-      },
+      error: (e, _) => AppErrorView(error: e),
+      data: (m) => ListView(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
+        children: [_SalesSection(metrics: m, rangeStart: start)],
+      ),
     );
   }
 }
@@ -139,19 +134,16 @@ class _HoursView extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final hoursAsync = ref.watch(
-      hoursByRangeProvider(HoursDateRange(start: start, end: end)),
+    final metricsAsync = ref.watch(
+      hoursMetricsProvider(HoursDateRange(start: start, end: end)),
     );
-    return hoursAsync.when(
+    return metricsAsync.when(
       loading: () => const Center(child: CircularProgressIndicator()),
-      error: (e, _) => Center(child: Text('Error en horas: $e')),
-      data: (entries) {
-        final m = HoursMetrics.compute(entries);
-        return ListView(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
-          children: [_HoursSection(metrics: m)],
-        );
-      },
+      error: (e, _) => AppErrorView(error: e),
+      data: (m) => ListView(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
+        children: [_HoursSection(metrics: m)],
+      ),
     );
   }
 }
@@ -522,13 +514,7 @@ class _DonutCard extends StatelessWidget {
     final entries = data.entries.toList()
       ..sort((a, b) => b.value.compareTo(a.value));
     final total = entries.fold<num>(0, (a, b) => a + b.value);
-    final colors = [
-      theme.colorScheme.primary,
-      theme.colorScheme.secondary,
-      Colors.blueAccent,
-      Colors.deepOrangeAccent,
-      Colors.purpleAccent,
-    ];
+    final colors = AppColors.chartPalette;
 
     return Card(
       child: Padding(
@@ -707,7 +693,7 @@ class _HoursSection extends StatelessWidget {
             subtitle: 'sin cerrar',
             icon: Icons.lock_open_outlined,
             color: metrics.openCount > 0
-                ? Colors.orange
+                ? AppColors.warning
                 : theme.colorScheme.primary,
           ),
         ]),

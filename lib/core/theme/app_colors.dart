@@ -28,4 +28,18 @@ class AppColors {
   static const Color warning = Color(0xFFE6A100);
   static const Color danger = Color(0xFFD64545);
   static const Color info = Color(0xFF2563EB);
+
+  /// Paleta cíclica para series de gráficos (donut, líneas múltiples).
+  /// Comienza con colores corporativos y desemboca en neutros que
+  /// combinan con el verde árbol.
+  static const List<Color> chartPalette = <Color>[
+    treeGreen,
+    leafGreen,
+    info,
+    warning,
+    Color(0xFF7C3AED), // morado profundo
+    Color(0xFF0891B2), // teal
+    Color(0xFFDC2626), // rojo apagado
+    steel,
+  ];
 }
