@@ -25,6 +25,15 @@ class CIQualityGroupApp extends ConsumerWidget {
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
+      // Forzamos el formato 12h (AM/PM) en todos los TimePickers de la app
+      // independiente de la configuración del dispositivo. Sin esto, Flutter
+      // respeta el ajuste del SO y muestra 24h en celulares configurados así.
+      builder: (context, child) {
+        return MediaQuery(
+          data: MediaQuery.of(context).copyWith(alwaysUse24HourFormat: false),
+          child: child ?? const SizedBox.shrink(),
+        );
+      },
     );
   }
 }
