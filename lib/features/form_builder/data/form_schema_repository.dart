@@ -67,16 +67,20 @@ class FormSchemaRepository {
 
   /// Reemplaza el esquema entero. Incrementa `version` para que
   /// instalaciones con cache antiguo lo refresquen.
+  ///
+  /// Respeta el ORDEN DE LA LISTA recibido (la UI ya lo entrega como el
+  /// admin lo dejó tras el drag-to-reorder). El `order` de cada
+  /// FieldDefinition se reasigna 1..N según esa posición. NO ordenamos
+  /// por `field.order` previo, porque eso deshacía el reorden del admin.
   Future<void> saveSchema({
     required String module,
     required List<FieldDefinition> fields,
     required String updatedBy,
     required int previousVersion,
   }) async {
-    final ordered = [...fields]..sort((a, b) => a.order.compareTo(b.order));
     final normalized = <FieldDefinition>[];
-    for (var i = 0; i < ordered.length; i++) {
-      final f = ordered[i];
+    for (var i = 0; i < fields.length; i++) {
+      final f = fields[i];
       normalized.add(FieldDefinition(
         id: f.id,
         label: f.label,
