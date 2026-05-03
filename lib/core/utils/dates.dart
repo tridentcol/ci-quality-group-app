@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart' show TimeOfDay;
 import 'package:intl/intl.dart';
 
 // Formatos locales en español de Colombia. La hora se imprime con AM/PM
@@ -11,6 +12,14 @@ String formatDate(DateTime d) => _dmy.format(d);
 String formatDateTime(DateTime d) => _dmyHm.format(d);
 String formatTime(DateTime d) => _hm.format(d);
 String formatMonth(DateTime d) => _monthYear.format(d);
+
+/// Formato 12h consistente para un `TimeOfDay`. El default
+/// `TimeOfDay.format(context)` respeta el locale (24h en `es_CO`), así que
+/// no podemos depender de él si queremos AM/PM forzado.
+String formatTimeOfDay(TimeOfDay t) {
+  final dt = DateTime(2000, 1, 1, t.hour, t.minute);
+  return _hm.format(dt);
+}
 
 DateTime startOfDay(DateTime d) => DateTime(d.year, d.month, d.day);
 DateTime endOfDay(DateTime d) => DateTime(d.year, d.month, d.day, 23, 59, 59, 999);

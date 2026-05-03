@@ -291,7 +291,7 @@ class _ManualHoursEntryScreenState
                       Expanded(
                         child: _TappableField(
                           label: 'Entrada',
-                          value: _checkIn.format(context),
+                          value: formatTimeOfDay(_checkIn),
                           icon: Icons.login_outlined,
                           onTap: () => _pickTime(checkIn: true),
                         ),
@@ -300,7 +300,7 @@ class _ManualHoursEntryScreenState
                       Expanded(
                         child: _TappableField(
                           label: 'Salida',
-                          value: _checkOut.format(context),
+                          value: formatTimeOfDay(_checkOut),
                           icon: Icons.logout_outlined,
                           onTap: () => _pickTime(checkIn: false),
                         ),
