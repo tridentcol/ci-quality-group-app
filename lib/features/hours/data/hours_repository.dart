@@ -91,16 +91,18 @@ class HoursRepository {
     final newCheckOut = checkOut ?? entry.checkOut;
 
     final patch = <String, dynamic>{
-      'checkIn': Timestamp.fromDate(newCheckIn),
-      if (newCheckOut != null) 'checkOut': Timestamp.fromDate(newCheckOut),
+      'checkIn': Timestamp.fromDate(AppClock.toInstant(newCheckIn)),
+      if (newCheckOut != null)
+        'checkOut': Timestamp.fromDate(AppClock.toInstant(newCheckOut)),
       if (note != null) 'note': note,
       'updatedAt': Timestamp.fromDate(AppClock.toInstant(AppClock.now())),
     };
 
     if (closedAt != null) {
-      patch['closedAt'] = Timestamp.fromDate(closedAt);
-      patch['editableUntil'] =
-          Timestamp.fromDate(closedAt.add(const Duration(hours: 24)));
+      patch['closedAt'] = Timestamp.fromDate(AppClock.toInstant(closedAt));
+      patch['editableUntil'] = Timestamp.fromDate(
+        AppClock.toInstant(closedAt.add(const Duration(hours: 24))),
+      );
     }
 
     if (newCheckOut != null) {

@@ -95,7 +95,7 @@ class SalesRepository {
     Map<String, dynamic>? customFields,
   }) async {
     final patch = <String, dynamic>{
-      if (date != null) 'date': Timestamp.fromDate(date),
+      if (date != null) 'date': Timestamp.fromDate(AppClock.toInstant(date)),
       if (documentType != null) 'documentType': documentType,
       if (documentNumber != null) 'documentNumber': documentNumber,
       if (providerName != null) 'providerName': providerName,
@@ -124,8 +124,11 @@ class SalesRepository {
 
   Stream<List<Sale>> watchByDateRange(DateTime start, DateTime end) {
     return _col
-        .where('date', isGreaterThanOrEqualTo: Timestamp.fromDate(start))
-        .where('date', isLessThanOrEqualTo: Timestamp.fromDate(end))
+        .where('date',
+            isGreaterThanOrEqualTo:
+                Timestamp.fromDate(AppClock.toInstant(start)))
+        .where('date',
+            isLessThanOrEqualTo: Timestamp.fromDate(AppClock.toInstant(end)))
         .orderBy('date', descending: true)
         .snapshots()
         .map((snap) => snap.docs.map(Sale.fromSnapshot).toList());
