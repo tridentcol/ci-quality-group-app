@@ -1,0 +1,13 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "hours_entries",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "workerId", "order": "ASCENDING" },
+        { "fieldPath": "workDate", "order": "ASCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

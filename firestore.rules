@@ -1,0 +1,117 @@
+rules_version = '2';
+
+// Reglas de seguridad de Firestore para CI Quality Group.
+//
+// Patrón de seguridad: cada usuario autenticado tiene un doc en
+// /users/{uid} con un `role` (admin | sales | hours) y un flag `active`.
+// Los helpers de abajo leen ese doc para autorizar cada operación.
+//
+// Para desplegar tras editar:
+//   firebase deploy --only firestore:rules
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---------- Helpers ----------
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function userDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function role() {
+      return userDoc().role;
+    }
+
+    function isActive() {
+      return userDoc().get('active', true) == true;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && role() == 'admin' && isActive();
+    }
+
+    function isSales() {
+      return isSignedIn() && role() == 'sales' && isActive();
+    }
+
+    function isHours() {
+      return isSignedIn() && role() == 'hours' && isActive();
+    }
+
+    // ---------- Users ----------
+    // Cada usuario lee su propio perfil (necesario para arrancar la app
+    // y resolver el rol). Admin lee y escribe todos los perfiles.
+    match /users/{uid} {
+      allow read: if isSignedIn() && (request.auth.uid == uid || isAdmin());
+      allow write: if isAdmin();
+    }
+
+    // ---------- Workers (trabajadores operativos) ----------
+    // Todos los autenticados leen (el encargado de horas necesita la
+    // lista). Solo admin crea/edita/desactiva.
+    match /workers/{wid} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // ---------- Sales ----------
+    // Sales y admin pueden leer y crear ventas. Solo admin anula.
+    match /sales/{sid} {
+      allow read: if isAdmin() || isSales();
+      allow create, update: if isAdmin() || isSales();
+      allow delete: if isAdmin();
+    }
+
+    // ---------- Hours entries ----------
+    // Hours y admin pueden leer y registrar horas. Solo admin borra.
+    match /hours_entries/{hid} {
+      allow read: if isAdmin() || isHours();
+      allow create, update: if isAdmin() || isHours();
+      allow delete: if isAdmin();
+    }
+
+    // ---------- Master lists ----------
+    // Todos los autenticados leen (dropdowns en sales y workers).
+    // Sales y hours pueden CREAR items como sugerencias
+    // (`userSuggested == true`); el admin las aprueba después.
+    // Admin tiene control total.
+    match /master_lists/{listId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+
+      match /items/{itemId} {
+        allow read: if isSignedIn();
+        allow create: if isSignedIn()
+          && request.resource.data.get('userSuggested', false) == true;
+        allow update, delete: if isAdmin();
+      }
+    }
+
+    // ---------- Counters (consecutivo CQG-XXX) ----------
+    // Solo sales y admin pueden incrementar. La transacción atómica
+    // de ventas necesita escribir aquí.
+    match /counters/{cid} {
+      allow read, write: if isAdmin() || isSales();
+    }
+
+    // ---------- Settings (jornada laboral) ----------
+    // Lectura para todos los autenticados (el calculador de horas y
+    // varias pantallas leen la jornada). Escritura solo admin.
+    match /settings/{sid} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // ---------- Form schemas (constructor de formularios) ----------
+    // Lectura para todos los autenticados (el renderer del form de
+    // ventas necesita el schema). Escritura solo admin.
+    match /form_schemas/{module} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+  }
+}
