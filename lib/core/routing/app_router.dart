@@ -9,6 +9,7 @@ import '../../features/auth/data/auth_repository.dart';
 import '../../features/auth/presentation/login_screen.dart';
 import '../../features/hours/presentation/hours_admin_screen.dart';
 import '../../features/hours/presentation/hours_home_screen.dart';
+import '../../features/hours/presentation/manual_hours_entry_screen.dart';
 import '../../features/hours/presentation/worker_day_screen.dart';
 import '../../features/sales/presentation/sale_detail_screen.dart';
 import '../../features/sales/presentation/sale_form_screen.dart';
@@ -107,6 +108,20 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: 'hours',
             builder: (_, __) => const HoursAdminScreen(),
+            routes: [
+              GoRoute(
+                path: 'manual',
+                builder: (_, __) => const ManualHoursEntryScreen(),
+                routes: [
+                  GoRoute(
+                    path: ':entryId',
+                    builder: (_, state) => ManualHoursEntryScreen(
+                      entryId: state.pathParameters['entryId']!,
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ),
           GoRoute(
             path: 'workers',

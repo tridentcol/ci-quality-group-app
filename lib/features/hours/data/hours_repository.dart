@@ -166,6 +166,81 @@ class HoursRepository {
         );
   }
 
+  /// Crea o actualiza una entrada cerrada de manera manual desde el admin.
+  ///
+  /// A diferencia del flujo diario (open → mark salida → close), aquí se
+  /// persiste todo de una vez: entrada, salida y cierre con desglose
+  /// calculado. Pensado para entradas retroactivas o correcciones.
+  ///
+  /// Si ya existe una entrada para `workerId` en `date`, se actualizan
+  /// los campos sin tocar la metadata original (`createdBy`, `createdAt`).
+  Future<HoursEntry> upsertManualEntry({
+    required String workerId,
+    required String workerName,
+    required DateTime date,
+    required DateTime checkIn,
+    required DateTime checkOut,
+    required String createdBy,
+    required String createdByName,
+    required WorkSchedule schedule,
+  }) async {
+    if (!checkOut.isAfter(checkIn)) {
+      throw ArgumentError('La salida debe ser posterior a la entrada.');
+    }
+
+    final dayStart = startOfDay(date);
+    final id = entryIdFor(workerId, dayStart);
+    final ref = _col.doc(id);
+    final existing = await ref.get();
+
+    final calc = HoursCalculator(schedule: schedule);
+    final breakdown = calc.calculate(checkIn, checkOut);
+    final now = AppClock.now();
+
+    if (existing.exists) {
+      final data = existing.data()!;
+      final patch = <String, dynamic>{
+        'workerName': workerName,
+        'workDate': Timestamp.fromDate(AppClock.toInstant(dayStart)),
+        'checkIn': Timestamp.fromDate(AppClock.toInstant(checkIn)),
+        'checkOut': Timestamp.fromDate(AppClock.toInstant(checkOut)),
+        'breakdown': breakdown.toMinutesMap(),
+        'updatedAt': Timestamp.fromDate(AppClock.toInstant(now)),
+      };
+      // Si todavía estaba abierta, la cerramos.
+      if (data['closedAt'] == null) {
+        patch['closedAt'] = Timestamp.fromDate(AppClock.toInstant(now));
+      }
+      // editableUntil: solo se inicia en el primer cierre. Si ya tiene
+      // valor, no se toca (la ventana original sigue corriendo).
+      if (data['editableUntil'] == null) {
+        patch['editableUntil'] = Timestamp.fromDate(
+          AppClock.toInstant(now.add(const Duration(hours: 24))),
+        );
+      }
+      await ref.update(patch);
+    } else {
+      final entry = HoursEntry(
+        id: id,
+        workerId: workerId,
+        workerName: workerName,
+        workDate: dayStart,
+        checkIn: checkIn,
+        checkOut: checkOut,
+        closedAt: now,
+        breakdown: breakdown,
+        createdBy: createdBy,
+        createdByName: createdByName,
+        createdAt: now,
+        editableUntil: now.add(const Duration(hours: 24)),
+      );
+      await ref.set(entry.toMap());
+    }
+
+    final snap = await ref.get();
+    return HoursEntry.fromSnapshot(snap);
+  }
+
   /// Stream de todas las entradas de hoy, indexadas por workerId. Sirve para
   /// pintar el estado del día en la pantalla del encargado.
   Stream<Map<String, HoursEntry>> watchTodayByWorker() {

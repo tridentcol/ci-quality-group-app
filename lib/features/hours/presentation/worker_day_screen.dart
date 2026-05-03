@@ -238,29 +238,12 @@ class _WorkerDayScreenState extends ConsumerState<WorkerDayScreen> {
     return AppClock.now().isBefore(entry.editableUntil!);
   }
 
-  Future<void> _pickDate() async {
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: _date,
-      firstDate: DateTime(2020),
-      lastDate: AppClock.now().add(const Duration(days: 1)),
-      helpText: 'Selecciona la fecha del registro',
-      cancelText: 'Cancelar',
-      confirmText: 'Aceptar',
-    );
-    if (picked != null && !isSameDay(picked, _date)) {
-      setState(() => _date = picked);
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final workerAsync = ref.watch(workerByIdProvider(widget.workerId));
     final entryAsync = ref.watch(workerDayEntryProvider(
       WorkerDayQuery(workerId: widget.workerId, date: _date),
     ));
-    final isAdmin =
-        ref.watch(currentProfileProvider).valueOrNull?.role.id == 'admin';
 
     return Scaffold(
       appBar: AppBar(
@@ -280,11 +263,7 @@ class _WorkerDayScreenState extends ConsumerState<WorkerDayScreen> {
             child: ListView(
               padding: const EdgeInsets.all(16),
               children: [
-                _DateHeader(
-                  date: _date,
-                  worker: worker,
-                  onPickDate: isAdmin ? _pickDate : null,
-                ),
+                _DateHeader(date: _date, worker: worker),
                 const SizedBox(height: 16),
                 if (entry == null)
                   _NoEntryView(busy: _busy, onOpen: () => _openDay(worker))
@@ -371,24 +350,12 @@ class _WorkerDayScreenState extends ConsumerState<WorkerDayScreen> {
 }
 
 class _DateHeader extends StatelessWidget {
-  const _DateHeader({
-    required this.date,
-    required this.worker,
-    this.onPickDate,
-  });
+  const _DateHeader({required this.date, required this.worker});
   final DateTime date;
   final Worker worker;
-
-  /// Si es `null`, la fecha se muestra como texto plano (sin permitir
-  /// cambio). Solo el admin tiene este permiso.
-  final VoidCallback? onPickDate;
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isToday = isSameDay(date, AppClock.now());
-    final label = isToday ? '${formatDate(date)} · Hoy' : formatDate(date);
-    final canPick = onPickDate != null;
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -408,42 +375,10 @@ class _DateHeader extends StatelessWidget {
             style: theme.textTheme.titleLarge?.copyWith(color: Colors.white),
           ),
           const SizedBox(height: 12),
-          if (canPick)
-            InkWell(
-              onTap: onPickDate,
-              borderRadius: BorderRadius.circular(8),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 4),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      Icons.calendar_today_outlined,
-                      size: 16,
-                      color: Colors.white.withValues(alpha: 0.85),
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      label,
-                      style: theme.textTheme.bodyMedium
-                          ?.copyWith(color: Colors.white),
-                    ),
-                    const SizedBox(width: 4),
-                    Icon(
-                      Icons.expand_more,
-                      size: 18,
-                      color: Colors.white.withValues(alpha: 0.85),
-                    ),
-                  ],
-                ),
-              ),
-            )
-          else
-            Text(
-              label,
-              style: theme.textTheme.bodyMedium
-                  ?.copyWith(color: Colors.white70),
-            ),
+          Text(
+            formatDate(date),
+            style: theme.textTheme.bodyMedium?.copyWith(color: Colors.white70),
+          ),
         ],
       ),
     );

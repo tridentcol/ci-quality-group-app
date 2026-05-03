@@ -102,6 +102,11 @@ class _HoursAdminScreenState extends ConsumerState<HoursAdminScreen> {
           ),
         ],
       ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => context.push('/admin/hours/manual'),
+        icon: const Icon(Icons.add),
+        label: const Text('Entrada manual'),
+      ),
       body: entries.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(child: Text('Error: $e')),
@@ -173,7 +178,8 @@ class _HoursAdminScreenState extends ConsumerState<HoursAdminScreen> {
                       padding: const EdgeInsets.symmetric(horizontal: 16),
                       child: _HoursEntryCard(
                         entry: e,
-                        onTap: () => context.push('/hours/${e.workerId}'),
+                        onTap: () =>
+                            context.push('/admin/hours/manual/${e.id}'),
                       ),
                     );
                   },
