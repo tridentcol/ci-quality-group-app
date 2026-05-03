@@ -35,7 +35,28 @@ class _FormBuilderScreenState extends ConsumerState<FormBuilderScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Sincronización con el provider: cuando llega un nuevo schema (al
+    // entrar y en cada save), guardamos su versión como base y, si el
+    // admin no ha empezado a editar (_draft == null), absorbemos sus
+    // fields como snapshot inicial. WidgetRef.listen no soporta
+    // fireImmediately, así que el primer caso lo manejamos directamente
+    // sobre el ref.watch de abajo.
+    ref.listen<AsyncValue<FormSchema>>(
+      formSchemaProvider(widget.module),
+      (prev, next) {
+        next.whenData((schema) {
+          _baseVersion = schema.version;
+          _draft ??= [...schema.fields];
+        });
+      },
+    );
     final schemaAsync = ref.watch(formSchemaProvider(widget.module));
+    // Inicialización del primer build (cuando ya hay datos pero el
+    // listener aún no se disparó).
+    schemaAsync.whenData((schema) {
+      _baseVersion = schema.version;
+      _draft ??= [...schema.fields];
+    });
     return Scaffold(
       appBar: AppBar(
         title: const Text('Constructor de formularios'),
@@ -54,12 +75,9 @@ class _FormBuilderScreenState extends ConsumerState<FormBuilderScreen> {
           onRetry: () => ref.invalidate(formSchemaProvider(widget.module)),
         ),
         data: (schema) {
-          // Solo inicializamos el draft la primera vez. Si llega un cambio
-          // remoto y el admin no ha tocado nada, lo absorbemos. Si ya editó
-          // (draft != null y diferente), respetamos lo local.
-          _draft ??= [...schema.fields];
-          _baseVersion = schema.version;
-          final draft = _draft!;
+          // El draft / baseVersion se sincronizan en el `ref.listen` de
+          // arriba. Aquí solo leemos.
+          final draft = _draft ?? [...schema.fields];
           return Column(
             children: [
               const _ModuleHeader(),
@@ -118,7 +136,8 @@ class _FormBuilderScreenState extends ConsumerState<FormBuilderScreen> {
 
   Future<void> _addField() async {
     final newField = await _editFieldDialog(context, null);
-    if (newField == null) return;
+    if (!mounted) return;
+    if (newField == null || _draft == null) return;
     setState(() {
       _draft!.add(FieldDefinition(
         id: newField.id,
@@ -140,8 +159,11 @@ class _FormBuilderScreenState extends ConsumerState<FormBuilderScreen> {
   }
 
   Future<void> _editField(int index) async {
-    final updated = await _editFieldDialog(context, _draft![index]);
-    if (updated == null) return;
+    final draft = _draft;
+    if (draft == null) return;
+    final updated = await _editFieldDialog(context, draft[index]);
+    if (!mounted) return;
+    if (updated == null || _draft == null || index >= _draft!.length) return;
     setState(() => _draft![index] = updated);
   }
 

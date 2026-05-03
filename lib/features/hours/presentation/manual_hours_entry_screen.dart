@@ -56,8 +56,10 @@ class _ManualHoursEntryScreenState
   void initState() {
     super.initState();
     if (_isEdit) {
-      // Carga del registro al entrar. Se hace en un postFrameCallback para
-      // que el `ref.read(allWorkersProvider)` ya tenga datos del Stream.
+      // Carga del registro al entrar. Esperamos a que `allWorkersProvider`
+      // tenga datos para no fabricar un Worker placeholder que no esté en
+      // la lista del dropdown (lo que rompía la assertion de
+      // DropdownButtonFormField cuando el provider terminaba de cargar).
       WidgetsBinding.instance.addPostFrameCallback((_) => _loadEditing());
     }
   }
@@ -66,30 +68,43 @@ class _ManualHoursEntryScreenState
     if (!_isEdit || !mounted) return;
     setState(() => _busy = true);
     try {
+      // Espera explícita a que allWorkersProvider entregue resultados.
+      // `ref.read(...).future` resuelve con los workers ya cargados. Si
+      // ya estaban en cache, vuelve sincrónico.
+      final workers = await ref.read(allWorkersProvider.future);
+      if (!mounted) return;
+
       final entry =
           await ref.read(hoursRepositoryProvider).getEntry(widget.entryId!);
+      if (!mounted) return;
       if (entry == null) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Registro no encontrado.')),
-          );
-          context.pop();
-        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Registro no encontrado.')),
+        );
+        context.pop();
         return;
       }
-      final workers =
-          ref.read(allWorkersProvider).valueOrNull ?? const <Worker>[];
-      final worker = workers.firstWhere(
-        (w) => w.id == entry.workerId,
-        orElse: () => Worker(
-          id: entry.workerId,
-          fullName: entry.workerName,
-          idNumber: '',
-          role: '',
-          active: false,
-        ),
+
+      Worker? worker;
+      for (final w in workers) {
+        if (w.id == entry.workerId) {
+          worker = w;
+          break;
+        }
+      }
+      // Si el worker fue desactivado/borrado entre la creación del registro
+      // y ahora, ya no aparece en `workers`. Aún así dejamos editar las
+      // horas: agregamos un placeholder que coincide por `==` (igualdad
+      // por id) con cualquier item homónimo y se suma al dropdown como
+      // entrada inactiva.
+      worker ??= Worker(
+        id: entry.workerId,
+        fullName: entry.workerName,
+        idNumber: '',
+        role: '',
+        active: false,
       );
-      if (!mounted) return;
+
       setState(() {
         _editing = entry;
         _worker = worker;
@@ -264,6 +279,15 @@ class _ManualHoursEntryScreenState
           loading: () => const Center(child: CircularProgressIndicator()),
           error: (e, _) => AppErrorView(error: e),
           data: (workersList) {
+            // Si el worker que estamos editando no aparece en la lista
+            // (fue desactivado / borrado), lo añadimos como entrada extra
+            // para que el dropdown pueda mostrarlo como `value`. La
+            // igualdad por id en `Worker.==` garantiza que el dropdown
+            // lo reconozca aunque sean instancias distintas.
+            final workersForDropdown = <Worker>[
+              ...workersList,
+              if (_worker != null && !workersList.contains(_worker)) _worker!,
+            ];
             return Form(
               key: _formKey,
               autovalidateMode: AutovalidateMode.onUserInteraction,
@@ -278,13 +302,15 @@ class _ManualHoursEntryScreenState
                       labelText: 'Selecciona un trabajador',
                       prefixIcon: Icon(Icons.person_outline),
                     ),
-                    items: workersList
-                        .map((w) => DropdownMenuItem(
-                              value: w,
-                              child: Text(
-                                '${w.fullName}${w.active ? '' : ' (inactivo)'}',
-                              ),
-                            ))
+                    items: workersForDropdown
+                        .map(
+                          (w) => DropdownMenuItem(
+                            value: w,
+                            child: Text(
+                              '${w.fullName}${w.active ? '' : ' (inactivo)'}',
+                            ),
+                          ),
+                        )
                         .toList(),
                     onChanged:
                         _isEdit ? null : (w) => setState(() => _worker = w),

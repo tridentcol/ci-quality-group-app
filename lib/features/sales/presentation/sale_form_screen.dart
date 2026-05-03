@@ -119,8 +119,19 @@ class _SaleFormScreenState extends ConsumerState<SaleFormScreen> {
         throw StateError('Sesión no válida.');
       }
 
+      // Solo persistimos los customFields que siguen vigentes en el
+      // schema actual. Si el admin eliminó un campo del constructor,
+      // los valores huérfanos del controller se descartan al guardar
+      // (no se arrastran indefinidamente en cada edición).
+      final schema = ref.read(formSchemaProvider('sales')).valueOrNull;
+      final allowedIds = schema?.fields
+              .where((f) => !f.coreField)
+              .map((f) => f.id)
+              .toSet() ??
+          const <String>{};
       final customFields = <String, dynamic>{};
       _customFieldsController.values.forEach((k, v) {
+        if (!allowedIds.contains(k)) return;
         if (v == null) return;
         if (v is String && v.isEmpty) return;
         customFields[k] = v;

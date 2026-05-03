@@ -58,6 +58,14 @@ class _WorkerFormScreenState extends ConsumerState<WorkerFormScreen> {
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
+    // Validación adicional: MasterListField puede pasar el validator si
+    // hay texto en el TextField pero `onChanged` aún no disparó. Antes
+    // hacíamos `_role!` y se rompía con NoSuchMethodError.
+    final role = _role?.trim();
+    if (role == null || role.isEmpty) {
+      setState(() => _error = 'Selecciona un cargo válido.');
+      return;
+    }
     setState(() {
       _saving = true;
       _error = null;
@@ -69,7 +77,7 @@ class _WorkerFormScreenState extends ConsumerState<WorkerFormScreen> {
           widget.editing!.id,
           fullName: _fullName.text,
           idNumber: _idNumber.text,
-          role: _role!,
+          role: role,
           address: _address.text,
           email: _email.text,
           phone: _phone.text,
@@ -79,7 +87,7 @@ class _WorkerFormScreenState extends ConsumerState<WorkerFormScreen> {
         await repo.create(
           fullName: _fullName.text,
           idNumber: _idNumber.text,
-          role: _role!,
+          role: role,
           address: _address.text,
           email: _email.text,
           phone: _phone.text,

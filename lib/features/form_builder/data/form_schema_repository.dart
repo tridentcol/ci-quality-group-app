@@ -29,13 +29,23 @@ class FormSchemaRepository {
       _firestore.collection(FirestorePaths.formSchemas);
 
   /// Stream del esquema vigente para un módulo. Si no existe, hace seed
-  /// con el default y lo emite.
+  /// con el default UNA sola vez y lo emite. La bandera `_seeded` evita
+  /// reescribir el doc si Firestore re-emite un snapshot `!exists`
+  /// (ej. el admin lo borra remoto mientras otro cliente está escuchando).
   Stream<FormSchema> watchSchema(String module) {
     return _col.doc(module).snapshots().asyncMap((snap) async {
       if (snap.exists) return FormSchema.fromSnapshot(snap);
       final defaults = _defaultFor(module);
-      await _col.doc(module).set(defaults.toMap());
-      // Re-leemos para tener `id` consistente (el doc se llama `module`).
+      if (!_seeded.contains(module)) {
+        _seeded.add(module);
+        try {
+          await _col.doc(module).set(defaults.toMap());
+        } catch (_) {
+          // Si falla el seed, removemos para permitir reintento posterior.
+          _seeded.remove(module);
+          rethrow;
+        }
+      }
       return FormSchema(
         id: module,
         module: defaults.module,
@@ -46,6 +56,8 @@ class FormSchemaRepository {
       );
     });
   }
+
+  static final Set<String> _seeded = <String>{};
 
   Future<FormSchema?> getSchema(String module) async {
     final snap = await _col.doc(module).get();

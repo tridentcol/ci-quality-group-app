@@ -18,15 +18,41 @@ class DynamicFormController extends ChangeNotifier {
       : _values = {...?initial};
 
   final Map<String, Object?> _values;
+  bool _disposed = false;
 
   Map<String, Object?> get values => Map.unmodifiable(_values);
 
   Object? get(String id) => _values[id];
 
+  /// Acceso a string con coerción tolerante: si el valor guardado en
+  /// Firestore es un `num`/`bool` (legacy o cambio de tipo del campo),
+  /// no tiramos `TypeError`; lo serializamos a String.
+  String? getString(String id) {
+    final v = _values[id];
+    if (v == null) return null;
+    if (v is String) return v;
+    return v.toString();
+  }
+
+  bool getBool(String id) {
+    final v = _values[id];
+    if (v is bool) return v;
+    if (v is String) return v == 'true';
+    if (v is num) return v != 0;
+    return false;
+  }
+
   void set(String id, Object? value) {
+    if (_disposed) return; // No-op tras dispose para no romper llamadas tardías.
     if (_values[id] == value) return;
     _values[id] = value;
     notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
   }
 
   /// Devuelve los valores agrupados en `core` y `custom`, listo para
@@ -159,8 +185,12 @@ class _TextFieldWidgetState extends State<_TextFieldWidget> {
   @override
   void initState() {
     super.initState();
+    // Coerción tolerante: si el valor guardado es num/bool (legacy o
+    // cambio de tipo del campo), no tiramos TypeError. `getString`
+    // hace `toString()` para tolerar la migración suave.
     _ctrl = TextEditingController(
-        text: widget.controller.get(widget.field.id) as String?);
+      text: widget.controller.getString(widget.field.id) ?? '',
+    );
     _ctrl.addListener(_propagate);
   }
 
@@ -270,7 +300,7 @@ class _ToggleWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final value = (controller.get(field.id) as bool?) ?? false;
+    final value = controller.getBool(field.id);
     return SwitchListTile.adaptive(
       contentPadding: EdgeInsets.zero,
       title: Text(field.label),
@@ -294,7 +324,7 @@ class _DropdownWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final value = controller.get(field.id) as String?;
+    final value = controller.getString(field.id);
     return DropdownButtonFormField<String>(
       value: field.options.contains(value) ? value : null,
       decoration: InputDecoration(
@@ -334,7 +364,7 @@ class _MasterListWidget extends StatelessWidget {
       // Renderizado readonly: solo muestra el valor actual sin permitir
       // edición. El usuario sin permiso no debería ver siquiera el campo,
       // así que esto es un fallback defensivo.
-      final v = controller.get(field.id) as String?;
+      final v = controller.getString(field.id);
       return InputDecorator(
         decoration: InputDecoration(labelText: field.label),
         child: Text(v ?? '—'),
@@ -343,7 +373,7 @@ class _MasterListWidget extends StatelessWidget {
     return MasterListField(
       listId: field.masterListId!,
       label: field.label,
-      initialValue: controller.get(field.id) as String?,
+      initialValue: controller.getString(field.id),
       required: field.required,
       onChanged: (v) => controller.set(field.id, v),
       helperText: field.helperText,
@@ -358,7 +388,10 @@ class _DateWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final value = controller.get(field.id) as DateTime?;
+    // Coerción tolerante: el valor puede venir de Firestore como
+    // Timestamp/string/etc. Si no es DateTime, lo ignoramos.
+    final raw = controller.get(field.id);
+    final DateTime? value = raw is DateTime ? raw : null;
     return InkWell(
       onTap: () async {
         final picked = await showDatePicker(
@@ -392,7 +425,10 @@ class _DateTimeWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final value = controller.get(field.id) as DateTime?;
+    // Coerción tolerante: el valor puede venir de Firestore como
+    // Timestamp/string/etc. Si no es DateTime, lo ignoramos.
+    final raw = controller.get(field.id);
+    final DateTime? value = raw is DateTime ? raw : null;
     return InkWell(
       onTap: () async {
         final pickedDate = await showDatePicker(

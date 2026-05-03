@@ -93,4 +93,13 @@ class Worker {
           : AppClock.fromInstant((data['deactivatedAt'] as Timestamp).toDate()),
     );
   }
+
+  /// Igualdad por id. Necesaria para que `DropdownButtonFormField<Worker>`
+  /// reconozca el `value` cuando la lista llega después y se reconstruye
+  /// con instancias diferentes pero el mismo `id`.
+  @override
+  bool operator ==(Object other) => other is Worker && other.id == id;
+
+  @override
+  int get hashCode => id.hashCode;
 }

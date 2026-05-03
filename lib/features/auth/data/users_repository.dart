@@ -43,6 +43,13 @@ class UsersRepository {
     return AppUser.fromSnapshot(snap);
   }
 
+  Stream<AppUser?> watchUser(String uid) {
+    return _col
+        .doc(uid)
+        .snapshots()
+        .map((snap) => snap.exists ? AppUser.fromSnapshot(snap) : null);
+  }
+
   Future<AppUser> createUser({
     required String username,
     required String password,
@@ -102,7 +109,11 @@ final allUsersProvider = StreamProvider.autoDispose<List<AppUser>>((ref) {
   return ref.watch(usersRepositoryProvider).watchAll();
 });
 
+/// Stream a un usuario por uid. Antes era FutureProvider y se cacheaba el
+/// resultado, dejando la pantalla de edición con datos viejos al reabrirla
+/// después de modificar.
 final userByIdProvider =
-    FutureProvider.family.autoDispose<AppUser?, String>((ref, uid) {
-  return ref.watch(usersRepositoryProvider).getUser(uid);
+    StreamProvider.family.autoDispose<AppUser?, String>((ref, uid) {
+  ref.watch(authStateProvider);
+  return ref.watch(usersRepositoryProvider).watchUser(uid);
 });

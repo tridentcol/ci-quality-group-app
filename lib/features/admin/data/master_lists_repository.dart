@@ -127,11 +127,11 @@ class MasterListsRepository {
   /// la primera ejecución para no duplicarlos.
   ///
   /// Una bandera `_didSeed` evita reescribir las listas en cada visita al
-  /// panel: la primera entrada de la sesión hace el upsert; las siguientes
-  /// son no-op.
+  /// panel: la primera entrada exitosa de la sesión hace el upsert; las
+  /// siguientes son no-op. Si falla a mitad (permission-denied, offline)
+  /// la bandera NO se setea, así el siguiente intento puede reintentar.
   Future<void> seedDefaults({bool force = false}) async {
     if (_didSeed && !force) return;
-    _didSeed = true;
     final defaults = _defaultListsSeed();
     for (final spec in defaults) {
       final id = spec['id'] as String;
@@ -154,6 +154,15 @@ class MasterListsRepository {
       }
       await batch.commit();
     }
+    // Solo marcamos la bandera al completar exitosamente.
+    _didSeed = true;
+  }
+
+  /// Reset usable desde el repo de Auth al cerrar sesión, para permitir que
+  /// la próxima sesión vuelva a intentar el seed (por si la sesión anterior
+  /// terminó con permisos diferentes).
+  static void resetSeedFlag() {
+    _didSeed = false;
   }
 
   static bool _didSeed = false;

@@ -35,12 +35,10 @@ class _MasterListsScreenState extends ConsumerState<MasterListsScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('Listas maestras')),
       body: RefreshIndicator(
-        onRefresh: () async {
-          ref.invalidate(masterListsProvider);
-          await ref
-              .read(masterListsRepositoryProvider)
-              .seedDefaults(force: true);
-        },
+        // Solo invalida el stream — sin escribir a Firestore. Para forzar
+        // el seed (rara vez necesario) está el botón "Crear listas por
+        // defecto" en el empty state.
+        onRefresh: () async => ref.invalidate(masterListsProvider),
         child: listsAsync.when(
           loading: () => const SkeletonList(),
           error: (e, _) => AppErrorView(

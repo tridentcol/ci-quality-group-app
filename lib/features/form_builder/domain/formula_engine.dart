@@ -136,9 +136,14 @@ class _Parser {
   }
 
   void _skipWs() {
-    while (_pos < _source.length && _source[_pos] == ' ') {
+    while (_pos < _source.length && _isWhitespace(_source.codeUnitAt(_pos))) {
       _pos++;
     }
+  }
+
+  static bool _isWhitespace(int code) {
+    // Tab, newline, carriage return, espacio.
+    return code == 0x20 || code == 0x09 || code == 0x0A || code == 0x0D;
   }
 
   void expectEnd() {

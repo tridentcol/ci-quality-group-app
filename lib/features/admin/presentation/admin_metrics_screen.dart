@@ -8,6 +8,7 @@ import '../../../core/utils/clock.dart';
 import '../../../core/utils/dates.dart';
 import '../../../core/utils/money.dart';
 import '../../../shared/widgets/error_view.dart';
+import '../../../shared/widgets/kpi_card.dart';
 import '../../../shared/widgets/range_filter_bar.dart';
 import '../../hours/data/hours_repository.dart';
 import '../../hours/domain/hours_categories.dart';
@@ -147,125 +148,6 @@ class _HoursView extends ConsumerWidget {
   }
 }
 
-class _KpiCard extends StatelessWidget {
-  const _KpiCard({
-    required this.label,
-    required this.value,
-    this.subtitle,
-    this.icon,
-    this.color,
-  });
-
-  final String label;
-  final String value;
-  final String? subtitle;
-  final IconData? icon;
-  final Color? color;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final c = color ?? theme.colorScheme.primary;
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                if (icon != null) ...[
-                  Icon(icon, size: 16, color: c),
-                  const SizedBox(width: 6),
-                ],
-                Expanded(
-                  child: Text(
-                    label,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.labelSmall?.copyWith(
-                      color:
-                          theme.colorScheme.onSurface.withValues(alpha: 0.65),
-                      height: 1.2,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            // FittedBox evita que valores largos como $1,234,567,890 desborden
-            // el card y se monten encima de la sección de abajo.
-            FittedBox(
-              fit: BoxFit.scaleDown,
-              alignment: Alignment.centerLeft,
-              child: Text(
-                value,
-                maxLines: 1,
-                style: theme.textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
-            if (subtitle != null) ...[
-              const SizedBox(height: 2),
-              Text(
-                subtitle!,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurface.withValues(alpha: 0.55),
-                ),
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// Fila de hasta 3 KPI cards con altura consistente. En pantallas
-/// estrechas las apila en 2 columnas para evitar texto incrustado /
-/// solapamientos con la sección siguiente.
-class _KpiRow extends StatelessWidget {
-  const _KpiRow({required this.cards});
-  final List<Widget> cards;
-
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final narrow = constraints.maxWidth < 380;
-        if (narrow) {
-          return Wrap(
-            spacing: 10,
-            runSpacing: 10,
-            children: [
-              for (final c in cards)
-                SizedBox(
-                  width: (constraints.maxWidth - 10) / 2,
-                  child: c,
-                ),
-            ],
-          );
-        }
-        return IntrinsicHeight(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              for (var i = 0; i < cards.length; i++) ...[
-                Expanded(child: cards[i]),
-                if (i < cards.length - 1) const SizedBox(width: 10),
-              ],
-            ],
-          ),
-        );
-      },
-    );
-  }
-}
-
 class _SalesSection extends StatelessWidget {
   const _SalesSection({required this.metrics, required this.rangeStart});
   final SalesMetrics metrics;
@@ -289,19 +171,19 @@ class _SalesSection extends StatelessWidget {
 
     return Column(
       children: [
-        _KpiRow(cards: [
-          _KpiCard(
+        KpiRow(cards: [
+          KpiCard(
             label: 'Total',
             value: formatCop(metrics.total),
             icon: Icons.payments_outlined,
           ),
-          _KpiCard(
+          KpiCard(
             label: 'Cantidad',
             value: '${metrics.count}',
             subtitle: 'ventas',
             icon: Icons.receipt_long_outlined,
           ),
-          _KpiCard(
+          KpiCard(
             label: 'Ticket prom.',
             value: formatCop((metrics.total / metrics.count).round()),
             icon: Icons.calculate_outlined,
@@ -669,19 +551,19 @@ class _HoursSection extends StatelessWidget {
 
     return Column(
       children: [
-        _KpiRow(cards: [
-          _KpiCard(
+        KpiRow(cards: [
+          KpiCard(
             label: 'Horas pagas',
             value: formatHours(metrics.totalPaid),
             icon: Icons.timer_outlined,
           ),
-          _KpiCard(
+          KpiCard(
             label: 'Trabajadores',
             value: '${metrics.uniqueWorkers}',
             subtitle: 'con registro',
             icon: Icons.engineering_outlined,
           ),
-          _KpiCard(
+          KpiCard(
             label: 'Abiertos',
             value: '${metrics.openCount}',
             subtitle: 'sin cerrar',
