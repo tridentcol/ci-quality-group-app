@@ -99,7 +99,10 @@ class _ManualHoursEntryScreenState
       context: context,
       initialDate: _date,
       firstDate: DateTime(2020),
-      lastDate: AppClock.now().add(const Duration(days: 1)),
+      // Permitimos fechas futuras hasta ~1 año adelante para que el admin
+      // pueda registrar entradas anticipadas o usarlo como sandbox de
+      // prueba sin restricción.
+      lastDate: AppClock.now().add(const Duration(days: 365)),
       helpText: 'Fecha del registro',
       cancelText: 'Cancelar',
       confirmText: 'Aceptar',
@@ -123,6 +126,17 @@ class _ManualHoursEntryScreenState
         }
       });
     }
+  }
+
+  ({String label, Color color})? _dateBadge() {
+    final today = AppClock.now();
+    if (isSameDay(_date, today)) {
+      return (label: 'Hoy', color: Colors.green);
+    }
+    if (_date.isBefore(today)) {
+      return (label: 'Pasado', color: Colors.blueGrey);
+    }
+    return (label: 'Futuro', color: Colors.orange);
   }
 
   DateTime _composeCheckIn() => DateTime(
@@ -267,6 +281,7 @@ class _ManualHoursEntryScreenState
                   _TappableField(
                     label: 'Fecha',
                     value: formatDate(_date),
+                    badge: _dateBadge(),
                     icon: Icons.calendar_today_outlined,
                     onTap: _isEdit ? null : _pickDate,
                   ),
@@ -389,12 +404,14 @@ class _TappableField extends StatelessWidget {
     required this.value,
     required this.icon,
     required this.onTap,
+    this.badge,
   });
 
   final String label;
   final String value;
   final IconData icon;
   final VoidCallback? onTap;
+  final ({String label, Color color})? badge;
 
   @override
   Widget build(BuildContext context) {
@@ -409,7 +426,33 @@ class _TappableField extends StatelessWidget {
               ? null
               : const Icon(Icons.chevron_right),
         ),
-        child: Text(value),
+        child: Row(
+          children: [
+            Expanded(child: Text(value)),
+            if (badge != null) ...[
+              const SizedBox(width: 8),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: badge!.color.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(
+                    color: badge!.color.withValues(alpha: 0.5),
+                  ),
+                ),
+                child: Text(
+                  badge!.label,
+                  style: TextStyle(
+                    color: badge!.color,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }

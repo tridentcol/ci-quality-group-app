@@ -76,7 +76,7 @@ class AdminDashboardScreen extends ConsumerWidget {
           const SizedBox(height: 8),
           _AdminTile(
             title: 'Listas maestras',
-            subtitle: 'Proveedores, pagadores, materiales, métodos de pago.',
+            subtitle: 'Clientes, quién recibe, materiales, métodos de pago.',
             icon: Icons.list_alt_outlined,
             onTap: () => context.push('/admin/master-lists'),
           ),
@@ -86,14 +86,15 @@ class AdminDashboardScreen extends ConsumerWidget {
           _AdminTile(
             title: 'Horas laboradas',
             subtitle:
-                'Registros por trabajador, totales por categoría y export xlsx.',
+                'Registros, edición retroactiva, entrada manual y export xlsx.',
             icon: Icons.schedule_outlined,
             onTap: () => context.push('/admin/hours'),
           ),
           const SizedBox(height: 10),
           _AdminTile(
-            title: 'Marcar entrada/salida',
-            subtitle: 'Acceso rápido a la pantalla del encargado de horas.',
+            title: 'Marcar entrada / salida del día',
+            subtitle:
+                'Atajo al flujo en vivo del encargado para el día corriente.',
             icon: Icons.fact_check_outlined,
             onTap: () => context.push('/hours'),
           ),
