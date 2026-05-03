@@ -139,10 +139,19 @@ class XlsxExportService {
 
   // -------------------- HORAS --------------------
 
-  /// Exporta los registros de horas. Genera UN libro por mes cubierto por
-  /// el rango. Cada libro contiene una hoja por semana (Lun–Dom) con
-  /// registros y una hoja de "Resumen del mes" agregada por trabajador.
-  /// Las semanas vacías no se generan.
+  /// Exporta los registros de horas con dos formatos según el rango:
+  ///
+  ///  - **Si el rango cubre EXACTAMENTE un mes calendario completo**
+  ///    (ej. el filtro "Este mes"): genera un libro mensual con una
+  ///    hoja por bloque de 7 días dentro del mes (1-7, 8-14, 15-21,
+  ///    22-28, 29-fin) más una hoja "Resumen del mes" agregada por
+  ///    trabajador. Las semanas sin registros no se generan.
+  ///
+  ///  - **Cualquier otro rango** (Hoy, Esta semana, Últimos 30 días,
+  ///    rango custom, o varios meses): genera un libro único con todos
+  ///    los registros del rango ordenados cronológicamente, más una
+  ///    hoja "Resumen por trabajador". Sin split por semanas, porque el
+  ///    rango no encaja con la convención mensual.
   static Future<void> exportHours({
     required BuildContext context,
     required List<HoursEntry> entries,
@@ -153,54 +162,126 @@ class XlsxExportService {
       throw StateError('No hay registros de horas en el rango seleccionado.');
     }
 
-    // Agrupa por mes (YYYY-MM) usando workDate.
-    final byMonth = <String, List<HoursEntry>>{};
-    for (final e in entries) {
-      final key = DateFormat('yyyy-MM').format(e.workDate);
-      byMonth.putIfAbsent(key, () => []).add(e);
-    }
-
-    final months = byMonth.keys.toList()..sort();
-    final files = <deliver.ExportFile>[];
     final monthFmt = DateFormat('MMMM yyyy', 'es_CO');
     final dateRangeFmt = DateFormat('dd/MM/yyyy', 'es_CO');
 
-    for (final monthKey in months) {
-      final monthEntries = byMonth[monthKey]!;
-      final monthDate = DateFormat('yyyy-MM').parse(monthKey);
-      final monthLabel = monthFmt.format(monthDate);
+    if (_isExactCalendarMonth(rangeStart, rangeEnd)) {
+      // El rango es exactamente un mes natural — usamos el formato
+      // mensual con split por semanas.
+      final monthDate = DateTime(rangeStart.year, rangeStart.month, 1);
       final excel = _buildMonthlyHoursWorkbook(
-        monthEntries: monthEntries,
+        monthEntries: entries,
         monthDate: monthDate,
       );
-
       final filename =
           'CQG_horas_${DateFormat('yyyy_MM').format(monthDate)}.xlsx';
       final bytes = excel.save(fileName: filename);
       if (bytes == null) {
-        throw StateError('No se pudo serializar el Excel de $monthLabel.');
+        throw StateError('No se pudo serializar el Excel.');
       }
-      files.add(deliver.ExportFile(
-        bytes: bytes,
-        filename: filename,
-        mimeType:
-            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      ));
+      await deliver.deliverFiles(
+        files: [
+          deliver.ExportFile(
+            bytes: bytes,
+            filename: filename,
+            mimeType:
+                'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          ),
+        ],
+        subject: 'Horas laboradas CI Quality Group',
+        message: 'Horas del mes de ${monthFmt.format(monthDate)} '
+            '(${entries.length} registros).',
+        sharePositionOrigin: _shareOrigin(context),
+      );
+      return;
     }
 
-    final shareText = months.length == 1
-        ? 'Horas del mes de '
-            '${monthFmt.format(DateFormat('yyyy-MM').parse(months.first))} '
-            '(${entries.length} registros).'
-        : 'Horas del ${dateRangeFmt.format(rangeStart)} al ${dateRangeFmt.format(rangeEnd)}: '
-            '${months.length} libros adjuntos (${entries.length} registros en total).';
-
+    // Rango libre: un solo workbook con todos los registros + resumen.
+    final excel = _buildRangeHoursWorkbook(
+      entries: entries,
+      rangeStart: rangeStart,
+      rangeEnd: rangeEnd,
+    );
+    final filename = 'CQG_horas_'
+        '${DateFormat('yyyyMMdd').format(rangeStart)}_'
+        '${DateFormat('yyyyMMdd').format(rangeEnd)}.xlsx';
+    final bytes = excel.save(fileName: filename);
+    if (bytes == null) {
+      throw StateError('No se pudo serializar el Excel.');
+    }
     await deliver.deliverFiles(
-      files: files,
+      files: [
+        deliver.ExportFile(
+          bytes: bytes,
+          filename: filename,
+          mimeType:
+              'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ),
+      ],
       subject: 'Horas laboradas CI Quality Group',
-      message: shareText,
+      message:
+          'Horas del ${dateRangeFmt.format(rangeStart)} al ${dateRangeFmt.format(rangeEnd)} '
+          '(${entries.length} registros).',
       sharePositionOrigin: _shareOrigin(context),
     );
+  }
+
+  /// True si el rango va exactamente desde el día 1 hasta el último día
+  /// del mismo mes calendario.
+  static bool _isExactCalendarMonth(DateTime start, DateTime end) {
+    if (start.day != 1) return false;
+    if (start.year != end.year || start.month != end.month) return false;
+    final lastDay = DateTime(start.year, start.month + 1, 0).day;
+    return end.day == lastDay;
+  }
+
+  /// Construye un workbook único para un rango libre: una hoja
+  /// "Registros" con todas las entradas en orden cronológico + una hoja
+  /// "Resumen por trabajador" con totales agregados.
+  static Excel _buildRangeHoursWorkbook({
+    required List<HoursEntry> entries,
+    required DateTime rangeStart,
+    required DateTime rangeEnd,
+  }) {
+    final excel = Excel.createExcel();
+    excel.delete('Sheet1');
+
+    final dateRangeFmt = DateFormat('dd/MM/yyyy', 'es_CO');
+    final sheetName = _sanitizeSheetName(
+      'Registros (${dateRangeFmt.format(rangeStart)}-${dateRangeFmt.format(rangeEnd)})',
+    );
+    final sheet = excel[sheetName];
+
+    final headers = _hoursHeaders;
+    sheet.appendRow(headers.map<CellValue>((h) => TextCellValue(h)).toList());
+
+    final sorted = [...entries]
+      ..sort((a, b) {
+        final byDate = a.workDate.compareTo(b.workDate);
+        if (byDate != 0) return byDate;
+        return a.workerName.compareTo(b.workerName);
+      });
+    for (final e in sorted) {
+      sheet.appendRow(_hoursDataRow(e));
+    }
+
+    // Total general al final.
+    final totals = entries
+        .map((e) => e.breakdown)
+        .fold<HoursBreakdown>(HoursBreakdown(), (a, b) => a + b);
+    sheet.appendRow(_hoursTotalRow('TOTAL DEL RANGO', totals));
+    _stylizeTotalRow(sheet, rowIndex: sorted.length + 1, columns: headers.length);
+    _stylizeHeader(sheet, columns: headers.length);
+    _applyColumnWidths(sheet, _hoursColumnWidths);
+
+    // Hoja resumen por trabajador, mismo formato que en el export mensual.
+    _appendWorkerSummarySheet(
+      excel: excel,
+      label: 'Resumen del rango',
+      entries: entries,
+    );
+
+    return excel;
   }
 
   /// Construye el workbook de UN mes: hojas semanales (por día-de-mes) +
@@ -315,7 +396,25 @@ class XlsxExportService {
     required List<HoursEntry> entries,
   }) {
     final monthLabel = DateFormat('MMMM yyyy', 'es_CO').format(monthDate);
-    final sheet = excel[_sanitizeSheetName('Resumen $monthLabel')];
+    _appendWorkerSummarySheet(
+      excel: excel,
+      label: 'Resumen $monthLabel',
+      entries: entries,
+      totalRowLabel: 'TOTAL MES',
+    );
+  }
+
+  /// Hoja "Resumen por trabajador" reusable: una fila por trabajador con
+  /// horas por categoría + días registrados, y una fila final destacada
+  /// con el total general. Se usa tanto en el export mensual ("Resumen
+  /// {Mes}") como en el export por rango libre ("Resumen del rango").
+  static void _appendWorkerSummarySheet({
+    required Excel excel,
+    required String label,
+    required List<HoursEntry> entries,
+    String totalRowLabel = 'TOTAL',
+  }) {
+    final sheet = excel[_sanitizeSheetName(label)];
 
     final headers = <String>[
       'Trabajador',
@@ -356,19 +455,18 @@ class XlsxExportService {
       ]);
     }
 
-    // Totales generales del mes (última fila destacada).
-    final monthTotals = entries
+    final totals = entries
         .map((e) => e.breakdown)
         .fold<HoursBreakdown>(HoursBreakdown(), (a, b) => a + b);
     sheet.appendRow(<CellValue>[
-      TextCellValue('TOTAL MES'),
-      DoubleCellValue(_hours(monthTotals.get(HoursCategory.ordinary))),
-      DoubleCellValue(_hours(monthTotals.get(HoursCategory.extraDay))),
-      DoubleCellValue(_hours(monthTotals.get(HoursCategory.extraNight))),
-      DoubleCellValue(_hours(monthTotals.get(HoursCategory.sundayOrdinary))),
-      DoubleCellValue(_hours(monthTotals.get(HoursCategory.extraSundayDay))),
-      DoubleCellValue(_hours(monthTotals.get(HoursCategory.extraSundayNight))),
-      DoubleCellValue(_hours(monthTotals.totalPaid)),
+      TextCellValue(totalRowLabel),
+      DoubleCellValue(_hours(totals.get(HoursCategory.ordinary))),
+      DoubleCellValue(_hours(totals.get(HoursCategory.extraDay))),
+      DoubleCellValue(_hours(totals.get(HoursCategory.extraNight))),
+      DoubleCellValue(_hours(totals.get(HoursCategory.sundayOrdinary))),
+      DoubleCellValue(_hours(totals.get(HoursCategory.extraSundayDay))),
+      DoubleCellValue(_hours(totals.get(HoursCategory.extraSundayNight))),
+      DoubleCellValue(_hours(totals.totalPaid)),
       IntCellValue(entries.length),
     ]);
 
