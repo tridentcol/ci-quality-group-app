@@ -1,7 +1,7 @@
 name: ci_quality_group
 description: "App interna de CI Quality Group: control de ventas y horas laboradas."
 publish_to: "none"
-version: 0.1.0+1
+version: 1.0.0+1
 
 environment:
   sdk: ">=3.4.0 <4.0.0"
@@ -50,6 +50,13 @@ dev_dependencies:
     sdk: flutter
   flutter_lints: ^5.0.0
 
+  # Generadores de assets nativos. Solo se usan al hacer release;
+  # se invocan con `dart run flutter_launcher_icons` y
+  # `dart run flutter_native_splash:create`. Ver
+  # docs/android_release_guide.md.
+  flutter_launcher_icons: ^0.14.1
+  flutter_native_splash: ^2.4.0
+
 flutter:
   uses-material-design: true
 
@@ -61,3 +68,64 @@ flutter:
   # necesita guardar los .ttf en el repo. Si en el futuro quieres bundlearlos
   # para arranque en frío sin red, descárgalos de https://rsms.me/inter/ y
   # vuelve a declarar la sección `fonts:` aquí.
+
+# ────────────────────────────────────────────────────────────────────
+# Iconos nativos del launcher (Android home screen, iOS app icon).
+# Generados desde el logo CQG. Ejecuta:
+#   dart run flutter_launcher_icons
+# Después de cualquier cambio aquí o del PNG fuente.
+# ────────────────────────────────────────────────────────────────────
+flutter_launcher_icons:
+  android: "launcher_icon"
+  ios: true
+  remove_alpha_ios: true
+
+  # PNG cuadrado con la marca (grúa + hoja, sin texto). Se redimensiona
+  # automáticamente a las ~10 densidades de Android e iOS.
+  image_path: "assets/images/logo_adaptive.png"
+
+  # Adaptive icon de Android 8+ (Pixel/Samsung lo enmascaran circular,
+  # squircle, etc). Foreground = solo el icono con safe-zone; background
+  # = color sólido de marca. En dark mode el sistema NO conmuta el
+  # adaptive icon — el usuario lo cambia desde launcher si quiere temas.
+  adaptive_icon_background: "#FAFAFA"
+  adaptive_icon_foreground: "assets/images/logo_adaptive.png"
+
+  # Monochrome icon (Android 13+ themed icons): cuando el usuario activa
+  # "themed icons" en su launcher, Android usa esta versión teñida con
+  # el color del wallpaper.
+  adaptive_icon_monochrome: "assets/images/logo_adaptive.png"
+
+  min_sdk_android: 21
+  web:
+    generate: false  # Ya tenemos web/icons/ a mano.
+  windows:
+    generate: false
+  macos:
+    generate: false
+
+# ────────────────────────────────────────────────────────────────────
+# Splash screen nativo (la pantalla que ve el usuario entre tap-icon y
+# que cargue Flutter). Sin esto sale blanca pelada por ~1-2 s en
+# Android. Ejecuta:
+#   dart run flutter_native_splash:create
+# ────────────────────────────────────────────────────────────────────
+flutter_native_splash:
+  color: "#FAFAFA"
+  image: assets/images/logo_mark.png
+  color_dark: "#0E0E0E"
+  image_dark: assets/images/logo_mark_dark.png
+
+  android: true
+  ios: true
+  web: false  # web/index.html ya tiene su propio splash CSS.
+
+  # Android 12+ usa el splash adaptativo (icono circular en el centro,
+  # fondo de color). Los assets viejos siguen para Android 8-11.
+  android_12:
+    color: "#FAFAFA"
+    image: assets/images/logo_mark.png
+    color_dark: "#0E0E0E"
+    image_dark: assets/images/logo_mark_dark.png
+    icon_background_color: "#FAFAFA"
+    icon_background_color_dark: "#0E0E0E"
