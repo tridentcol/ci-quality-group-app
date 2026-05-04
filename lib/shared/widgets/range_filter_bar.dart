@@ -178,8 +178,9 @@ class _Chip extends StatelessWidget {
     final theme = Theme.of(context);
     final bg = selected
         ? theme.colorScheme.primary
-        : theme.colorScheme.primary.withValues(alpha: 0.08);
-    final fg = selected ? Colors.white : theme.colorScheme.primary;
+        : theme.colorScheme.primary.withValues(alpha: 0.12);
+    final fg =
+        selected ? theme.colorScheme.onPrimary : theme.colorScheme.primary;
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(999),

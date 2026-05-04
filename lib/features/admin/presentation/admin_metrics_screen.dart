@@ -396,7 +396,7 @@ class _DonutCard extends StatelessWidget {
     final entries = data.entries.toList()
       ..sort((a, b) => b.value.compareTo(a.value));
     final total = entries.fold<num>(0, (a, b) => a + b.value);
-    final colors = AppColors.chartPalette;
+    final colors = AppColors.chartPaletteFor(theme.brightness);
 
     return Card(
       child: Padding(

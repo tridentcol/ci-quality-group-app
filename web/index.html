@@ -6,8 +6,9 @@
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
   <meta name="description" content="App interna de CI Quality Group para gestión de ventas, control de horas laboradas y reportes.">
-  <meta name="theme-color" content="#1F5128">
-  <meta name="color-scheme" content="light">
+  <meta name="theme-color" content="#1F5128" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0E0E10" media="(prefers-color-scheme: dark)">
+  <meta name="color-scheme" content="light dark">
   <meta name="robots" content="noindex,nofollow">
 
   <!-- iOS / PWA -->
@@ -24,11 +25,25 @@
   <link rel="manifest" href="manifest.json">
 
   <style>
+    :root {
+      --cqg-bg: #FAFAFA;
+      --cqg-fg: #1F5128;
+      --cqg-spinner-track: #E6F4E1;
+      --cqg-spinner-head: #1F5128;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --cqg-bg: #0E0E10;
+        --cqg-fg: #4FBA47;
+        --cqg-spinner-track: #1B1B1F;
+        --cqg-spinner-head: #4FBA47;
+      }
+    }
     html, body {
       margin: 0;
       padding: 0;
       height: 100%;
-      background-color: #FAFAFA;
+      background-color: var(--cqg-bg);
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
     }
     #splash {
@@ -38,7 +53,7 @@
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      background-color: #FAFAFA;
+      background-color: var(--cqg-bg);
       z-index: 9999;
       transition: opacity 250ms ease-out;
     }
@@ -52,14 +67,14 @@
     #splash .spinner {
       width: 32px;
       height: 32px;
-      border: 3px solid #E6F4E1;
-      border-top-color: #1F5128;
+      border: 3px solid var(--cqg-spinner-track);
+      border-top-color: var(--cqg-spinner-head);
       border-radius: 50%;
       animation: spin 0.9s linear infinite;
     }
     #splash .label {
       margin-top: 16px;
-      color: #1F5128;
+      color: var(--cqg-fg);
       font-size: 13px;
       font-weight: 500;
       letter-spacing: 0.3px;

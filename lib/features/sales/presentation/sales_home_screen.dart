@@ -9,6 +9,7 @@ import '../../../shared/widgets/empty_state.dart';
 import '../../../shared/widgets/error_view.dart';
 import '../../../shared/widgets/hero_banner.dart';
 import '../../../shared/widgets/skeleton.dart';
+import '../../../shared/widgets/theme_mode_toggle.dart';
 import '../../auth/data/auth_repository.dart';
 import '../data/sales_repository.dart';
 import '../domain/sale.dart';
@@ -31,6 +32,7 @@ class SalesHomeScreen extends ConsumerWidget {
       appBar: AppBar(
         title: const Text('Control de ventas'),
         actions: [
+          const ThemeModeIconButton(),
           IconButton(
             tooltip: 'Cerrar sesión',
             icon: const Icon(Icons.logout_outlined),

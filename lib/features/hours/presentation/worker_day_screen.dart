@@ -9,6 +9,7 @@ import '../../../core/utils/time_picker.dart';
 import '../../../shared/widgets/confirm_dialog.dart';
 import '../../../shared/widgets/error_view.dart';
 import '../../../shared/widgets/hero_banner.dart';
+import '../../../shared/widgets/theme_mode_toggle.dart';
 import '../../auth/data/auth_repository.dart';
 import '../../workers/data/workers_repository.dart';
 import '../../workers/domain/worker.dart';
@@ -229,6 +230,7 @@ class _WorkerDayScreenState extends ConsumerState<WorkerDayScreen> {
           data: (w) => Text(w?.fullName ?? 'Trabajador'),
           orElse: () => const Text('Trabajador'),
         ),
+        actions: const [ThemeModeIconButton()],
       ),
       body: workerAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),

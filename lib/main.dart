@@ -5,9 +5,11 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/date_symbol_data_local.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timezone/data/latest_all.dart' as tzdata;
 
 import 'app.dart';
+import 'core/theme/theme_mode_controller.dart';
 import 'firebase_options.dart';
 
 /// Site key de reCAPTCHA v3 para App Check en web. Se inyecta al build con:
@@ -23,12 +25,16 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   // Inicializaciones independientes en paralelo. La de zonas horarias es
-  // síncrona; las otras dos son async y antes corrían en serie.
+  // síncrona; las otras tres son async y antes corrían en serie.
+  // SharedPreferences se carga aquí para tenerlo síncrono en los providers
+  // y poder leer el theme mode antes del primer frame (evita flash).
   tzdata.initializeTimeZones();
+  final prefsFuture = SharedPreferences.getInstance();
   await Future.wait<void>([
     initializeDateFormatting('es_CO', null),
     _initFirebase(),
   ]);
+  final prefs = await prefsFuture;
 
   // App Check va después de initializeApp pero antes de cualquier llamada a
   // Firestore/Auth para que los requests salgan ya con el token.
@@ -40,7 +46,14 @@ Future<void> main() async {
     cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
   );
 
-  runApp(const ProviderScope(child: CIQualityGroupApp()));
+  runApp(
+    ProviderScope(
+      overrides: [
+        sharedPreferencesProvider.overrideWithValue(prefs),
+      ],
+      child: const CIQualityGroupApp(),
+    ),
+  );
 }
 
 /// En Android/iOS el plugin nativo (google-services.json /

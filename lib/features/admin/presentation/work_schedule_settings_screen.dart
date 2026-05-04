@@ -338,11 +338,13 @@ class _WorkScheduleSettingsScreenState
                 FilledButton(
                   onPressed: (_busy || !_dirty) ? null : _save,
                   child: _busy
-                      ? const SizedBox(
+                      ? SizedBox(
                           height: 20,
                           width: 20,
                           child: CircularProgressIndicator(
-                              color: Colors.white, strokeWidth: 2.4),
+                            color: Theme.of(context).colorScheme.onPrimary,
+                            strokeWidth: 2.4,
+                          ),
                         )
                       : Text(_dirty ? 'Guardar cambios' : 'Sin cambios'),
                 ),

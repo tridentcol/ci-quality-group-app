@@ -6,6 +6,7 @@ import '../../../core/utils/errors.dart';
 import '../../../shared/widgets/error_view.dart';
 import '../../../shared/widgets/loading_button.dart';
 import '../../../shared/widgets/master_list_field.dart';
+import '../../../shared/widgets/theme_mode_toggle.dart';
 import '../data/workers_repository.dart';
 import '../domain/worker.dart';
 
@@ -115,6 +116,7 @@ class _WorkerFormScreenState extends ConsumerState<WorkerFormScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text(_isEdit ? 'Editar trabajador' : 'Nuevo trabajador'),
+        actions: const [ThemeModeIconButton()],
       ),
       body: AbsorbPointer(
         absorbing: _saving,

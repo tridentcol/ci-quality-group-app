@@ -102,7 +102,7 @@ class _UserCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final color = RolePill.colorOf(user.role);
+    final color = RolePill.colorOf(user.role, theme.brightness);
     return Card(
       child: InkWell(
         onTap: onTap,

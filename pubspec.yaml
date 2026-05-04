@@ -43,6 +43,9 @@ dependencies:
   path_provider: ^2.1.5
   share_plus: ^10.1.2
 
+  # Persistencia local (preferencia de tema)
+  shared_preferences: ^2.3.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

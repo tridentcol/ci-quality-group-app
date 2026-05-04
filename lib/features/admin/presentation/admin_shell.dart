@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../shared/widgets/app_logo.dart';
+import '../../../shared/widgets/theme_mode_toggle.dart';
 import '../../auth/data/auth_repository.dart';
 
 /// Wrapper responsive para todas las rutas `/admin/*`.
@@ -200,6 +201,7 @@ class AdminNavigationDrawer extends ConsumerWidget {
               ),
             ),
             const Divider(),
+            const ThemeModeListTile(),
             ListTile(
               leading: const Icon(Icons.logout_outlined),
               title: const Text('Cerrar sesión'),
@@ -294,6 +296,7 @@ class _AdminRail extends StatelessWidget {
               ),
             ),
             const Divider(height: 1),
+            ThemeModeRailButton(extended: extended),
             _RailItem(
               item: const _AdminNavItem(
                 label: 'Cerrar sesión',

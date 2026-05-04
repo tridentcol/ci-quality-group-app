@@ -10,6 +10,7 @@ import '../../../core/utils/money.dart';
 import '../../../shared/widgets/confirm_dialog.dart';
 import '../../../shared/widgets/error_view.dart';
 import '../../../shared/widgets/hero_banner.dart';
+import '../../../shared/widgets/theme_mode_toggle.dart';
 import '../../auth/data/auth_repository.dart';
 import '../data/sales_repository.dart';
 import '../domain/sale.dart';
@@ -26,7 +27,10 @@ class SaleDetailScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final saleAsync = ref.watch(saleByIdProvider(saleId));
     return Scaffold(
-      appBar: AppBar(title: const Text('Detalle de venta')),
+      appBar: AppBar(
+        title: const Text('Detalle de venta'),
+        actions: const [ThemeModeIconButton()],
+      ),
       body: saleAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => AppErrorView(

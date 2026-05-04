@@ -7,6 +7,7 @@ import '../../../core/constants/roles.dart';
 import '../../../core/utils/errors.dart';
 import '../../../shared/widgets/error_view.dart';
 import '../../../shared/widgets/loading_button.dart';
+import '../../../shared/widgets/theme_mode_toggle.dart';
 import '../../auth/data/auth_repository.dart';
 import '../../auth/data/users_repository.dart';
 import '../../auth/domain/app_user.dart';
@@ -112,6 +113,7 @@ class _UserFormScreenState extends ConsumerState<UserFormScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text(_isEdit ? 'Editar usuario' : 'Nuevo usuario'),
+        actions: const [ThemeModeIconButton()],
       ),
       body: AbsorbPointer(
         absorbing: _busy,

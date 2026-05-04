@@ -5,6 +5,7 @@ import '../../../core/utils/errors.dart';
 import '../../../shared/widgets/app_logo.dart';
 import '../../../shared/widgets/error_view.dart';
 import '../../../shared/widgets/loading_button.dart';
+import '../../../shared/widgets/theme_mode_toggle.dart';
 import '../data/auth_repository.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
@@ -53,92 +54,102 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final keyboardInset = MediaQuery.viewInsetsOf(context).bottom;
     return Scaffold(
       body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: EdgeInsets.fromLTRB(24, 32, 24, 32 + keyboardInset),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 420),
-              child: Form(
-                key: _formKey,
-                autovalidateMode: AutovalidateMode.onUserInteraction,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    const AppLogo(size: 88),
-                    const SizedBox(height: 32),
-                    Text(
-                      'Iniciar sesión',
-                      style: theme.textTheme.headlineMedium,
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Ingresa con tu usuario corporativo.',
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color:
-                            theme.colorScheme.onSurface.withValues(alpha: 0.7),
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 32),
-                    TextFormField(
-                      controller: _usernameCtrl,
-                      decoration: const InputDecoration(
-                        labelText: 'Usuario',
-                        prefixIcon: Icon(Icons.person_outline),
-                      ),
-                      textInputAction: TextInputAction.next,
-                      autocorrect: false,
-                      enableSuggestions: false,
-                      validator: (v) => (v == null || v.trim().isEmpty)
-                          ? 'Ingresa tu usuario'
-                          : null,
-                    ),
-                    const SizedBox(height: 16),
-                    TextFormField(
-                      controller: _passwordCtrl,
-                      obscureText: _obscure,
-                      decoration: InputDecoration(
-                        labelText: 'Contraseña',
-                        prefixIcon: const Icon(Icons.lock_outline),
-                        suffixIcon: IconButton(
-                          icon: Icon(_obscure
-                              ? Icons.visibility_outlined
-                              : Icons.visibility_off_outlined),
-                          onPressed: () => setState(() => _obscure = !_obscure),
+        child: Stack(
+          children: [
+            Center(
+              child: SingleChildScrollView(
+                padding: EdgeInsets.fromLTRB(24, 32, 24, 32 + keyboardInset),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 420),
+                  child: Form(
+                    key: _formKey,
+                    autovalidateMode: AutovalidateMode.onUserInteraction,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        const AppLogo(size: 88),
+                        const SizedBox(height: 32),
+                        Text(
+                          'Iniciar sesión',
+                          style: theme.textTheme.headlineMedium,
+                          textAlign: TextAlign.center,
                         ),
-                      ),
-                      textInputAction: TextInputAction.done,
-                      onFieldSubmitted: (_) => _submit(),
-                      validator: (v) => (v == null || v.isEmpty)
-                          ? 'Ingresa tu contraseña'
-                          : null,
+                        const SizedBox(height: 8),
+                        Text(
+                          'Ingresa con tu usuario corporativo.',
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: theme.colorScheme.onSurface
+                                .withValues(alpha: 0.7),
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 32),
+                        TextFormField(
+                          controller: _usernameCtrl,
+                          decoration: const InputDecoration(
+                            labelText: 'Usuario',
+                            prefixIcon: Icon(Icons.person_outline),
+                          ),
+                          textInputAction: TextInputAction.next,
+                          autocorrect: false,
+                          enableSuggestions: false,
+                          validator: (v) => (v == null || v.trim().isEmpty)
+                              ? 'Ingresa tu usuario'
+                              : null,
+                        ),
+                        const SizedBox(height: 16),
+                        TextFormField(
+                          controller: _passwordCtrl,
+                          obscureText: _obscure,
+                          decoration: InputDecoration(
+                            labelText: 'Contraseña',
+                            prefixIcon: const Icon(Icons.lock_outline),
+                            suffixIcon: IconButton(
+                              icon: Icon(_obscure
+                                  ? Icons.visibility_outlined
+                                  : Icons.visibility_off_outlined),
+                              onPressed: () =>
+                                  setState(() => _obscure = !_obscure),
+                            ),
+                          ),
+                          textInputAction: TextInputAction.done,
+                          onFieldSubmitted: (_) => _submit(),
+                          validator: (v) => (v == null || v.isEmpty)
+                              ? 'Ingresa tu contraseña'
+                              : null,
+                        ),
+                        if (_error != null) ...[
+                          const SizedBox(height: 16),
+                          FormErrorBanner(message: _error!),
+                        ],
+                        const SizedBox(height: 24),
+                        LoadingButton(
+                          onPressed: _submit,
+                          loading: _loading,
+                          label: 'Entrar',
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          '¿Olvidaste tu contraseña? Contacta al administrador.',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurface
+                                .withValues(alpha: 0.6),
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
                     ),
-                    if (_error != null) ...[
-                      const SizedBox(height: 16),
-                      FormErrorBanner(message: _error!),
-                    ],
-                    const SizedBox(height: 24),
-                    LoadingButton(
-                      onPressed: _submit,
-                      loading: _loading,
-                      label: 'Entrar',
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      '¿Olvidaste tu contraseña? Contacta al administrador.',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color:
-                            theme.colorScheme.onSurface.withValues(alpha: 0.6),
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                  ],
+                  ),
                 ),
               ),
             ),
-          ),
+            const Positioned(
+              top: 4,
+              right: 4,
+              child: ThemeModeIconButton(),
+            ),
+          ],
         ),
       ),
     );

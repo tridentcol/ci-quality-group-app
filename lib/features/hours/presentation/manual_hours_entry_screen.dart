@@ -11,6 +11,7 @@ import '../../../shared/widgets/confirm_dialog.dart';
 import '../../../shared/widgets/error_view.dart';
 import '../../../shared/widgets/loading_button.dart';
 import '../../../shared/widgets/section_label.dart';
+import '../../../shared/widgets/theme_mode_toggle.dart';
 import '../../auth/data/auth_repository.dart';
 import '../../workers/data/workers_repository.dart';
 import '../../workers/domain/worker.dart';
@@ -163,15 +164,27 @@ class _ManualHoursEntryScreenState
     }
   }
 
-  ({String label, Color color})? _dateBadge() {
+  ({String label, Color color})? _dateBadge(Brightness brightness) {
     final today = AppClock.now();
+    final isDark = brightness == Brightness.dark;
+    // En dark, los verdes corporativos quedan muy oscuros sobre fondo
+    // grafito; subimos a leafGreen y a versiones más luminosas.
     if (isSameDay(_date, today)) {
-      return (label: 'Hoy', color: AppColors.success);
+      return (
+        label: 'Hoy',
+        color: isDark ? AppColors.leafGreen : AppColors.success,
+      );
     }
     if (_date.isBefore(today)) {
-      return (label: 'Pasado', color: AppColors.info);
+      return (
+        label: 'Pasado',
+        color: isDark ? const Color(0xFF60A5FA) : AppColors.info,
+      );
     }
-    return (label: 'Futuro', color: AppColors.warning);
+    return (
+      label: 'Futuro',
+      color: isDark ? const Color(0xFFFFC857) : AppColors.warning,
+    );
   }
 
   DateTime _composeCheckIn() => DateTime(
@@ -272,6 +285,7 @@ class _ManualHoursEntryScreenState
     return Scaffold(
       appBar: AppBar(
         title: Text(_isEdit ? 'Editar registro' : 'Nuevo registro manual'),
+        actions: const [ThemeModeIconButton()],
       ),
       body: AbsorbPointer(
         absorbing: _busy,
@@ -321,7 +335,7 @@ class _ManualHoursEntryScreenState
                   _TappableField(
                     label: 'Fecha',
                     value: formatDate(_date),
-                    badge: _dateBadge(),
+                    badge: _dateBadge(Theme.of(context).brightness),
                     icon: Icons.calendar_today_outlined,
                     onTap: _isEdit ? null : _pickDate,
                   ),

@@ -17,8 +17,8 @@ class RolePill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = _colorFor(role);
     final theme = Theme.of(context);
+    final color = _colorFor(role, theme.brightness);
     if (compact) {
       return Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
@@ -52,12 +52,20 @@ class RolePill extends StatelessWidget {
     );
   }
 
-  static Color _colorFor(AppRole role) => switch (role) {
-        AppRole.admin => AppColors.treeGreen,
-        AppRole.sales => AppColors.info,
-        AppRole.hours => AppColors.warning,
-      };
+  /// `treeGreen` (#1F5128) es muy oscuro contra fondos oscuros y se pierde,
+  /// así que en dark mode el admin usa `leafGreen`. Los otros dos roles
+  /// (info azul, warning amarillo) tienen contraste decente en ambos modos.
+  static Color _colorFor(AppRole role, Brightness brightness) {
+    final isDark = brightness == Brightness.dark;
+    return switch (role) {
+      AppRole.admin => isDark ? AppColors.leafGreen : AppColors.treeGreen,
+      AppRole.sales => AppColors.info,
+      AppRole.hours => AppColors.warning,
+    };
+  }
 
   /// Color asociado al rol, expuesto para CircleAvatar y similares.
-  static Color colorOf(AppRole role) => _colorFor(role);
+  /// Requiere el brightness del tema actual para contrastar correctamente.
+  static Color colorOf(AppRole role, Brightness brightness) =>
+      _colorFor(role, brightness);
 }
