@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../features/admin/presentation/admin_dashboard_screen.dart';
 import '../../features/admin/presentation/admin_metrics_screen.dart';
 import '../../features/admin/presentation/admin_shell.dart';
 import '../../features/admin/presentation/master_list_detail_screen.dart';
@@ -100,7 +99,10 @@ final routerProvider = Provider<GoRouter>((ref) {
         routes: [
           GoRoute(
             path: '/admin',
-            builder: (_, __) => const AdminDashboardScreen(),
+            // /admin es directamente la pantalla de Métricas. Antes había
+            // un AdminDashboardScreen con un grid de tiles para mobile,
+            // pero el drawer (con todos los módulos) lo dejó redundante.
+            builder: (_, __) => const AdminMetricsScreen(),
             routes: [
               GoRoute(
                 path: 'master-lists',
@@ -135,10 +137,6 @@ final routerProvider = Provider<GoRouter>((ref) {
                     ],
                   ),
                 ],
-              ),
-              GoRoute(
-                path: 'metrics',
-                builder: (_, __) => const AdminMetricsScreen(),
               ),
               GoRoute(
                 path: 'settings/schedule',

@@ -13,13 +13,16 @@ class AppColors {
   static const Color leafGreen = Color(0xFF4FBA47);
   static const Color leafGreenSoft = Color(0xFFE6F4E1);
 
-  // Neutros
-  static const Color ink = Color(0xFF0E0E10);
-  static const Color graphite = Color(0xFF1B1B1F);
-  static const Color slate = Color(0xFF2A2A2F);
-  static const Color steel = Color(0xFF6B6B73);
-  static const Color mist = Color(0xFFB8B8BF);
-  static const Color cloud = Color(0xFFF4F4F6);
+  // Neutros — grises 100 % neutros (R = G = B) sin tinte azul ni verde.
+  // Antes tenían +2/+5 en el canal azul (estilo "neutral cool" típico de
+  // Material) pero se percibía un velo azulado en dark mode. Esta paleta
+  // se ve siempre como negro/gris puros sobre cualquier monitor.
+  static const Color ink = Color(0xFF0E0E0E);
+  static const Color graphite = Color(0xFF1B1B1B);
+  static const Color slate = Color(0xFF2A2A2A);
+  static const Color steel = Color(0xFF6B6B6B);
+  static const Color mist = Color(0xFFB8B8B8);
+  static const Color cloud = Color(0xFFF4F4F4);
   static const Color paper = Color(0xFFFAFAFA);
   static const Color white = Color(0xFFFFFFFF);
 
