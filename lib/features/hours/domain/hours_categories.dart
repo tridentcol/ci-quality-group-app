@@ -68,7 +68,7 @@ class HoursBreakdown {
 
   Map<String, int> toMinutesMap() => {
         for (final c in HoursCategory.values)
-          c.id: (totals[c] ?? Duration.zero).inMinutes
+          c.id: (totals[c] ?? Duration.zero).inMinutes,
       };
 
   factory HoursBreakdown.fromMinutesMap(Map<String, dynamic> map) {

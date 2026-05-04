@@ -89,7 +89,7 @@ class _HoursHomeScreenState extends ConsumerState<HoursHomeScreen> {
                       : data
                           .where((w) =>
                               w.fullName.toLowerCase().contains(_query) ||
-                              w.role.toLowerCase().contains(_query))
+                              w.role.toLowerCase().contains(_query),)
                           .toList();
                   if (filtered.isEmpty) {
                     return ListView(
@@ -261,12 +261,12 @@ class _Stat extends StatelessWidget {
             style: Theme.of(context)
                 .textTheme
                 .headlineMedium
-                ?.copyWith(color: color, fontWeight: FontWeight.w700)),
+                ?.copyWith(color: color, fontWeight: FontWeight.w700),),
         Text(label,
             style: Theme.of(context)
                 .textTheme
                 .bodySmall
-                ?.copyWith(color: color.withValues(alpha: 0.85))),
+                ?.copyWith(color: color.withValues(alpha: 0.85)),),
       ],
     );
   }

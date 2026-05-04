@@ -93,7 +93,7 @@ class _WorkersScreenState extends ConsumerState<WorkersScreen> {
             tooltip: _showInactive ? 'Ver solo activos' : 'Ver todos',
             icon: Icon(_showInactive
                 ? Icons.visibility_outlined
-                : Icons.visibility_off_outlined),
+                : Icons.visibility_off_outlined,),
             onPressed: () => setState(() => _showInactive = !_showInactive),
           ),
         ],
@@ -137,7 +137,7 @@ class _WorkersScreenState extends ConsumerState<WorkersScreen> {
                           .where((w) =>
                               w.fullName.toLowerCase().contains(_query) ||
                               w.idNumber.toLowerCase().contains(_query) ||
-                              w.role.toLowerCase().contains(_query))
+                              w.role.toLowerCase().contains(_query),)
                           .toList();
                   if (filtered.isEmpty) {
                     return ListView(
@@ -243,7 +243,7 @@ class _WorkerCard extends StatelessWidget {
                         if (!worker.active)
                           Container(
                             padding: const EdgeInsets.symmetric(
-                                horizontal: 8, vertical: 2),
+                                horizontal: 8, vertical: 2,),
                             decoration: BoxDecoration(
                               color: theme.colorScheme.surfaceContainerHighest,
                               borderRadius: BorderRadius.circular(6),
@@ -284,10 +284,10 @@ class _WorkerCard extends StatelessWidget {
                   const PopupMenuItem(value: 'edit', child: Text('Editar')),
                   if (worker.active)
                     const PopupMenuItem(
-                        value: 'deactivate', child: Text('Desactivar'))
+                        value: 'deactivate', child: Text('Desactivar'),)
                   else
                     const PopupMenuItem(
-                        value: 'reactivate', child: Text('Reactivar')),
+                        value: 'reactivate', child: Text('Reactivar'),),
                 ],
               ),
             ],

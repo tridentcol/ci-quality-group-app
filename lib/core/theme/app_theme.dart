@@ -130,9 +130,9 @@ class AppTheme {
           borderSide: BorderSide(color: base.colorScheme.error, width: 1.5),
         ),
         labelStyle: base.textTheme.bodyMedium?.copyWith(
-            color: base.colorScheme.onSurface.withValues(alpha: 0.7)),
+            color: base.colorScheme.onSurface.withValues(alpha: 0.7),),
         hintStyle: base.textTheme.bodyMedium?.copyWith(
-            color: base.colorScheme.onSurface.withValues(alpha: 0.45)),
+            color: base.colorScheme.onSurface.withValues(alpha: 0.45),),
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(

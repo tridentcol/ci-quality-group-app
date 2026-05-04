@@ -101,14 +101,14 @@ class _HoursAdminScreenState extends ConsumerState<HoursAdminScreen> {
         error: (e, _) => AppErrorView(
           error: e,
           onRetry: () => ref.invalidate(
-              hoursByRangeProvider(HoursDateRange(start: _start, end: _end))),
+              hoursByRangeProvider(HoursDateRange(start: _start, end: _end)),),
         ),
         data: (data) {
           final filtered = _filtered(data);
           final totals = _aggregate(filtered);
           return RefreshIndicator(
             onRefresh: () async => ref.invalidate(
-                hoursByRangeProvider(HoursDateRange(start: _start, end: _end))),
+                hoursByRangeProvider(HoursDateRange(start: _start, end: _end)),),
             child: CustomScrollView(
               physics: const AlwaysScrollableScrollPhysics(),
               slivers: [
@@ -147,7 +147,7 @@ class _HoursAdminScreenState extends ConsumerState<HoursAdminScreen> {
                         ...workers.map((w) => DropdownMenuItem(
                               value: w.id,
                               child: Text(w.fullName),
-                            )),
+                            ),),
                       ],
                       onChanged: (v) => setState(() => _workerFilter = v),
                     ),
@@ -262,7 +262,7 @@ class _HoursEntryCard extends StatelessWidget {
                     Text('Abierto',
                         style: theme.textTheme.labelSmall?.copyWith(
                           color: theme.colorScheme.primary,
-                        ))
+                        ),)
                   else
                     Text(
                       formatHours(entry.breakdown.totalPaid),

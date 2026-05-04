@@ -25,7 +25,7 @@ class SalesHomeScreen extends ConsumerWidget {
     final theme = Theme.of(context);
     final fullName = ref.watch(currentProfileProvider.select(
       (a) => a.valueOrNull?.fullName ?? 'Usuario',
-    ));
+    ),);
     final salesAsync = ref.watch(recentSalesProvider);
 
     return Scaffold(

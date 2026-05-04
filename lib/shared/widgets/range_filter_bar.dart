@@ -29,7 +29,7 @@ class RangeFilterBar extends StatelessWidget {
       onChanged(DateTimeRange(
         start: startOfDay(picked.start),
         end: endOfDay(picked.end),
-      ));
+      ),);
     }
   }
 
@@ -77,7 +77,7 @@ class RangeFilterBar extends StatelessWidget {
             children: [
               Icon(Icons.filter_alt_outlined,
                   size: 18,
-                  color: theme.colorScheme.onSurface.withValues(alpha: 0.7)),
+                  color: theme.colorScheme.onSurface.withValues(alpha: 0.7),),
               const SizedBox(width: 6),
               Expanded(
                 child: Text(

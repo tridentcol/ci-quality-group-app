@@ -146,7 +146,7 @@ class _FormBuilderScreenState extends ConsumerState<FormBuilderScreen> {
         defaultValue: newField.defaultValue,
         order: _draft!.length + 1,
         coreField: false,
-      ));
+      ),);
     });
   }
 
@@ -323,7 +323,7 @@ class _FieldRow extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(horizontal: 4),
                   child: Icon(Icons.drag_indicator,
                       color:
-                          theme.colorScheme.onSurface.withValues(alpha: 0.5)),
+                          theme.colorScheme.onSurface.withValues(alpha: 0.5),),
                 ),
               ),
               const SizedBox(width: 4),
@@ -335,7 +335,7 @@ class _FieldRow extends StatelessWidget {
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Icon(_iconFor(field.type),
-                    color: theme.colorScheme.primary, size: 20),
+                    color: theme.colorScheme.primary, size: 20,),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -359,7 +359,7 @@ class _FieldRow extends StatelessWidget {
                               '*',
                               style: TextStyle(
                                   color: theme.colorScheme.error,
-                                  fontWeight: FontWeight.w700),
+                                  fontWeight: FontWeight.w700,),
                             ),
                           ),
                       ],
@@ -469,7 +469,7 @@ class _RoleBadge extends StatelessWidget {
 /// Diálogo de edición de un campo. Devuelve la nueva FieldDefinition o
 /// `null` si el usuario cancela.
 Future<FieldDefinition?> _editFieldDialog(
-    BuildContext context, FieldDefinition? initial) async {
+    BuildContext context, FieldDefinition? initial,) async {
   return showDialog<FieldDefinition>(
     context: context,
     builder: (ctx) => _FieldEditorDialog(initial: initial),
@@ -512,7 +512,7 @@ class _FieldEditorDialogState extends State<_FieldEditorDialog> {
     _required = f?.required ?? false;
     _visibleRoles = {...(f?.visibleToRoles ?? AppRole.values.map((r) => r.id))};
     _editableRoles = {
-      ...(f?.editableByRoles ?? AppRole.values.map((r) => r.id))
+      ...(f?.editableByRoles ?? AppRole.values.map((r) => r.id)),
     };
   }
 
@@ -567,7 +567,7 @@ class _FieldEditorDialogState extends State<_FieldEditorDialog> {
                   .map((t) => DropdownMenuItem(
                         value: t,
                         child: Text(_FieldRow._typeLabel(t)),
-                      ))
+                      ),)
                   .toList(),
               onChanged:
                   _isCore ? null : (v) => setState(() => _type = v ?? _type),

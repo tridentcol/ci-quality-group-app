@@ -96,7 +96,7 @@ class FormSchemaRepository {
         defaultValue: f.defaultValue,
         order: i + 1,
         coreField: f.coreField,
-      ));
+      ),);
     }
     final next = FormSchema(
       id: module,

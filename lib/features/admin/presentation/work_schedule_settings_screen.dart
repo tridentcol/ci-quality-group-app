@@ -103,7 +103,7 @@ class _WorkScheduleSettingsScreenState
   }
 
   Future<TimeRange?> _editRange(TimeRange current,
-      {required String title}) async {
+      {required String title,}) async {
     final start = await showAppTimePicker(
       context: context,
       initialTime:
@@ -122,7 +122,7 @@ class _WorkScheduleSettingsScreenState
   }
 
   Future<TimeOfDayMinutes?> _editTime(TimeOfDayMinutes current,
-      {required String title}) async {
+      {required String title,}) async {
     final picked = await showAppTimePicker(
       context: context,
       initialTime: TimeOfDay(hour: current.hour, minute: current.minute),
@@ -211,14 +211,14 @@ class _WorkScheduleSettingsScreenState
               children: [
                 _InfoBanner(),
                 const SizedBox(height: 16),
-                _SectionLabel('Jornada ordinaria'),
+                const _SectionLabel('Jornada ordinaria'),
                 const SizedBox(height: 8),
                 _OrdinaryCard(
                   label: 'Lunes a viernes',
                   range: draft.weekdayOrdinary,
                   onEdit: () async {
                     final r = await _editRange(draft.weekdayOrdinary,
-                        title: 'Jornada L–V');
+                        title: 'Jornada L–V',);
                     if (r != null) _setOrdinary('weekday', r);
                   },
                 ),
@@ -228,7 +228,7 @@ class _WorkScheduleSettingsScreenState
                   range: draft.saturdayOrdinary,
                   onEdit: () async {
                     final r = await _editRange(draft.saturdayOrdinary,
-                        title: 'Jornada sábado');
+                        title: 'Jornada sábado',);
                     if (r != null) _setOrdinary('saturday', r);
                   },
                 ),
@@ -240,12 +240,12 @@ class _WorkScheduleSettingsScreenState
                       'Cuenta como dominical diurna ordinaria (con recargo).',
                   onEdit: () async {
                     final r = await _editRange(draft.sundayOrdinary,
-                        title: 'Jornada dominical');
+                        title: 'Jornada dominical',);
                     if (r != null) _setOrdinary('sunday', r);
                   },
                 ),
                 const SizedBox(height: 24),
-                _SectionLabel('Hora de almuerzo'),
+                const _SectionLabel('Hora de almuerzo'),
                 const SizedBox(height: 8),
                 _LunchCard(
                   label: 'Lunes a viernes',
@@ -294,28 +294,28 @@ class _WorkScheduleSettingsScreenState
                   },
                 ),
                 const SizedBox(height: 24),
-                _SectionLabel('Franjas diurna y nocturna'),
+                const _SectionLabel('Franjas diurna y nocturna'),
                 const SizedBox(height: 8),
                 _DayPeriodCard(
                   start: draft.dayStart,
                   end: draft.dayEnd,
                   onEditStart: () async {
                     final t = await _editTime(draft.dayStart,
-                        title: 'Inicio franja diurna');
+                        title: 'Inicio franja diurna',);
                     if (t != null) {
                       setState(() => _draft = _copyWith(dayStart: t));
                     }
                   },
                   onEditEnd: () async {
                     final t = await _editTime(draft.dayEnd,
-                        title: 'Inicio franja nocturna');
+                        title: 'Inicio franja nocturna',);
                     if (t != null) {
                       setState(() => _draft = _copyWith(dayEnd: t));
                     }
                   },
                 ),
                 const SizedBox(height: 24),
-                _SectionLabel('Resumen aplicado'),
+                const _SectionLabel('Resumen aplicado'),
                 const SizedBox(height: 8),
                 _PreviewCard(schedule: draft),
                 if (_error != null) ...[
@@ -331,7 +331,7 @@ class _WorkScheduleSettingsScreenState
                     ),
                     child: Text(_error!,
                         style: TextStyle(
-                            color: Theme.of(context).colorScheme.error)),
+                            color: Theme.of(context).colorScheme.error,),),
                   ),
                 ],
                 const SizedBox(height: 24),
@@ -441,7 +441,7 @@ class _OrdinaryCard extends StatelessWidget {
                     child: Text(label, style: theme.textTheme.titleMedium),
                   ),
                   Icon(Icons.edit_outlined,
-                      size: 18, color: theme.colorScheme.primary),
+                      size: 18, color: theme.colorScheme.primary,),
                 ],
               ),
               const SizedBox(height: 8),
@@ -452,7 +452,7 @@ class _OrdinaryCard extends StatelessWidget {
                   Icon(Icons.arrow_forward,
                       size: 16,
                       color:
-                          theme.colorScheme.onSurface.withValues(alpha: 0.5)),
+                          theme.colorScheme.onSurface.withValues(alpha: 0.5),),
                   const SizedBox(width: 8),
                   _ChipTime(label: 'Salida', minutes: range.endMinutes),
                 ],
@@ -520,12 +520,12 @@ class _LunchCard extends StatelessWidget {
                       Icon(Icons.arrow_forward,
                           size: 16,
                           color: theme.colorScheme.onSurface
-                              .withValues(alpha: 0.5)),
+                              .withValues(alpha: 0.5),),
                       const SizedBox(width: 8),
                       _ChipTime(label: 'Fin', minutes: range!.endMinutes),
                       const Spacer(),
                       Icon(Icons.edit_outlined,
-                          size: 18, color: theme.colorScheme.primary),
+                          size: 18, color: theme.colorScheme.primary,),
                       const SizedBox(width: 8),
                     ],
                   ),
@@ -580,10 +580,10 @@ class _DayPeriodCard extends StatelessWidget {
                 child: Row(
                   children: [
                     _ChipTime(
-                        label: 'Diurno desde', minutes: start.totalMinutes),
+                        label: 'Diurno desde', minutes: start.totalMinutes,),
                     const Spacer(),
                     Icon(Icons.edit_outlined,
-                        size: 18, color: theme.colorScheme.primary),
+                        size: 18, color: theme.colorScheme.primary,),
                   ],
                 ),
               ),
@@ -599,10 +599,10 @@ class _DayPeriodCard extends StatelessWidget {
                 child: Row(
                   children: [
                     _ChipTime(
-                        label: 'Nocturno desde', minutes: end.totalMinutes),
+                        label: 'Nocturno desde', minutes: end.totalMinutes,),
                     const Spacer(),
                     Icon(Icons.edit_outlined,
-                        size: 18, color: theme.colorScheme.primary),
+                        size: 18, color: theme.colorScheme.primary,),
                   ],
                 ),
               ),
@@ -685,7 +685,7 @@ class _PreviewCard extends StatelessWidget {
             const Divider(height: 20),
             _row(theme, 'Diurno', _range(schedule.dayStart, schedule.dayEnd)),
             _row(theme, 'Nocturno',
-                _range(schedule.dayEnd, schedule.dayStart, wrap: true)),
+                _range(schedule.dayEnd, schedule.dayStart, wrap: true),),
           ],
         ),
       ),

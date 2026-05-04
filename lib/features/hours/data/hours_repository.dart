@@ -250,9 +250,9 @@ class HoursRepository {
     return _col
         .where('workDate',
             isGreaterThanOrEqualTo:
-                Timestamp.fromDate(AppClock.toInstant(today)))
+                Timestamp.fromDate(AppClock.toInstant(today)),)
         .where('workDate',
-            isLessThan: Timestamp.fromDate(AppClock.toInstant(tomorrow)))
+            isLessThan: Timestamp.fromDate(AppClock.toInstant(tomorrow)),)
         .snapshots()
         .map((snap) {
       final map = <String, HoursEntry>{};
@@ -268,9 +268,9 @@ class HoursRepository {
     return _col
         .where('workDate',
             isGreaterThanOrEqualTo:
-                Timestamp.fromDate(AppClock.toInstant(start)))
+                Timestamp.fromDate(AppClock.toInstant(start)),)
         .where('workDate',
-            isLessThanOrEqualTo: Timestamp.fromDate(AppClock.toInstant(end)))
+            isLessThanOrEqualTo: Timestamp.fromDate(AppClock.toInstant(end)),)
         .snapshots()
         .map((snap) {
       final list = snap.docs.map(HoursEntry.fromSnapshot).toList()
@@ -288,11 +288,11 @@ class HoursRepository {
     if (start != null) {
       q = q.where('workDate',
           isGreaterThanOrEqualTo:
-              Timestamp.fromDate(AppClock.toInstant(start)));
+              Timestamp.fromDate(AppClock.toInstant(start)),);
     }
     if (end != null) {
       q = q.where('workDate',
-          isLessThanOrEqualTo: Timestamp.fromDate(AppClock.toInstant(end)));
+          isLessThanOrEqualTo: Timestamp.fromDate(AppClock.toInstant(end)),);
     }
     return q.snapshots().map((snap) {
       final list = snap.docs.map(HoursEntry.fromSnapshot).toList()

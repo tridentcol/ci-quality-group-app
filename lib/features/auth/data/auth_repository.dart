@@ -22,7 +22,7 @@ class AuthRepository {
   User? get currentUser => _auth.currentUser;
 
   Future<void> signIn(
-      {required String username, required String password}) async {
+      {required String username, required String password,}) async {
     await _auth.signInWithEmailAndPassword(
       email: AppUser.emailFor(username),
       password: password,

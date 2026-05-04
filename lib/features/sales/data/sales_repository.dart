@@ -127,9 +127,9 @@ class SalesRepository {
     return _col
         .where('date',
             isGreaterThanOrEqualTo:
-                Timestamp.fromDate(AppClock.toInstant(start)))
+                Timestamp.fromDate(AppClock.toInstant(start)),)
         .where('date',
-            isLessThanOrEqualTo: Timestamp.fromDate(AppClock.toInstant(end)))
+            isLessThanOrEqualTo: Timestamp.fromDate(AppClock.toInstant(end)),)
         .orderBy('date', descending: true)
         .snapshots()
         .map((snap) => snap.docs.map(Sale.fromSnapshot).toList());

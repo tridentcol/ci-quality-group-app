@@ -27,7 +27,7 @@ class WorkersRepository {
       final all = snap.docs.map(Worker.fromSnapshot).toList();
       final active = all.where((w) => w.active).toList()
         ..sort((a, b) =>
-            a.fullName.toLowerCase().compareTo(b.fullName.toLowerCase()));
+            a.fullName.toLowerCase().compareTo(b.fullName.toLowerCase()),);
       return active;
     });
   }

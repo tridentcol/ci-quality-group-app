@@ -106,7 +106,7 @@ class _UserFormScreenState extends ConsumerState<UserFormScreen> {
     final theme = Theme.of(context);
     final myUid = ref.watch(currentProfileProvider.select(
       (a) => a.valueOrNull?.uid,
-    ));
+    ),);
     final isSelf = _isEdit && myUid == widget.editing!.uid;
     final keyboardInset = MediaQuery.viewInsetsOf(context).bottom;
 
@@ -137,7 +137,7 @@ class _UserFormScreenState extends ConsumerState<UserFormScreen> {
                   child: Row(
                     children: [
                       Icon(Icons.shield_outlined,
-                          size: 18, color: theme.colorScheme.primary),
+                          size: 18, color: theme.colorScheme.primary,),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
@@ -195,7 +195,7 @@ class _UserFormScreenState extends ConsumerState<UserFormScreen> {
                     suffixIcon: IconButton(
                       icon: Icon(_obscurePassword
                           ? Icons.visibility_outlined
-                          : Icons.visibility_off_outlined),
+                          : Icons.visibility_off_outlined,),
                       onPressed: () =>
                           setState(() => _obscurePassword = !_obscurePassword),
                     ),
@@ -218,7 +218,7 @@ class _UserFormScreenState extends ConsumerState<UserFormScreen> {
                     .map((r) => DropdownMenuItem(
                           value: r,
                           child: Text(r.label),
-                        ))
+                        ),)
                     .toList(),
                 onChanged:
                     isSelf ? null : (r) => setState(() => _role = r ?? _role),

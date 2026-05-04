@@ -59,7 +59,7 @@ class DynamicFormController extends ChangeNotifier {
   /// pasar al repositorio. Los core son los `coreField=true` del schema
   /// (van a campos tipados de Sale); el resto va a `customFields`.
   ({Map<String, Object?> core, Map<String, dynamic> custom}) split(
-      FormSchema schema) {
+      FormSchema schema,) {
     final core = <String, Object?>{};
     final custom = <String, dynamic>{};
     for (final f in schema.fields) {
@@ -103,7 +103,7 @@ class DynamicFormRenderer extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final role = ref.watch(currentProfileProvider.select(
       (a) => a.valueOrNull?.role,
-    ));
+    ),);
     final visibleFields = schema.fields
         .where((f) => role == null || f.visibleToRoles.contains(role.id))
         .toList()
@@ -477,7 +477,7 @@ class _DateTimeWidget extends StatelessWidget {
         controller.set(
           field.id,
           DateTime(pickedDate.year, pickedDate.month, pickedDate.day,
-              pickedTime.hour, pickedTime.minute),
+              pickedTime.hour, pickedTime.minute,),
         );
       },
       borderRadius: BorderRadius.circular(12),

@@ -63,25 +63,25 @@ class ColombianHolidays {
     final holidays = <Holiday>[
       // Fijos (no se trasladan).
       Holiday(
-          date: DateTime(year, 1, 1), name: 'Año Nuevo', movedToMonday: false),
+          date: DateTime(year, 1, 1), name: 'Año Nuevo', movedToMonday: false,),
       Holiday(
           date: DateTime(year, 5, 1),
           name: 'Día del Trabajo',
-          movedToMonday: false),
+          movedToMonday: false,),
       Holiday(
           date: DateTime(year, 7, 20),
           name: 'Día de la Independencia',
-          movedToMonday: false),
+          movedToMonday: false,),
       Holiday(
           date: DateTime(year, 8, 7),
           name: 'Batalla de Boyacá',
-          movedToMonday: false),
+          movedToMonday: false,),
       Holiday(
           date: DateTime(year, 12, 8),
           name: 'Inmaculada Concepción',
-          movedToMonday: false),
+          movedToMonday: false,),
       Holiday(
-          date: DateTime(year, 12, 25), name: 'Navidad', movedToMonday: false),
+          date: DateTime(year, 12, 25), name: 'Navidad', movedToMonday: false,),
 
       // Pascua (no se trasladan).
       Holiday(

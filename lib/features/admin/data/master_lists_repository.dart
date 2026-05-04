@@ -50,7 +50,7 @@ class MasterListsRepository {
           .where((item) => item.active)
           .toList()
         ..sort(
-            (a, b) => a.value.toLowerCase().compareTo(b.value.toLowerCase()));
+            (a, b) => a.value.toLowerCase().compareTo(b.value.toLowerCase()),);
       return items;
     });
   }
@@ -141,7 +141,7 @@ class MasterListsRepository {
         'name': spec['name'],
         'allowFreeText': spec['allowFreeText'],
         'description': spec['description'],
-      }, SetOptions(merge: true));
+      }, SetOptions(merge: true),);
 
       if (existing.exists) continue;
 

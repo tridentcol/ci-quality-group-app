@@ -63,17 +63,17 @@ class SalesMetrics {
     for (final s in sales) {
       total += s.totalValue;
       byMethod.update(s.paymentMethod, (v) => v + s.totalValue,
-          ifAbsent: () => s.totalValue);
+          ifAbsent: () => s.totalValue,);
       final mat = s.materialVariant != null
           ? '${s.material} · ${s.materialVariant}'
           : s.material;
       byMaterial.update(mat, (v) => v + s.totalValue,
-          ifAbsent: () => s.totalValue);
+          ifAbsent: () => s.totalValue,);
       byPayer.update(s.payerName, (v) => v + s.totalValue,
-          ifAbsent: () => s.totalValue);
+          ifAbsent: () => s.totalValue,);
       final dayKey = _ordinal(s.date);
       byDay.update(dayKey, (v) => v + s.totalValue,
-          ifAbsent: () => s.totalValue);
+          ifAbsent: () => s.totalValue,);
     }
 
     // Genera la serie diaria continua, rellenando con 0 los días sin ventas.
@@ -182,7 +182,7 @@ final salesMetricsProvider = Provider.family
         list,
         rangeStart: range.start,
         rangeEnd: range.end,
-      ));
+      ),);
 });
 
 /// Métricas de horas memoizadas (igual que las de ventas).

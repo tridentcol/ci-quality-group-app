@@ -71,7 +71,7 @@ class WorkSchedule {
       );
 
   factory WorkSchedule.fromSnapshot(
-      DocumentSnapshot<Map<String, dynamic>> snap) {
+      DocumentSnapshot<Map<String, dynamic>> snap,) {
     final data = snap.data();
     if (data == null) return defaultSchedule;
     return WorkSchedule.fromMap(data);
@@ -100,7 +100,7 @@ class TimeOfDayMinutes {
 /// Intervalo `[start, end)` dentro de un día.
 class TimeRange {
   const TimeRange(
-      this.startHour, this.startMinute, this.endHour, this.endMinute);
+      this.startHour, this.startMinute, this.endHour, this.endMinute,);
 
   final int startHour;
   final int startMinute;

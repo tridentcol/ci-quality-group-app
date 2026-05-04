@@ -36,7 +36,7 @@ class BreakdownCard extends StatelessWidget {
             Row(
               children: [
                 Icon(Icons.timer_outlined,
-                    size: 18, color: theme.colorScheme.primary),
+                    size: 18, color: theme.colorScheme.primary,),
                 const SizedBox(width: 6),
                 Text(title, style: theme.textTheme.titleMedium),
                 const Spacer(),

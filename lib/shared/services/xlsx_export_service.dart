@@ -313,7 +313,7 @@ class XlsxExportService {
       weeks.add(_WeekRange(
         start: DateTime(monthDate.year, monthDate.month, weekFirstDay),
         end: DateTime(monthDate.year, monthDate.month, weekLastDay),
-      ));
+      ),);
       weekFirstDay += 7;
     }
 
@@ -384,7 +384,7 @@ class XlsxExportService {
         .fold<HoursBreakdown>(HoursBreakdown(), (a, b) => a + b);
     sheet.appendRow(_hoursTotalRow('TOTAL SEMANA', weekTotals));
     _stylizeTotalRow(sheet,
-        rowIndex: sorted.length + 1, columns: headers.length);
+        rowIndex: sorted.length + 1, columns: headers.length,);
 
     _stylizeHeader(sheet, columns: headers.length);
     _applyColumnWidths(sheet, _hoursColumnWidths);
@@ -472,7 +472,7 @@ class XlsxExportService {
 
     _stylizeHeader(sheet, columns: headers.length);
     _stylizeTotalRow(sheet,
-        rowIndex: names.length + 1, columns: headers.length);
+        rowIndex: names.length + 1, columns: headers.length,);
     _applyColumnWidths(sheet, widths);
   }
 
@@ -584,7 +584,7 @@ class XlsxExportService {
     for (var col = 0; col < columns; col++) {
       sheet
           .cell(
-              CellIndex.indexByColumnRow(columnIndex: col, rowIndex: rowIndex))
+              CellIndex.indexByColumnRow(columnIndex: col, rowIndex: rowIndex),)
           .cellStyle = style;
     }
   }

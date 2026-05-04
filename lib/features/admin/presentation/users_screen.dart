@@ -19,7 +19,7 @@ class UsersScreen extends ConsumerWidget {
     final usersAsync = ref.watch(allUsersProvider);
     final myUid = ref.watch(currentProfileProvider.select(
       (a) => a.valueOrNull?.uid,
-    ));
+    ),);
     final theme = Theme.of(context);
 
     return Scaffold(
@@ -137,7 +137,7 @@ class _UserCard extends StatelessWidget {
                         if (isSelf)
                           Container(
                             padding: const EdgeInsets.symmetric(
-                                horizontal: 8, vertical: 2),
+                                horizontal: 8, vertical: 2,),
                             decoration: BoxDecoration(
                               color: theme.colorScheme.primary
                                   .withValues(alpha: 0.15),
@@ -169,13 +169,13 @@ class _UserCard extends StatelessWidget {
                         if (!user.active)
                           Container(
                             padding: const EdgeInsets.symmetric(
-                                horizontal: 8, vertical: 2),
+                                horizontal: 8, vertical: 2,),
                             decoration: BoxDecoration(
                               color: theme.colorScheme.surfaceContainerHighest,
                               borderRadius: BorderRadius.circular(999),
                             ),
                             child: Text('Inactivo',
-                                style: theme.textTheme.labelSmall),
+                                style: theme.textTheme.labelSmall,),
                           ),
                       ],
                     ),

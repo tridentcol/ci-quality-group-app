@@ -46,7 +46,7 @@ class _SalesListScreenState extends ConsumerState<SalesListScreen> {
     if (sales.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-            content: Text('No hay ventas en el rango seleccionado.')),
+            content: Text('No hay ventas en el rango seleccionado.'),),
       );
       return;
     }
@@ -125,14 +125,14 @@ class _SalesListScreenState extends ConsumerState<SalesListScreen> {
             child: RefreshIndicator(
               onRefresh: () async => ref.invalidate(salesByRangeProvider(
                 SalesDateRange(start: _start, end: _end),
-              )),
+              ),),
               child: sales.when(
                 loading: () => const SkeletonList(),
                 error: (e, _) => AppErrorView(
                   error: e,
                   onRetry: () => ref.invalidate(salesByRangeProvider(
                     SalesDateRange(start: _start, end: _end),
-                  )),
+                  ),),
                 ),
                 data: (data) {
                   final q = _query;

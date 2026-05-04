@@ -32,7 +32,7 @@ class MasterListDetailScreen extends ConsumerWidget {
   }
 
   Future<void> _editItem(
-      BuildContext context, WidgetRef ref, MasterListItem item) async {
+      BuildContext context, WidgetRef ref, MasterListItem item,) async {
     final value = await _promptValue(
       context,
       title: 'Editar opción',
@@ -56,7 +56,7 @@ class MasterListDetailScreen extends ConsumerWidget {
   }
 
   Future<void> _deleteItem(
-      BuildContext context, WidgetRef ref, MasterListItem item) async {
+      BuildContext context, WidgetRef ref, MasterListItem item,) async {
     final ok = await showConfirmDialog(
       context,
       title: 'Eliminar opción',

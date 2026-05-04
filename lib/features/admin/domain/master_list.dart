@@ -73,7 +73,7 @@ class MasterListItem {
       };
 
   factory MasterListItem.fromSnapshot(
-      DocumentSnapshot<Map<String, dynamic>> snap) {
+      DocumentSnapshot<Map<String, dynamic>> snap,) {
     final data = snap.data()!;
     return MasterListItem(
       id: snap.id,

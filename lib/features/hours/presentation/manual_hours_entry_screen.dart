@@ -188,11 +188,11 @@ class _ManualHoursEntryScreenState
   }
 
   DateTime _composeCheckIn() => DateTime(
-      _date.year, _date.month, _date.day, _checkIn.hour, _checkIn.minute);
+      _date.year, _date.month, _date.day, _checkIn.hour, _checkIn.minute,);
 
   DateTime _composeCheckOut() {
     var dt = DateTime(
-        _date.year, _date.month, _date.day, _checkOut.hour, _checkOut.minute);
+        _date.year, _date.month, _date.day, _checkOut.hour, _checkOut.minute,);
     // Si la salida es anterior o igual a la entrada, se asume cruce de
     // medianoche y se corre al día siguiente.
     final inDt = _composeCheckIn();
@@ -236,7 +236,7 @@ class _ManualHoursEntryScreenState
           SnackBar(
             content: Text(_isEdit
                 ? 'Registro actualizado.'
-                : 'Registro de horas creado.'),
+                : 'Registro de horas creado.',),
           ),
         );
         context.pop();
@@ -384,7 +384,7 @@ class _ManualHoursEntryScreenState
                       schedule: schedule,
                     );
                     return BreakdownCard(breakdown: breakdown);
-                  }),
+                  },),
                   if (_formError != null) ...[
                     const SizedBox(height: 16),
                     FormErrorBanner(message: _formError!),

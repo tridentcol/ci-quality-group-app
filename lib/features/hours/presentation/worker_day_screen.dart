@@ -222,7 +222,7 @@ class _WorkerDayScreenState extends ConsumerState<WorkerDayScreen> {
     final workerAsync = ref.watch(workerByIdProvider(widget.workerId));
     final entryAsync = ref.watch(workerDayEntryProvider(
       WorkerDayQuery(workerId: widget.workerId, date: _date),
-    ));
+    ),);
 
     return Scaffold(
       appBar: AppBar(
@@ -242,7 +242,7 @@ class _WorkerDayScreenState extends ConsumerState<WorkerDayScreen> {
           final entry = entryAsync.valueOrNull;
           final isAdmin = ref.watch(currentProfileProvider.select(
             (a) => a.valueOrNull?.role == AppRole.admin,
-          ));
+          ),);
           return AbsorbPointer(
             absorbing: _busy,
             child: ListView(
@@ -257,7 +257,7 @@ class _WorkerDayScreenState extends ConsumerState<WorkerDayScreen> {
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   child: entry == null
                       ? _NoEntryView(
-                          busy: _busy, onOpen: () => _openDay(worker))
+                          busy: _busy, onOpen: () => _openDay(worker),)
                       : Column(
                           children: [
                             _TimesCard(
@@ -292,7 +292,7 @@ class _WorkerDayScreenState extends ConsumerState<WorkerDayScreen> {
                                       onPressed:
                                           _busy ? null : () => _closeDay(entry),
                                       icon: const Icon(
-                                          Icons.check_circle_outline),
+                                          Icons.check_circle_outline,),
                                       label: const Text('Cerrar día'),
                                     ),
                                   )

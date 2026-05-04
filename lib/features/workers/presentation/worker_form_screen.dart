@@ -99,7 +99,7 @@ class _WorkerFormScreenState extends ConsumerState<WorkerFormScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
               content: Text(
-                  _isEdit ? 'Trabajador actualizado.' : 'Trabajador creado.')),
+                  _isEdit ? 'Trabajador actualizado.' : 'Trabajador creado.',),),
         );
         context.pop();
       }

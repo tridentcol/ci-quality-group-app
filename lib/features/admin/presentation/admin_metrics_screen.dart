@@ -165,7 +165,7 @@ class _SalesSection extends StatelessWidget {
           child: Center(
             child: Text('Sin ventas en el rango.',
                 style: theme.textTheme.bodyMedium?.copyWith(
-                    color: theme.colorScheme.onSurface.withValues(alpha: 0.6))),
+                    color: theme.colorScheme.onSurface.withValues(alpha: 0.6),),),
           ),
         ),
       );
@@ -190,7 +190,7 @@ class _SalesSection extends StatelessWidget {
             value: formatCop((metrics.total / metrics.count).round()),
             icon: Icons.calculate_outlined,
           ),
-        ]),
+        ],),
         const SizedBox(height: 16),
         if (metrics.dailyTotals.length >= 2)
           Card(
@@ -350,7 +350,7 @@ class _SalesLineChart extends StatelessWidget {
                 return Padding(
                   padding: const EdgeInsets.only(top: 6),
                   child: Text(dayFmt.format(metrics.dailyTotals[i].day),
-                      style: theme.textTheme.labelSmall),
+                      style: theme.textTheme.labelSmall,),
                 );
               },
             ),
@@ -539,7 +539,7 @@ class _HoursSection extends StatelessWidget {
           child: Center(
             child: Text('Sin registros de horas en el rango.',
                 style: theme.textTheme.bodyMedium?.copyWith(
-                    color: theme.colorScheme.onSurface.withValues(alpha: 0.6))),
+                    color: theme.colorScheme.onSurface.withValues(alpha: 0.6),),),
           ),
         ),
       );
@@ -574,7 +574,7 @@ class _HoursSection extends StatelessWidget {
                 ? AppColors.warning
                 : theme.colorScheme.primary,
           ),
-        ]),
+        ],),
         const SizedBox(height: 16),
         Card(
           child: Padding(

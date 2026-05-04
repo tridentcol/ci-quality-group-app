@@ -196,7 +196,7 @@ class _SaleFormScreenState extends ConsumerState<SaleFormScreen> {
     final schemaAsync = ref.watch(formSchemaProvider('sales'));
     final role = ref.watch(currentProfileProvider.select(
       (a) => a.valueOrNull?.role,
-    ));
+    ),);
     return Scaffold(
       appBar: AppBar(
         title: Text(_isEdit ? 'Editar venta' : 'Nueva venta'),
@@ -215,7 +215,7 @@ class _SaleFormScreenState extends ConsumerState<SaleFormScreen> {
               children: [
                 if (_isEdit) ...[
                   _ConsecutiveBadge(
-                      consecutive: widget.editingSale!.consecutive),
+                      consecutive: widget.editingSale!.consecutive,),
                   const SizedBox(height: 16),
                 ],
                 ..._renderSchemaFields(schema, role),

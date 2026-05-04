@@ -172,7 +172,7 @@ final routerProvider = Provider<GoRouter>((ref) {
                   GoRoute(
                     path: ':id/edit',
                     builder: (_, state) => _EditWorkerRoute(
-                        workerId: state.pathParameters['id']!),
+                        workerId: state.pathParameters['id']!,),
                   ),
                 ],
               ),
@@ -355,7 +355,7 @@ class _AuthErrorView extends StatelessWidget {
           Icon(icon, size: 48, color: theme.colorScheme.error),
           const SizedBox(height: 12),
           Text(message,
-              textAlign: TextAlign.center, style: theme.textTheme.bodyMedium),
+              textAlign: TextAlign.center, style: theme.textTheme.bodyMedium,),
           const SizedBox(height: 16),
           FilledButton(
             onPressed: onSignOut,

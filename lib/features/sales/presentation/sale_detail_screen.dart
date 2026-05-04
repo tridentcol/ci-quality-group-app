@@ -97,7 +97,7 @@ class _SaleDetailBody extends ConsumerWidget {
     final canEdit = _canEdit(ref);
     final isAdmin = ref.watch(currentProfileProvider.select(
       (a) => a.valueOrNull?.role == AppRole.admin,
-    ));
+    ),);
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(0, 0, 0, 32),
@@ -120,7 +120,7 @@ class _SaleDetailBody extends ConsumerWidget {
                 children: [
                   _Row(label: 'Tipo de documento', value: sale.documentType),
                   _Row(
-                      label: 'Número de documento', value: sale.documentNumber),
+                      label: 'Número de documento', value: sale.documentNumber,),
                   _Row(label: 'Cliente', value: sale.providerName),
                   const Divider(height: 24),
                   _Row(label: 'Material', value: sale.material),
@@ -130,7 +130,7 @@ class _SaleDetailBody extends ConsumerWidget {
                   _Row(label: 'Cantidad', value: sale.quantity.toString()),
                   _Row(
                       label: 'Valor unitario',
-                      value: formatCop(sale.unitPrice)),
+                      value: formatCop(sale.unitPrice),),
                   _Row(label: 'Valor total', value: formatCop(sale.totalValue)),
                   if (sale.customFields.isNotEmpty) ...[
                     const Divider(height: 24),
@@ -144,11 +144,11 @@ class _SaleDetailBody extends ConsumerWidget {
                   _Row(label: 'Registrada por', value: sale.createdByName),
                   _Row(
                       label: 'Registrada el',
-                      value: formatDateTime(sale.createdAt)),
+                      value: formatDateTime(sale.createdAt),),
                   if (sale.updatedAt != null)
                     _Row(
                         label: 'Última edición',
-                        value: formatDateTime(sale.updatedAt!)),
+                        value: formatDateTime(sale.updatedAt!),),
                   if (sale.editableUntil != null && !isAdmin)
                     Padding(
                       padding: const EdgeInsets.only(top: 8),
