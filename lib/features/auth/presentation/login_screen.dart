@@ -68,8 +68,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       mainAxisSize: MainAxisSize.min,
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        const AppLogo(size: 88),
-                        const SizedBox(height: 32),
+                        // Logo completo (con wordmark integrado en la
+                        // imagen) — por eso ya no hace falta un Text
+                        // adicional con "CI Quality Group" debajo.
+                        const AppLogo(size: 180, mark: false),
+                        const SizedBox(height: 16),
                         Text(
                           'Iniciar sesión',
                           style: theme.textTheme.headlineMedium,

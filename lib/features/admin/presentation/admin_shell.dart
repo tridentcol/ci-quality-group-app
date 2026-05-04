@@ -162,23 +162,28 @@ class AdminNavigationDrawer extends ConsumerWidget {
       child: SafeArea(
         child: Column(
           children: [
-            DrawerHeader(
-              decoration: BoxDecoration(color: theme.colorScheme.primary),
+            // Header compacto al estilo del rail (sin DrawerHeader, que
+            // impone una altura fija de ~140px y deja mucho espacio en
+            // blanco).
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
               child: Row(
                 children: [
-                  const AppLogo(size: 48, showWordmark: false),
-                  const SizedBox(width: 12),
+                  const AppLogo(size: 36),
+                  const SizedBox(width: 10),
                   Expanded(
                     child: Text(
-                      'Panel admin',
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        color: theme.colorScheme.onPrimary,
+                      'CI Quality',
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w700,
                       ),
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
                 ],
               ),
             ),
+            const Divider(height: 1),
             Expanded(
               child: ListView(
                 padding: EdgeInsets.zero,
@@ -261,7 +266,7 @@ class _AdminRail extends StatelessWidget {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const AppLogo(size: 36, showWordmark: false),
+                  const AppLogo(size: 36),
                   if (extended) ...[
                     const SizedBox(width: 8),
                     Expanded(
