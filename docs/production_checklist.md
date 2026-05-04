@@ -36,11 +36,33 @@ registrados.
 
 ### 1.3 Build con el site key inyectado
 
+App Check viene **apagado por defecto** en todas las plataformas. Para
+activarlo en web, pasa el site key:
+
 ```bash
 flutter build web --release \
   --dart-define=APP_CHECK_RECAPTCHA_SITE_KEY=6Lc...TU_KEY...
 firebase deploy --only hosting
 ```
+
+> ⚠️ Si construyes sin el define, App Check se omite y el web arranca
+> normal. Esto es intencional: si pasas un site key inválido o sin
+> registrar todavía en la consola de App Check, los requests se
+> reintentan en loop y dejan al login colgado.
+
+Para activar App Check en **móvil** (Android/iOS), agrega también:
+
+```bash
+flutter build apk --release --dart-define=APP_CHECK_MOBILE=true
+flutter build ios --release --dart-define=APP_CHECK_MOBILE=true
+```
+
+En **debug** (`flutter run`), si pasas `APP_CHECK_MOBILE=true`, el código
+usa `AndroidProvider.debug` y `AppleProvider.debug`: la primera vez al
+arrancar, mira el Logcat / consola de Xcode buscando una línea como
+`Enter this debug secret into the allow list ... <UUID>` y registra ese
+UUID en Firebase → App Check → tu app → Manage debug tokens. Sin eso,
+los requests fallan igual que en release sin SHA-256.
 
 ### 1.4 Activar enforcement (importante: hacer DESPUÉS)
 
