@@ -354,7 +354,7 @@ class _DropdownWidget extends StatelessWidget {
   Widget build(BuildContext context) {
     final value = controller.getString(field.id);
     return DropdownButtonFormField<String>(
-      value: field.options.contains(value) ? value : null,
+      initialValue: field.options.contains(value) ? value : null,
       decoration: InputDecoration(
         labelText: field.label,
         helperText: field.helperText,

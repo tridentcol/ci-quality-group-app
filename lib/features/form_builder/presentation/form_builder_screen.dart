@@ -560,7 +560,7 @@ class _FieldEditorDialogState extends State<_FieldEditorDialog> {
             ),
             const SizedBox(height: 12),
             DropdownButtonFormField<FieldType>(
-              value: _type,
+              initialValue: _type,
               decoration: const InputDecoration(labelText: 'Tipo de campo'),
               items: FieldType.values
                   .where((t) => _isCore ? t == _type : true)

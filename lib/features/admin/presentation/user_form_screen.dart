@@ -209,7 +209,7 @@ class _UserFormScreenState extends ConsumerState<UserFormScreen> {
                 ),
               if (!_isEdit) const SizedBox(height: 12),
               DropdownButtonFormField<AppRole>(
-                value: _role,
+                initialValue: _role,
                 decoration: const InputDecoration(
                   labelText: 'Rol',
                   prefixIcon: Icon(Icons.security_outlined),

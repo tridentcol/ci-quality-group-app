@@ -1,5 +1,10 @@
-// ignore_for_file: avoid_web_libraries_in_flutter
+// ignore_for_file: avoid_web_libraries_in_flutter, deprecated_member_use
 // Solo se compila cuando `dart.library.html` está disponible (web).
+// Suprimimos `deprecated_member_use` porque `dart:html` sigue funcional
+// y migrar a `package:web` + `dart:js_interop` agrega una dependencia
+// y reescritura de Blob/AnchorElement sin beneficio para nuestro flujo
+// (un download trivial por archivo). Lo migraremos cuando Flutter
+// realmente quite `dart:html` del SDK (no anunciado todavía).
 import 'dart:html' as html;
 
 import 'package:flutter/material.dart' show Rect;

@@ -148,7 +148,7 @@ class _DropdownField extends StatelessWidget {
       allValues.add(value!);
     }
     return DropdownButtonFormField<String>(
-      value: value,
+      initialValue: value,
       isExpanded: true,
       decoration: InputDecoration(
         labelText: label,

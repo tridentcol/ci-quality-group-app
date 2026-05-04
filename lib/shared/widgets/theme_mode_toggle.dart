@@ -91,42 +91,7 @@ class ThemeModeListTile extends ConsumerWidget {
       subtitle: Text(themeModeLabel(mode)),
       trailing: const Icon(Icons.unfold_more_rounded, size: 18),
       onTap: () async {
-        final selected = await showModalBottomSheet<ThemeMode>(
-          context: context,
-          showDragHandle: true,
-          builder: (context) => SafeArea(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      'Tema',
-                      style: Theme.of(context).textTheme.titleMedium,
-                    ),
-                  ),
-                ),
-                for (final m in ThemeMode.values)
-                  RadioListTile<ThemeMode>(
-                    value: m,
-                    groupValue: mode,
-                    onChanged: (v) => Navigator.of(context).pop(v),
-                    title: Row(
-                      children: [
-                        Icon(themeModeIcon(m), size: 20),
-                        const SizedBox(width: 12),
-                        Text(themeModeLabel(m)),
-                      ],
-                    ),
-                    subtitle: Text(themeModeDescription(m)),
-                  ),
-                const SizedBox(height: 8),
-              ],
-            ),
-          ),
-        );
+        final selected = await _pickModeSheet(context, mode);
         if (selected != null) {
           await ref.read(themeModeProvider.notifier).set(selected);
         }
@@ -210,39 +175,45 @@ class ThemeModeRailButton extends ConsumerWidget {
 }
 
 Future<ThemeMode?> _pickModeSheet(BuildContext context, ThemeMode current) {
+  // RadioGroup ancestor: el patrón nuevo de Material reemplaza
+  // groupValue/onChanged en cada Radio* por un único RadioGroup que
+  // gestiona el grupo. Aquí el "valor" es la opción presionada y al
+  // pop devolvemos esa opción al caller.
   return showModalBottomSheet<ThemeMode>(
     context: context,
     showDragHandle: true,
-    builder: (context) => SafeArea(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                'Tema',
-                style: Theme.of(context).textTheme.titleMedium,
+    builder: (sheetContext) => SafeArea(
+      child: RadioGroup<ThemeMode>(
+        groupValue: current,
+        onChanged: (v) => Navigator.of(sheetContext).pop(v),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'Tema',
+                  style: Theme.of(sheetContext).textTheme.titleMedium,
+                ),
               ),
             ),
-          ),
-          for (final m in ThemeMode.values)
-            RadioListTile<ThemeMode>(
-              value: m,
-              groupValue: current,
-              onChanged: (v) => Navigator.of(context).pop(v),
-              title: Row(
-                children: [
-                  Icon(themeModeIcon(m), size: 20),
-                  const SizedBox(width: 12),
-                  Text(themeModeLabel(m)),
-                ],
+            for (final m in ThemeMode.values)
+              RadioListTile<ThemeMode>(
+                value: m,
+                title: Row(
+                  children: [
+                    Icon(themeModeIcon(m), size: 20),
+                    const SizedBox(width: 12),
+                    Text(themeModeLabel(m)),
+                  ],
+                ),
+                subtitle: Text(themeModeDescription(m)),
               ),
-              subtitle: Text(themeModeDescription(m)),
-            ),
-          const SizedBox(height: 8),
-        ],
+            const SizedBox(height: 8),
+          ],
+        ),
       ),
     ),
   );

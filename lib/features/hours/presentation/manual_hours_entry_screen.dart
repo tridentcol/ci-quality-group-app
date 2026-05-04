@@ -311,7 +311,7 @@ class _ManualHoursEntryScreenState
                   const SectionLabel('Trabajador'),
                   const SizedBox(height: 8),
                   DropdownButtonFormField<Worker>(
-                    value: _worker,
+                    initialValue: _worker,
                     decoration: const InputDecoration(
                       labelText: 'Selecciona un trabajador',
                       prefixIcon: Icon(Icons.person_outline),

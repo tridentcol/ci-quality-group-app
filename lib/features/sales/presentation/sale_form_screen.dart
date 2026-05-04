@@ -276,7 +276,7 @@ class _SaleFormScreenState extends ConsumerState<SaleFormScreen> {
         return _DateField(value: _date, onTap: _pickDate);
       case 'documentType':
         return DropdownButtonFormField<String>(
-          value: _documentType,
+          initialValue: _documentType,
           decoration: InputDecoration(labelText: f.label),
           items: const [
             DropdownMenuItem(value: 'Cédula', child: Text('Cédula')),

@@ -134,7 +134,7 @@ class _HoursAdminScreenState extends ConsumerState<HoursAdminScreen> {
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
                     child: DropdownButtonFormField<String?>(
-                      value: _workerFilter,
+                      initialValue: _workerFilter,
                       decoration: const InputDecoration(
                         labelText: 'Filtrar por trabajador',
                         prefixIcon: Icon(Icons.person_outline),
