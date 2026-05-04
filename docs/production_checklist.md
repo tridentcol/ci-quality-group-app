@@ -9,78 +9,7 @@ quedan las configuraciones externas.
 
 ---
 
-## 1. App Check (anti-abuso de Firestore/Auth)
-
-Sin esto, cualquiera con la `apiKey` del archivo `firebase_options.dart`
-puede hablarle a tu Firestore desde fuera de la app. Con App Check, todo
-request lleva un token y Firebase rechaza los que vengan de clientes no
-registrados.
-
-### 1.1 Sacar el site key de reCAPTCHA v3 (web)
-
-- [ ] Entra a https://console.cloud.google.com/security/recaptcha — usa
-      el mismo proyecto `quality-group-app`.
-- [ ] **Create key** → tipo "reCAPTCHA v3" → label `quality-group-app-web`.
-- [ ] Domains: agrega `quality-group-app.web.app` y
-      `quality-group-app.firebaseapp.com`. Si en el futuro mapeas un
-      dominio propio (ej. `app.ciqualitygroup.com`), agrégalo también.
-- [ ] Copia el **Site Key** (formato `6Lc...`).
-
-### 1.2 Registrar en Firebase App Check
-
-- [ ] Consola Firebase → **App Check** → app **Web** (`quality-group-app`).
-- [ ] Provider **reCAPTCHA v3** → pega el site key → **Save**.
-- [ ] Para Android: provider **Play Integrity** (queda automático cuando
-      registres la SHA-256 al hacer el build de release).
-- [ ] Para iOS: provider **Device Check** (automático con el bundle id).
-
-### 1.3 Build con el site key inyectado
-
-App Check viene **apagado por defecto** en todas las plataformas. Para
-activarlo en web, pasa el site key:
-
-```bash
-flutter build web --release \
-  --dart-define=APP_CHECK_RECAPTCHA_SITE_KEY=6Lc...TU_KEY...
-firebase deploy --only hosting
-```
-
-> ⚠️ Si construyes sin el define, App Check se omite y el web arranca
-> normal. Esto es intencional: si pasas un site key inválido o sin
-> registrar todavía en la consola de App Check, los requests se
-> reintentan en loop y dejan al login colgado.
-
-Para activar App Check en **móvil** (Android/iOS), agrega también:
-
-```bash
-flutter build apk --release --dart-define=APP_CHECK_MOBILE=true
-flutter build ios --release --dart-define=APP_CHECK_MOBILE=true
-```
-
-En **debug** (`flutter run`), si pasas `APP_CHECK_MOBILE=true`, el código
-usa `AndroidProvider.debug` y `AppleProvider.debug`: la primera vez al
-arrancar, mira el Logcat / consola de Xcode buscando una línea como
-`Enter this debug secret into the allow list ... <UUID>` y registra ese
-UUID en Firebase → App Check → tu app → Manage debug tokens. Sin eso,
-los requests fallan igual que en release sin SHA-256.
-
-### 1.4 Activar enforcement (importante: hacer DESPUÉS)
-
-- [ ] Despliega el build con el site key y úsalo unas horas con tráfico
-      real (login, abrir ventas, abrir horas).
-- [ ] Consola Firebase → **App Check** → tab **APIs**:
-  - **Cloud Firestore**: confirma que "Verified requests" ≥ 95 %.
-  - **Cloud Storage** (si lo activas después): igual.
-  - **Identity Toolkit** (Auth): igual.
-- [ ] Cuando estés tranquilo, click **Enforce** en cada API. Después de
-      esto, requests sin token válido reciben `permission-denied`.
-
-> ⚠️ Si activas enforcement antes de desplegar el build con el site key,
-> la app deja de funcionar. Hazlo en el orden de arriba.
-
----
-
-## 2. Authorized domains en Firebase Auth
+## 1. Authorized domains en Firebase Auth
 
 Para que el login web funcione, el dominio tiene que estar en la lista.
 
@@ -94,7 +23,7 @@ Para que el login web funcione, el dominio tiene que estar en la lista.
 
 ---
 
-## 3. Política de contraseñas
+## 2. Política de contraseñas
 
 Por defecto Firebase Auth acepta contraseñas de 6 caracteres. Subir el
 mínimo evita "123456".
@@ -112,11 +41,11 @@ mínimo evita "123456".
 
 ---
 
-## 4. Backups automáticos de Firestore
+## 3. Backups automáticos de Firestore
 
 Si alguien borra datos por error, sin backups no hay vuelta atrás.
 
-### 4.1 Habilitar el bucket destino
+### 3.1 Habilitar el bucket destino
 
 - [ ] Consola Google Cloud → **Storage** → **Buckets** → **Create**:
   - Name: `quality-group-app-firestore-backups`
@@ -125,7 +54,7 @@ Si alguien borra datos por error, sin backups no hay vuelta atrás.
     se leen)
   - Lifecycle: opcional, "Delete objects older than 90 days".
 
-### 4.2 Programar el export
+### 3.2 Programar el export
 
 Desde una terminal con `gcloud` autenticado al proyecto:
 
@@ -145,7 +74,7 @@ gcloud scheduler jobs create http firestore-daily-backup \
 - [ ] Al día siguiente, revisa el bucket: debería haber una carpeta
       `2025-XX-XX` con el dump.
 
-### 4.3 Probar restore (una vez)
+### 3.3 Probar restore (una vez)
 
 Vale la pena hacerlo una sola vez para validar el procedimiento (no en
 producción real, ojalá en un proyecto de prueba).
@@ -156,7 +85,7 @@ gcloud firestore import gs://quality-group-app-firestore-backups/2025-XX-XX
 
 ---
 
-## 5. Crashlytics (telemetría de crashes — solo móvil)
+## 4. Crashlytics (telemetría de crashes — solo móvil)
 
 Crashlytics no soporta web; aplica cuando hagas el build de iOS/Android.
 Cuando llegue el momento:
@@ -185,7 +114,7 @@ Cuando llegue el momento:
 
 ---
 
-## 6. Alertas de billing en COP
+## 5. Alertas de billing en COP
 
 Para que no te llegue una factura inesperada de Firebase Blaze.
 
@@ -199,7 +128,7 @@ Para que no te llegue una factura inesperada de Firebase Blaze.
 
 ---
 
-## 7. Limpieza opcional del bundle web
+## 6. Limpieza opcional del bundle web
 
 El `main.dart.js` actual pesa ~5.5 MB sin gzip. Firebase Hosting ya sirve
 gzipped (~1.5 MB efectivo), pero si ves arranque lento:
@@ -226,13 +155,12 @@ gzipped (~1.5 MB efectivo), pero si ves arranque lento:
 
 ---
 
-## 8. Comandos útiles del día a día
+## 7. Comandos útiles del día a día
 
 ### Deploy completo
 
 ```bash
-flutter build web --release \
-  --dart-define=APP_CHECK_RECAPTCHA_SITE_KEY=6Lc...
+flutter build web --release
 firebase deploy --only hosting
 ```
 
