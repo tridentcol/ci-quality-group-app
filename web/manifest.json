@@ -1,0 +1,36 @@
+{
+    "name": "CI Quality Group",
+    "short_name": "CQG",
+    "start_url": ".",
+    "display": "standalone",
+    "background_color": "#FAFAFA",
+    "theme_color": "#1F5128",
+    "description": "App interna de CI Quality Group: gestión de ventas y control de horas.",
+    "orientation": "any",
+    "prefer_related_applications": false,
+    "lang": "es-CO",
+    "icons": [
+        {
+            "src": "icons/Icon-192.png",
+            "sizes": "192x192",
+            "type": "image/png"
+        },
+        {
+            "src": "icons/Icon-512.png",
+            "sizes": "512x512",
+            "type": "image/png"
+        },
+        {
+            "src": "icons/Icon-maskable-192.png",
+            "sizes": "192x192",
+            "type": "image/png",
+            "purpose": "maskable"
+        },
+        {
+            "src": "icons/Icon-maskable-512.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "maskable"
+        }
+    ]
+}

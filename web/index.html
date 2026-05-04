@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <base href="$FLUTTER_BASE_HREF">
+
+  <meta charset="UTF-8">
+  <meta content="IE=Edge" http-equiv="X-UA-Compatible">
+  <meta name="description" content="App interna de CI Quality Group para gestión de ventas, control de horas laboradas y reportes.">
+  <meta name="theme-color" content="#1F5128">
+  <meta name="color-scheme" content="light">
+  <meta name="robots" content="noindex,nofollow">
+
+  <!-- iOS / PWA -->
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="CI Quality Group">
+  <link rel="apple-touch-icon" href="icons/Icon-192.png">
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" href="favicon.png"/>
+
+  <title>CI Quality Group</title>
+  <link rel="manifest" href="manifest.json">
+
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      background-color: #FAFAFA;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    }
+    #splash {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background-color: #FAFAFA;
+      z-index: 9999;
+      transition: opacity 250ms ease-out;
+    }
+    #splash.hidden { opacity: 0; pointer-events: none; }
+    #splash img {
+      width: 96px;
+      height: 96px;
+      object-fit: contain;
+      margin-bottom: 24px;
+    }
+    #splash .spinner {
+      width: 32px;
+      height: 32px;
+      border: 3px solid #E6F4E1;
+      border-top-color: #1F5128;
+      border-radius: 50%;
+      animation: spin 0.9s linear infinite;
+    }
+    #splash .label {
+      margin-top: 16px;
+      color: #1F5128;
+      font-size: 13px;
+      font-weight: 500;
+      letter-spacing: 0.3px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <div id="splash" role="status" aria-live="polite" aria-label="Cargando CI Quality Group">
+    <img src="icons/Icon-192.png" alt="CI Quality Group" />
+    <div class="spinner"></div>
+    <div class="label">CI Quality Group</div>
+  </div>
+
+  <script>
+    // Oculta el splash cuando Flutter pinta el primer frame.
+    window.addEventListener('flutter-first-frame', function () {
+      var s = document.getElementById('splash');
+      if (!s) return;
+      s.classList.add('hidden');
+      setTimeout(function () { s.remove(); }, 300);
+    });
+  </script>
+
+  <script src="flutter_bootstrap.js" async></script>
+</body>
+</html>
