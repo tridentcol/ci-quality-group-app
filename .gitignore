@@ -101,3 +101,6 @@ firebase_options.dart.local
 
 # Logs
 *.log
+
+# Firebase config con API keys reales (regenera con flutterfire configure)
+lib/firebase_options.dart
