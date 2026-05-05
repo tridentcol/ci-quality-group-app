@@ -4,7 +4,6 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/utils/errors.dart';
 import '../../../shared/widgets/confirm_dialog.dart';
-import '../../../shared/widgets/empty_state.dart';
 import '../../../shared/widgets/error_view.dart';
 import '../../../shared/widgets/theme_mode_toggle.dart';
 import '../data/duplicate_service.dart';
@@ -38,6 +37,14 @@ class _DuplicateReviewScreenState extends ConsumerState<DuplicateReviewScreen> {
   Object? _error;
   List<DuplicateCluster> _clusters = const [];
 
+  /// Cuántos items se trajeron de `sales` al catálogo durante este run.
+  /// Lo mostramos en un banner informativo.
+  int _backfilled = 0;
+
+  /// Total de items en el catálogo después del backfill (incluye los
+  /// recién agregados). Se usa en el header para dar contexto.
+  int _totalCatalogItems = 0;
+
   /// Para cada cluster (clave = índice en `_clusters`):
   ///  - `canonicalId`: el item que el admin marcó como canónico
   ///  - `skipped`: si el cluster se ignora en este aplicar
@@ -58,15 +65,24 @@ class _DuplicateReviewScreenState extends ConsumerState<DuplicateReviewScreen> {
       _error = null;
     });
     try {
-      final clusters =
+      final result =
           await ref.read(duplicateServiceProvider).findClusters(
                 listId: widget.listId,
               );
-      _clusters = clusters;
+      _clusters = result.clusters;
+      _backfilled = result.backfilled;
+      _totalCatalogItems = result.totalCatalogItems;
       _canonicalSelection.clear();
       _skipped.clear();
-      for (var i = 0; i < clusters.length; i++) {
-        _canonicalSelection[i] = clusters[i].suggestedCanonical.id;
+      for (var i = 0; i < _clusters.length; i++) {
+        _canonicalSelection[i] = _clusters[i].suggestedCanonical.id;
+      }
+      if (_backfilled > 0 && mounted) {
+        // Refresca también el provider de items para que la lista
+        // maestra muestre los recién importados.
+        ref.invalidate(masterListItemsProvider(
+          MasterListItemsQuery(listId: widget.listId),
+        ));
       }
     } catch (e) {
       _error = e;
@@ -193,14 +209,18 @@ class _DuplicateReviewScreenState extends ConsumerState<DuplicateReviewScreen> {
             const _LoadingState()
           else if (_error != null)
             AppErrorView(error: _error!, onRetry: _detect)
-          else if (_clusters.isEmpty)
-            const _EmptyState()
           else
             ListView.builder(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 120),
               itemCount: _clusters.length + 1,
               itemBuilder: (context, i) {
-                if (i == 0) return _SummaryHeader(count: _clusters.length);
+                if (i == 0) {
+                  return _SummaryHeader(
+                    clusterCount: _clusters.length,
+                    backfilled: _backfilled,
+                    totalCatalogItems: _totalCatalogItems,
+                  );
+                }
                 final idx = i - 1;
                 final cluster = _clusters[idx];
                 return _ClusterCard(
@@ -265,35 +285,89 @@ class _DuplicateReviewScreenState extends ConsumerState<DuplicateReviewScreen> {
 }
 
 class _SummaryHeader extends StatelessWidget {
-  const _SummaryHeader({required this.count});
-  final int count;
+  const _SummaryHeader({
+    required this.clusterCount,
+    required this.backfilled,
+    required this.totalCatalogItems,
+  });
+  final int clusterCount;
+  final int backfilled;
+  final int totalCatalogItems;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
-      child: Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: theme.colorScheme.primary.withValues(alpha: 0.08),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Row(
-          children: [
-            Icon(Icons.info_outline, color: theme.colorScheme.primary),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                'Se detectaron $count grupo${count == 1 ? '' : 's'} de '
-                'posibles duplicados. Por cada uno, escoge cuál spelling '
-                'se queda como canónico — los otros se borran y todas las '
-                'ventas que los usen se actualizan al canónico.',
-                style: theme.textTheme.bodySmall,
+      child: Column(
+        children: [
+          if (backfilled > 0)
+            Container(
+              margin: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.secondary.withValues(alpha: 0.10),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: theme.colorScheme.secondary.withValues(alpha: 0.4),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.cloud_sync_outlined,
+                    color: theme.colorScheme.secondary,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: RichText(
+                      text: TextSpan(
+                        style: theme.textTheme.bodySmall,
+                        children: [
+                          const TextSpan(text: 'Sincronizamos '),
+                          TextSpan(
+                            text: '$backfilled nombre${backfilled == 1 ? '' : 's'}',
+                            style: const TextStyle(fontWeight: FontWeight.w700),
+                          ),
+                          const TextSpan(
+                            text: ' que aparecían en ventas pero no estaban en '
+                                'el catálogo (la versión vieja de la app no '
+                                'los registraba). Ahora hacen parte del listado.',
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
-          ],
-        ),
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.primary.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.info_outline, color: theme.colorScheme.primary),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    clusterCount == 0
+                        ? 'No se detectaron duplicados en los $totalCatalogItems '
+                            'items del catálogo.'
+                        : 'Se detectaron $clusterCount grupo${clusterCount == 1 ? '' : 's'} '
+                            'de posibles duplicados sobre $totalCatalogItems '
+                            'items totales. Por cada uno, escoge cuál spelling '
+                            'se queda como canónico — los otros se borran y '
+                            'todas las ventas que los usen se actualizan.',
+                    style: theme.textTheme.bodySmall,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -463,16 +537,3 @@ class _LoadingState extends StatelessWidget {
   }
 }
 
-class _EmptyState extends StatelessWidget {
-  const _EmptyState();
-  @override
-  Widget build(BuildContext context) {
-    return const EmptyState(
-      icon: Icons.check_circle_outline,
-      title: 'Sin duplicados detectados',
-      message:
-          'Los items de esta lista parecen únicos. Si crees que hay '
-          'duplicados que el detector no captó, edítalos manualmente.',
-    );
-  }
-}

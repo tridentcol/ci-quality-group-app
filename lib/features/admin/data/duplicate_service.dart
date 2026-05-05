@@ -110,15 +110,44 @@ int _threshold(String a, String b) {
   return math.max(1, math.min(4, (maxLen * 0.25).ceil()));
 }
 
+/// Resultado de [DuplicateService.findClusters]: además de los clusters
+/// devuelve cuántos valores se "rescataron" del log de ventas y se
+/// agregaron al catálogo (porque la versión vieja de la app no
+/// guardaba sugerencias automáticamente).
+class FindClustersResult {
+  const FindClustersResult({
+    required this.clusters,
+    required this.backfilled,
+    required this.totalCatalogItems,
+  });
+
+  final List<DuplicateCluster> clusters;
+
+  /// Cantidad de items que se agregaron al catálogo durante el sync,
+  /// porque aparecían en `sales` pero faltaban en `master_lists/items`.
+  final int backfilled;
+
+  /// Total de items en el catálogo después del backfill.
+  final int totalCatalogItems;
+}
+
 class DuplicateService {
   DuplicateService(this._firestore);
   final FirebaseFirestore _firestore;
 
-  /// Detecta clusters de items duplicados en [listId]. Lee TODOS los
-  /// items del catálogo + TODAS las ventas (para contar referencias).
+  /// Detecta clusters de items duplicados en [listId].
+  ///
+  /// **Sincronización**: antes de detectar duplicados, lee `sales` y
+  /// busca valores referenciados en `<saleField>` que NO estén en el
+  /// catálogo. Los crea como `userSuggested:true` para que aparezcan
+  /// en el detector. Esto es necesario porque la v1.0.0 de la app
+  /// tenía un bug que solo guardaba sugerencias al presionar Enter,
+  /// nunca al cambiar de campo — así que muchísimos nombres digitados
+  /// quedaron solo en `sales` sin formalizar en el catálogo.
+  ///
   /// Para 1000 ventas son ~1 MB de descarga; aceptable porque el botón
   /// solo lo toca el admin esporádicamente.
-  Future<List<DuplicateCluster>> findClusters({
+  Future<FindClustersResult> findClusters({
     required String listId,
   }) async {
     final saleField = saleFieldFor(listId);
@@ -126,17 +155,17 @@ class DuplicateService {
       throw StateError('Lista "$listId" no admite merge automático.');
     }
 
-    // 1. Items del catálogo
+    // 1. Items existentes en el catálogo
     final itemsSnap = await _firestore
         .collection('master_lists')
         .doc(listId)
         .collection('items')
         .get();
-    final items = itemsSnap.docs
+    final existingItems = itemsSnap.docs
         .map(MasterListItem.fromSnapshot)
         .where((it) => it.active)
         .toList();
-    if (items.length < 2) return const [];
+    final existingValues = existingItems.map((it) => it.value).toSet();
 
     // 2. Conteo de referencias en sales (un solo .get(), conteo en RAM)
     final salesSnap = await _firestore.collection('sales').get();
@@ -147,7 +176,47 @@ class DuplicateService {
       refCounts[v] = (refCounts[v] ?? 0) + 1;
     }
 
-    // 3. Pares parecidos (O(n²) pero n suele ser <200)
+    // 3. BACKFILL: cualquier value en sales que NO esté en el catálogo,
+    //    se inserta como userSuggested:true. Sin esto, ventas viejas
+    //    con typos quedan invisibles para el detector.
+    final missingValues =
+        refCounts.keys.where((v) => !existingValues.contains(v)).toList();
+
+    final backfilledItems = <MasterListItem>[];
+    if (missingValues.isNotEmpty) {
+      const chunkSize = 400; // Firestore batch limit
+      for (var i = 0; i < missingValues.length; i += chunkSize) {
+        final chunk = missingValues.skip(i).take(chunkSize).toList();
+        final batch = _firestore.batch();
+        for (final value in chunk) {
+          final ref = _firestore
+              .collection('master_lists')
+              .doc(listId)
+              .collection('items')
+              .doc();
+          final newItem = MasterListItem(
+            id: ref.id,
+            value: value,
+            userSuggested: true,
+          );
+          batch.set(ref, newItem.toMap());
+          backfilledItems.add(newItem);
+        }
+        await batch.commit();
+      }
+    }
+
+    final items = [...existingItems, ...backfilledItems];
+    if (items.length < 2) {
+      return FindClustersResult(
+        clusters: const [],
+        backfilled: backfilledItems.length,
+        totalCatalogItems: items.length,
+      );
+    }
+
+    // 4. Pares parecidos (O(n²) pero n suele ser <200 incluso después
+    //    del backfill — es admin tool, lo soporta)
     final pairs = <_Pair>[];
     for (var i = 0; i < items.length; i++) {
       for (var j = i + 1; j < items.length; j++) {
@@ -159,9 +228,15 @@ class DuplicateService {
         }
       }
     }
-    if (pairs.isEmpty) return const [];
+    if (pairs.isEmpty) {
+      return FindClustersResult(
+        clusters: const [],
+        backfilled: backfilledItems.length,
+        totalCatalogItems: items.length,
+      );
+    }
 
-    // 4. Cierre transitivo con union-find
+    // 5. Cierre transitivo con union-find
     final parent = <String, String>{};
     String find(String x) {
       if (parent[x] == x) return x;
@@ -210,7 +285,65 @@ class DuplicateService {
       return y.items.length.compareTo(x.items.length);
     });
 
-    return clusters;
+    return FindClustersResult(
+      clusters: clusters,
+      backfilled: backfilledItems.length,
+      totalCatalogItems: items.length,
+    );
+  }
+
+  /// Sincroniza el catálogo de [listId] con valores que aparecen en
+  /// `sales` pero no estaban registrados como items. Devuelve cuántos
+  /// se agregaron. Útil como botón independiente del merge tool, para
+  /// que el admin pueble el catálogo sin necesariamente entrar a fusionar.
+  Future<int> syncCatalogFromSales({required String listId}) async {
+    final saleField = saleFieldFor(listId);
+    if (saleField == null) {
+      throw StateError('Lista "$listId" no se sincroniza con ventas.');
+    }
+
+    final itemsSnap = await _firestore
+        .collection('master_lists')
+        .doc(listId)
+        .collection('items')
+        .get();
+    final existingValues = itemsSnap.docs
+        .map(MasterListItem.fromSnapshot)
+        .where((it) => it.active)
+        .map((it) => it.value)
+        .toSet();
+
+    final salesSnap = await _firestore.collection('sales').get();
+    final missing = <String>{};
+    for (final d in salesSnap.docs) {
+      final v = d.data()[saleField] as String?;
+      if (v == null || v.isEmpty) continue;
+      if (!existingValues.contains(v)) missing.add(v);
+    }
+
+    if (missing.isEmpty) return 0;
+
+    const chunkSize = 400;
+    final values = missing.toList();
+    for (var i = 0; i < values.length; i += chunkSize) {
+      final chunk = values.skip(i).take(chunkSize).toList();
+      final batch = _firestore.batch();
+      for (final value in chunk) {
+        final ref = _firestore
+            .collection('master_lists')
+            .doc(listId)
+            .collection('items')
+            .doc();
+        final newItem = MasterListItem(
+          id: ref.id,
+          value: value,
+          userSuggested: true,
+        );
+        batch.set(ref, newItem.toMap());
+      }
+      await batch.commit();
+    }
+    return missing.length;
   }
 
   /// Ejecuta los merges en orden. Por cada request:
