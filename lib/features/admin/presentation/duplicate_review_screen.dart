@@ -445,13 +445,16 @@ class _ClusterCard extends StatelessWidget {
                   ),
                 ),
               const SizedBox(height: 4),
+              // RadioGroup.onChanged es required y non-nullable en Flutter
+              // 3.32+. Cuando el cluster está "skipped" la card entera está
+              // con Opacity(0.4) y al aplicar el merge se ignora; no hace
+              // falta deshabilitar los radios — si el admin reactiva el
+              // cluster su selección sigue ahí.
               RadioGroup<String>(
                 groupValue: canonicalId,
-                onChanged: skipped
-                    ? null
-                    : (v) {
-                        if (v != null) onCanonicalChanged(v);
-                      },
+                onChanged: (v) {
+                  if (v != null) onCanonicalChanged(v);
+                },
                 child: Column(
                   children: [
                     for (final item in cluster.items)
