@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/utils/errors.dart';
 import '../../../shared/widgets/confirm_dialog.dart';
@@ -7,6 +8,7 @@ import '../../../shared/widgets/empty_state.dart';
 import '../../../shared/widgets/error_view.dart';
 import '../../../shared/widgets/skeleton.dart';
 import '../../../shared/widgets/theme_mode_toggle.dart';
+import '../data/duplicate_service.dart';
 import '../data/master_lists_repository.dart';
 import '../domain/master_list.dart';
 
@@ -94,10 +96,21 @@ class MasterListDetailScreen extends ConsumerWidget {
     );
     final meta = ref.watch(masterListMetaProvider(listId));
 
+    final supportsMerge = listSupportsMerge(listId);
+
     return Scaffold(
       appBar: AppBar(
         title: Text(meta.valueOrNull?.name ?? 'Lista maestra'),
-        actions: const [ThemeModeIconButton()],
+        actions: [
+          if (supportsMerge)
+            IconButton(
+              tooltip: 'Detectar y fusionar duplicados',
+              icon: const Icon(Icons.merge_type),
+              onPressed: () =>
+                  context.push('/admin/master-lists/$listId/duplicates'),
+            ),
+          const ThemeModeIconButton(),
+        ],
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _addItem(context, ref),

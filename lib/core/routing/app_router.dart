@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../features/admin/presentation/admin_metrics_screen.dart';
 import '../../features/admin/presentation/admin_shell.dart';
+import '../../features/admin/presentation/duplicate_review_screen.dart';
 import '../../features/admin/presentation/master_list_detail_screen.dart';
 import '../../features/admin/presentation/master_lists_screen.dart';
 import '../../features/admin/presentation/user_form_screen.dart';
@@ -117,6 +118,14 @@ final routerProvider = Provider<GoRouter>((ref) {
                     builder: (_, state) => MasterListDetailScreen(
                       listId: state.pathParameters['listId']!,
                     ),
+                    routes: [
+                      GoRoute(
+                        path: 'duplicates',
+                        builder: (_, state) => DuplicateReviewScreen(
+                          listId: state.pathParameters['listId']!,
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
