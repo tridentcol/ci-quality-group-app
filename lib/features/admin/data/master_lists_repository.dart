@@ -5,6 +5,30 @@ import '../../../core/constants/firestore_paths.dart';
 import '../../auth/data/auth_repository.dart';
 import '../domain/master_list.dart';
 
+/// Mapeo de listId → campo del documento `sales` que lo referencia.
+/// Determina dos cosas:
+///   1. Qué listas muestran el icono de "merge tool" en el admin
+///      (las que NO están aquí, no aparece el botón).
+///   2. Cuando el admin fusiona o renombra un item, qué campo de
+///      `sales` hay que reescribir para que las ventas históricas
+///      reflejen el cambio.
+///
+/// Si agregas una lista nueva al constructor de formularios y querés
+/// que se propague a sales históricas, agrégala acá.
+const Map<String, String> _saleFieldByListId = {
+  'payers': 'payerName',
+  'providers': 'providerName',
+  'materials': 'material',
+  'material_variants': 'materialVariant',
+  'units': 'unit',
+  'payment_methods': 'paymentMethod',
+};
+
+bool listSupportsMerge(String listId) =>
+    _saleFieldByListId.containsKey(listId);
+
+String? saleFieldFor(String listId) => _saleFieldByListId[listId];
+
 /// Acceso a las listas maestras gestionadas por el admin.
 ///
 /// La estructura es:
@@ -117,6 +141,65 @@ class MasterListsRepository {
     // Soft delete: lo marcamos inactivo para no romper referencias en ventas
     // ya registradas (que guardan el value como String, no el id).
     await _itemsCol(listId).doc(itemId).update({'active': false});
+  }
+
+  /// Renombra el `value` de un item del catálogo Y propaga el cambio a
+  /// todas las ventas que referencian el value viejo. Usado cuando el
+  /// admin edita un item con el lápiz ✏️ — corregir mayúsculas, agregar
+  /// algo entre paréntesis, arreglar acentos, etc.
+  ///
+  /// Diferencia con `updateItem`:
+  ///   - `updateItem` solo toca el documento del catálogo (sin tocar
+  ///     ventas históricas). Útil cuando quieres aprobar una sugerencia
+  ///     o cambiar parent/active sin afectar histórico.
+  ///   - `renameItem` también busca todas las `sales` con el value
+  ///     viejo y las reescribe al value nuevo. Esto mantiene la
+  ///     consistencia entre catálogo y ventas — métricas, exports,
+  ///     dropdowns muestran el nombre correcto en todo lado.
+  ///
+  /// Devuelve cuántas ventas se actualizaron (0 si la lista no afecta
+  /// ventas o si nadie referencia el value viejo).
+  ///
+  /// Si el listId no está en `_saleFieldByListId` (ej. `worker_roles`),
+  /// solo se renombra el catálogo — las "ventas" no aplican.
+  Future<int> renameItem({
+    required String listId,
+    required String itemId,
+    required String oldValue,
+    required String newValue,
+  }) async {
+    final cleaned = newValue.trim();
+    if (cleaned.isEmpty) return 0;
+    if (cleaned == oldValue) return 0;
+
+    // 1. Update del item en el catálogo. De paso lo marcamos como NO
+    //    sugerencia (admin lo formalizó al editarlo).
+    await _itemsCol(listId).doc(itemId).update({
+      'value': cleaned,
+      'userSuggested': false,
+    });
+
+    // 2. Propagar a ventas si la lista afecta documentos de sales.
+    final saleField = saleFieldFor(listId);
+    if (saleField == null) return 0;
+
+    final salesSnap = await _firestore
+        .collection('sales')
+        .where(saleField, isEqualTo: oldValue)
+        .get();
+    if (salesSnap.docs.isEmpty) return 0;
+
+    // Batches de 400 (límite de Firestore es 500).
+    const chunkSize = 400;
+    for (var i = 0; i < salesSnap.docs.length; i += chunkSize) {
+      final chunk = salesSnap.docs.skip(i).take(chunkSize).toList();
+      final batch = _firestore.batch();
+      for (final doc in chunk) {
+        batch.update(doc.reference, {saleField: cleaned});
+      }
+      await batch.commit();
+    }
+    return salesSnap.docs.length;
   }
 
   /// Crea o actualiza la metadata (nombre, descripción, allowFreeText) de las

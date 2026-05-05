@@ -5,28 +5,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/utils/text_match.dart';
 import '../domain/master_list.dart';
+import 'master_lists_repository.dart' show saleFieldFor;
 
-/// Mapeo de listId → campo del documento `sales` que lo referencia. Cuando
-/// el admin fusiona items de una de estas listas, además de borrar los
-/// duplicados del catálogo se reescriben las ventas existentes para que
-/// apunten al canónico (sino quedarían con un nombre "huérfano").
-///
-/// Si una lista no está en este map, su botón "Detectar duplicados" no
-/// aparece — la limpieza tendría que ser manual con el delete de cada
-/// item, sin actualizar las ventas históricas.
-const Map<String, String> _saleFieldByListId = {
-  'payers': 'payerName',
-  'providers': 'providerName',
-  'materials': 'material',
-  'material_variants': 'materialVariant',
-  'units': 'unit',
-  'payment_methods': 'paymentMethod',
-};
-
-bool listSupportsMerge(String listId) =>
-    _saleFieldByListId.containsKey(listId);
-
-String? saleFieldFor(String listId) => _saleFieldByListId[listId];
+// Las funciones `saleFieldFor` y `listSupportsMerge` viven en
+// master_lists_repository para que también puedan usarse desde
+// `renameItem` (propagación de edits manuales). Aquí solo se importan.
 
 /// Un grupo de items que probablemente representan la misma entidad
 /// (típicamente una persona escrita con typos distintos). Se construye

@@ -8,7 +8,6 @@ import '../../../shared/widgets/empty_state.dart';
 import '../../../shared/widgets/error_view.dart';
 import '../../../shared/widgets/skeleton.dart';
 import '../../../shared/widgets/theme_mode_toggle.dart';
-import '../data/duplicate_service.dart';
 import '../data/master_lists_repository.dart';
 import '../domain/master_list.dart';
 
@@ -42,12 +41,29 @@ class MasterListDetailScreen extends ConsumerWidget {
     );
     if (value == null || value.isEmpty || value == item.value) return;
     try {
-      await ref.read(masterListsRepositoryProvider).updateItem(
-            listId,
-            item.id,
-            value: value,
-            userSuggested: false,
-          );
+      // renameItem actualiza el item del catálogo Y propaga el rename
+      // a todas las ventas que apuntan al value viejo. Devuelve el
+      // count de ventas actualizadas para mostrar en el snackbar.
+      final salesUpdated =
+          await ref.read(masterListsRepositoryProvider).renameItem(
+                listId: listId,
+                itemId: item.id,
+                oldValue: item.value,
+                newValue: value,
+              );
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              salesUpdated == 0
+                  ? 'Nombre actualizado.'
+                  : '✓ Nombre actualizado · $salesUpdated venta'
+                      '${salesUpdated == 1 ? '' : 's'} históricas '
+                      'actualizadas al nuevo nombre',
+            ),
+          ),
+        );
+      }
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
