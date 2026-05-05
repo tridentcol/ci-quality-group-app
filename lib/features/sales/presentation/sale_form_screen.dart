@@ -21,7 +21,6 @@ import '../../form_builder/presentation/dynamic_form_renderer.dart';
 import '../data/sales_repository.dart';
 import '../domain/sale.dart';
 
-const _laminaMaterial = 'LAMINA';
 const _defaultUnit = 'Kilogramos';
 const _defaultPaymentMethod = 'Efectivo';
 
@@ -351,16 +350,32 @@ class _SaleFormScreenState extends ConsumerState<SaleFormScreen> {
           label: f.label,
           initialValue: _material,
           required: f.required,
+          // Al cambiar de material, reseteamos el subtipo: cada material
+          // tiene sus propios subtipos y los del anterior pueden no
+          // aplicar. Si vuelven al mismo material el usuario reescoge.
           onChanged: (v) => setState(() {
             _material = v;
-            if (v != _laminaMaterial) _materialVariant = null;
+            _materialVariant = null;
           }),
         );
       case 'materialVariant':
-        // Condicional: solo aparece cuando el material es LAMINA.
-        if (_material != _laminaMaterial) return null;
+        // Genérico: el campo aparece para CUALQUIER material que tenga
+        // subtipos registrados en el catálogo (no solo LAMINA). Si el
+        // material seleccionado no tiene subtipos, ocultamos el campo
+        // (return null) para no ensuciar el form.
+        final mat = _material;
+        if (mat == null || mat.isEmpty) return null;
+        final variantListId = f.masterListId ?? 'lamina_brands';
+        final variantsAsync = ref.watch(masterListItemsProvider(
+          MasterListItemsQuery(listId: variantListId, parent: mat),
+        ));
+        // Mientras carga la primera vez NO mostramos el campo (evita
+        // un parpadeo). Una vez con data: mostramos solo si hay >= 1.
+        final variants = variantsAsync.valueOrNull;
+        if (variants == null || variants.isEmpty) return null;
         return MasterListField(
-          listId: f.masterListId ?? 'lamina_brands',
+          listId: variantListId,
+          parent: mat,
           label: f.label,
           initialValue: _materialVariant,
           onChanged: (v) => setState(() => _materialVariant = v),

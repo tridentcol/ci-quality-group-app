@@ -19,7 +19,10 @@ const Map<String, String> _saleFieldByListId = {
   'payers': 'payerName',
   'providers': 'providerName',
   'materials': 'material',
-  'material_variants': 'materialVariant',
+  // 'lamina_brands' es el listId histórico para tipos/subvariantes.
+  // El display name es "Tipos de materiales" — funciona para cualquier
+  // material, no solo lámina.
+  'lamina_brands': 'materialVariant',
   'units': 'unit',
   'payment_methods': 'paymentMethod',
 };
@@ -274,11 +277,21 @@ List<Map<String, dynamic>> _defaultListsSeed() => [
         'items': <String>['LAMINA', 'CHATARRA', 'CHATARRA TUBERIA'],
       },
       {
+        // El listId queda `lamina_brands` por compatibilidad con la
+        // base de datos en producción (las ventas históricas referencian
+        // este listId implícitamente vía el campo materialVariant).
+        // El display name pasó a ser genérico "Tipos de materiales" —
+        // ahora cualquier material principal puede tener subtipos, no
+        // solo LAMINA. Los items existentes (PEDRO, TIPO QUALITY,
+        // KINGSPAN) heredan parent=null; el admin puede asignarles
+        // su material padre desde el detalle de la lista.
         'id': 'lamina_brands',
-        'name': 'Tipos de lámina',
+        'name': 'Tipos de materiales',
         'allowFreeText': true,
         'description':
-            'Marcas o variantes específicas para el material LAMINA.',
+            'Subtipos por material principal (ej. tipos de lámina, '
+                'variantes de chatarra). Cada subtipo puede asignarse al '
+                'material al que pertenece.',
         'items': <String>['PEDRO', 'TIPO QUALITY', 'KINGSPAN'],
       },
       {
