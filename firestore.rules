@@ -76,17 +76,19 @@ service cloud.firestore {
 
     // ---------- Master lists ----------
     // Todos los autenticados leen (dropdowns en sales y workers).
-    // Sales y hours pueden CREAR items como sugerencias
-    // (`userSuggested == true`); el admin las aprueba después.
-    // Admin tiene control total.
+    // Admin tiene control total (create/update/delete sin restricciones).
+    // Sales y hours solo pueden CREAR items como sugerencias
+    // (`userSuggested == true`); el admin las aprueba después editándolas
+    // o las puede borrar.
     match /master_lists/{listId} {
       allow read: if isSignedIn();
       allow write: if isAdmin();
 
       match /items/{itemId} {
         allow read: if isSignedIn();
-        allow create: if isSignedIn()
-          && request.resource.data.get('userSuggested', false) == true;
+        allow create: if isAdmin()
+          || (isSignedIn()
+              && request.resource.data.get('userSuggested', false) == true);
         allow update, delete: if isAdmin();
       }
     }
@@ -110,6 +112,15 @@ service cloud.firestore {
     // Lectura para todos los autenticados (el renderer del form de
     // ventas necesita el schema). Escritura solo admin.
     match /form_schemas/{module} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // ---------- App metadata (in-app updater) ----------
+    // Doc `app_metadata/release` con la última versión publicada.
+    // Cualquier autenticado lo lee al arrancar para chequear updates.
+    // Solo admin lo actualiza (al subir nuevo APK a Firebase Storage).
+    match /app_metadata/{docId} {
       allow read: if isSignedIn();
       allow write: if isAdmin();
     }

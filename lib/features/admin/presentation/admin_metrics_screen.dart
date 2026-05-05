@@ -11,6 +11,7 @@ import '../../../shared/widgets/error_view.dart';
 import '../../../shared/widgets/kpi_card.dart';
 import 'admin_shell.dart';
 import '../../../shared/widgets/range_filter_bar.dart';
+import '../../updater/presentation/update_banner.dart';
 import '../../hours/data/hours_repository.dart';
 import '../../hours/domain/hours_categories.dart';
 import '../../sales/data/sales_repository.dart';
@@ -65,6 +66,7 @@ class _AdminMetricsScreenState extends ConsumerState<AdminMetricsScreen> {
       ),
       body: Column(
         children: [
+          const UpdateBanner(),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
             child: SizedBox(

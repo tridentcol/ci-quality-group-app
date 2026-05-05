@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/utils/text_match.dart';
 import '../../features/admin/data/master_lists_repository.dart';
 
 /// Campo de formulario que combina:
@@ -9,6 +10,14 @@ import '../../features/admin/data/master_lists_repository.dart';
 ///  - Autocomplete con captura libre cuando la lista lo permite. Si el
 ///    usuario digita un valor que no existe, se guarda como sugerencia
 ///    (`userSuggested = true`) y queda visible para el admin.
+///
+/// **Anti-duplicados** (deduplicación tolerante a typos):
+///  - Si el usuario escribe algo que coincide con uno existente tras
+///    normalizar (case/acentos/espacios) → silenciosamente usa el valor
+///    canónico, no crea uno nuevo.
+///  - Si escribe algo "parecido" (distancia de Levenshtein dentro de
+///    umbral) → muestra un hint "¿quisiste decir 'X'?" con un toque para
+///    aceptar.
 ///
 /// Devuelve siempre un `String` con el valor escogido o digitado.
 class MasterListField extends ConsumerStatefulWidget {
@@ -93,7 +102,7 @@ class _MasterListFieldState extends ConsumerState<MasterListField> {
               setState(() => _value = v);
               widget.onChanged?.call(v);
             },
-            onSuggestion: (text) async {
+            onCreateSuggestion: (text) async {
               await ref.read(masterListsRepositoryProvider).addItem(
                     widget.listId,
                     value: text,
@@ -140,9 +149,6 @@ class _DropdownField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Si el value actual no está en la lista (por ejemplo, una venta antigua
-    // con un método ya borrado), lo añadimos al final como opción
-    // seleccionable para no romper la edición.
     final allValues = [...values];
     if (value != null && value!.isNotEmpty && !allValues.contains(value)) {
       allValues.add(value!);
@@ -169,9 +175,20 @@ class _DropdownField extends StatelessWidget {
   }
 }
 
-/// Campo con captura libre: muestra el valor actual, deja desplegar todas
-/// las opciones existentes y permite escribir un valor nuevo (queda como
-/// sugerencia). Se usa para `providers`, `payers`, `materials`, etc.
+/// Campo con captura libre + autocompletado fuzzy + deduplicación.
+///
+/// Comportamiento:
+///  1. Mientras escribe, aparecen sugerencias debajo (matches normalizados
+///     que contienen lo digitado). Tap en una → adopta el valor canónico.
+///  2. Si lo digitado coincide exactamente (tras normalizar) con uno
+///     existente, se "snappea" silenciosamente al canónico al hacer
+///     blur/submit.
+///  3. Si lo digitado se PARECE (Levenshtein) a uno existente pero no es
+///     idéntico, se muestra un banner debajo del campo "¿Quisiste decir
+///     'X'? Tocar para usar este." con un botón.
+///  4. Si nada de lo anterior aplica, al perder foco se llama a
+///     `onCreateSuggestion(text)` para guardar el valor nuevo en la lista
+///     maestra como sugerencia.
 class _FreeTextField extends StatefulWidget {
   const _FreeTextField({
     required this.label,
@@ -180,7 +197,7 @@ class _FreeTextField extends StatefulWidget {
     required this.initialValue,
     required this.values,
     required this.onChanged,
-    required this.onSuggestion,
+    required this.onCreateSuggestion,
   });
 
   final String label;
@@ -189,7 +206,7 @@ class _FreeTextField extends StatefulWidget {
   final String? initialValue;
   final List<String> values;
   final ValueChanged<String?> onChanged;
-  final Future<void> Function(String value) onSuggestion;
+  final Future<void> Function(String value) onCreateSuggestion;
 
   @override
   State<_FreeTextField> createState() => _FreeTextFieldState();
@@ -199,10 +216,15 @@ class _FreeTextFieldState extends State<_FreeTextField> {
   late final TextEditingController _controller;
   final FocusNode _focusNode = FocusNode();
 
+  /// Sugerencia "¿quisiste decir X?" calculada con Levenshtein.
+  /// Visible solo cuando hay match parcial (parecido, no idéntico).
+  String? _didYouMean;
+
   @override
   void initState() {
     super.initState();
     _controller = TextEditingController(text: widget.initialValue ?? '');
+    _focusNode.addListener(_onFocusChange);
   }
 
   @override
@@ -216,9 +238,71 @@ class _FreeTextFieldState extends State<_FreeTextField> {
 
   @override
   void dispose() {
+    _focusNode.removeListener(_onFocusChange);
     _controller.dispose();
     _focusNode.dispose();
     super.dispose();
+  }
+
+  void _onFocusChange() {
+    if (!_focusNode.hasFocus) {
+      _resolveOnBlur();
+    }
+  }
+
+  /// Cuando el usuario sale del campo:
+  ///   - Si lo escrito = un canónico tras normalizar → snap silencioso al
+  ///     canónico (corrige caps/espacios/acentos sin friccionar).
+  ///   - Si no, registra el texto como sugerencia (la rule en Firestore
+  ///     deja a no-admins crear con userSuggested=true).
+  Future<void> _resolveOnBlur() async {
+    final text = _controller.text.trim();
+    if (text.isEmpty) return;
+
+    final canonical = canonicalMatch(text, widget.values);
+    if (canonical != null && canonical != text) {
+      _controller.text = canonical;
+      widget.onChanged(canonical);
+      setState(() => _didYouMean = null);
+      return;
+    }
+    if (canonical != null) return; // ya es exactamente el canónico
+
+    // No hay match exacto. Si es nuevo, lo guardamos como sugerencia.
+    // (El admin lo aprobará después editándolo o lo borrará.)
+    try {
+      await widget.onCreateSuggestion(text);
+    } catch (_) {
+      // No bloqueamos el flujo del formulario si falla la sugerencia.
+    }
+  }
+
+  /// Recalcula la sugerencia "¿quisiste decir?" basada en lo que el usuario
+  /// está escribiendo. Se invoca en cada `onChanged`.
+  void _refreshDidYouMean(String text) {
+    if (text.trim().isEmpty) {
+      if (_didYouMean != null) setState(() => _didYouMean = null);
+      return;
+    }
+    final exact = canonicalMatch(text, widget.values);
+    if (exact != null) {
+      // Match exacto tras normalizar — no hace falta sugerir nada,
+      // el snap on-blur lo arregla.
+      if (_didYouMean != null) setState(() => _didYouMean = null);
+      return;
+    }
+    final closest = closestMatch(text, widget.values);
+    if (closest != _didYouMean) {
+      setState(() => _didYouMean = closest);
+    }
+  }
+
+  void _useDidYouMean() {
+    final v = _didYouMean;
+    if (v == null) return;
+    _controller.text = v;
+    widget.onChanged(v);
+    setState(() => _didYouMean = null);
   }
 
   Future<void> _openPicker() async {
@@ -231,47 +315,143 @@ class _FreeTextFieldState extends State<_FreeTextField> {
     if (selected == null) return;
     _controller.text = selected;
     widget.onChanged(selected);
+    setState(() => _didYouMean = null);
   }
 
   @override
   Widget build(BuildContext context) {
-    return TextFormField(
-      controller: _controller,
-      focusNode: _focusNode,
-      decoration: InputDecoration(
-        labelText: widget.label,
-        helperText: widget.helperText,
-        suffixIcon: IconButton(
-          icon: const Icon(Icons.arrow_drop_down),
-          tooltip: 'Ver opciones',
-          onPressed: _openPicker,
+    final theme = Theme.of(context);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        RawAutocomplete<String>(
+          textEditingController: _controller,
+          focusNode: _focusNode,
+          optionsBuilder: (TextEditingValue value) {
+            final query = value.text.trim();
+            if (query.isEmpty) return const Iterable<String>.empty();
+            final nq = normalizeForMatch(query);
+            // Match: cualquier valor existente cuyo normalizado contenga
+            // lo escrito normalizado. Limitamos a 6 para no ahogar la UI.
+            final matches = widget.values
+                .where((v) => normalizeForMatch(v).contains(nq))
+                .take(6)
+                .toList();
+            return matches;
+          },
+          displayStringForOption: (s) => s,
+          onSelected: (selected) {
+            // Tap explícito en una sugerencia → usamos el canónico.
+            _controller.text = selected;
+            widget.onChanged(selected);
+            setState(() => _didYouMean = null);
+          },
+          fieldViewBuilder: (context, controller, focusNode, onSubmit) {
+            return TextFormField(
+              controller: controller,
+              focusNode: focusNode,
+              decoration: InputDecoration(
+                labelText: widget.label,
+                helperText: widget.helperText,
+                suffixIcon: IconButton(
+                  icon: const Icon(Icons.arrow_drop_down),
+                  tooltip: 'Ver todas las opciones',
+                  onPressed: _openPicker,
+                ),
+              ),
+              validator: (v) {
+                if (!widget.required) return null;
+                if (v == null || v.trim().isEmpty) {
+                  return 'Este campo es obligatorio.';
+                }
+                return null;
+              },
+              onChanged: (text) {
+                widget.onChanged(text);
+                _refreshDidYouMean(text);
+              },
+              onFieldSubmitted: (_) {
+                onSubmit();
+                _resolveOnBlur();
+              },
+            );
+          },
+          optionsViewBuilder: (context, onSelected, options) {
+            return Align(
+              alignment: Alignment.topLeft,
+              child: Material(
+                elevation: 4,
+                borderRadius: BorderRadius.circular(12),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxHeight: 240, maxWidth: 480),
+                  child: ListView.builder(
+                    padding: EdgeInsets.zero,
+                    shrinkWrap: true,
+                    itemCount: options.length,
+                    itemBuilder: (_, i) {
+                      final opt = options.elementAt(i);
+                      return ListTile(
+                        dense: true,
+                        title: Text(opt),
+                        onTap: () => onSelected(opt),
+                      );
+                    },
+                  ),
+                ),
+              ),
+            );
+          },
         ),
-      ),
-      validator: (v) {
-        if (!widget.required) return null;
-        if (v == null || v.trim().isEmpty) {
-          return 'Este campo es obligatorio.';
-        }
-        return null;
-      },
-      onChanged: (text) => widget.onChanged(text),
-      onFieldSubmitted: (text) async {
-        final trimmed = text.trim();
-        if (trimmed.isEmpty) return;
-        final exists =
-            widget.values.any((v) => v.toLowerCase() == trimmed.toLowerCase());
-        if (!exists) {
-          await widget.onSuggestion(trimmed);
-        }
-      },
+        if (_didYouMean != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 6, left: 4),
+            child: InkWell(
+              onTap: _useDidYouMean,
+              borderRadius: BorderRadius.circular(6),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 4),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.lightbulb_outline,
+                      size: 16,
+                      color: theme.colorScheme.primary,
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: RichText(
+                        text: TextSpan(
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurface
+                                .withValues(alpha: 0.75),
+                          ),
+                          children: [
+                            const TextSpan(text: '¿Quisiste decir '),
+                            TextSpan(
+                              text: '"$_didYouMean"',
+                              style: TextStyle(
+                                color: theme.colorScheme.primary,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            const TextSpan(text: '? Toca para usar ese.'),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+      ],
     );
   }
 }
 
 /// Bottom sheet con búsqueda + lista de opciones para un campo de captura
-/// libre. Permite ver TODAS las opciones aunque el campo ya tenga un valor,
-/// que era el bug del Autocomplete (filtraba por el texto actual y dejaba
-/// fuera otras opciones válidas como "Transferencia").
+/// libre. Permite ver TODAS las opciones aunque el campo ya tenga un valor.
 class _OptionsPickerSheet extends StatefulWidget {
   const _OptionsPickerSheet({required this.label, required this.values});
 
@@ -291,7 +471,8 @@ class _OptionsPickerSheetState extends State<_OptionsPickerSheet> {
     final filtered = _query.trim().isEmpty
         ? widget.values
         : widget.values
-            .where((v) => v.toLowerCase().contains(_query.toLowerCase()))
+            .where((v) =>
+                normalizeForMatch(v).contains(normalizeForMatch(_query)),)
             .toList();
 
     return SafeArea(
