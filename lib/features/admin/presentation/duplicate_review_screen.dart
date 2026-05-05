@@ -8,7 +8,6 @@ import '../../../shared/widgets/error_view.dart';
 import '../../../shared/widgets/theme_mode_toggle.dart';
 import '../data/duplicate_service.dart';
 import '../data/master_lists_repository.dart';
-import '../domain/master_list.dart';
 
 /// Pantalla del admin para detectar y fusionar items duplicados de una
 /// lista maestra. Se llega desde el botón "Detectar duplicados" en el
@@ -80,9 +79,11 @@ class _DuplicateReviewScreenState extends ConsumerState<DuplicateReviewScreen> {
       if (_backfilled > 0 && mounted) {
         // Refresca también el provider de items para que la lista
         // maestra muestre los recién importados.
-        ref.invalidate(masterListItemsProvider(
-          MasterListItemsQuery(listId: widget.listId),
-        ));
+        ref.invalidate(
+          masterListItemsProvider(
+            MasterListItemsQuery(listId: widget.listId),
+          ),
+        );
       }
     } catch (e) {
       _error = e;
@@ -148,10 +149,12 @@ class _DuplicateReviewScreenState extends ConsumerState<DuplicateReviewScreen> {
         final duplicates =
             cluster.items.where((it) => it.id != canonical.id).toList();
         if (duplicates.isEmpty) continue;
-        requests.add(DuplicateMergeRequest(
-          canonical: canonical,
-          duplicates: duplicates,
-        ));
+        requests.add(
+          DuplicateMergeRequest(
+            canonical: canonical,
+            duplicates: duplicates,
+          ),
+        );
       }
 
       final result =
@@ -162,9 +165,11 @@ class _DuplicateReviewScreenState extends ConsumerState<DuplicateReviewScreen> {
 
       if (!mounted) return;
       // Invalida el provider de items para que la lista maestra se refresque.
-      ref.invalidate(masterListItemsProvider(
-        MasterListItemsQuery(listId: widget.listId),
-      ));
+      ref.invalidate(
+        masterListItemsProvider(
+          MasterListItemsQuery(listId: widget.listId),
+        ),
+      );
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -444,7 +449,9 @@ class _ClusterCard extends StatelessWidget {
                 groupValue: canonicalId,
                 onChanged: skipped
                     ? null
-                    : (v) => v != null ? onCanonicalChanged(v) : null,
+                    : (v) {
+                        if (v != null) onCanonicalChanged(v);
+                      },
                 child: Column(
                   children: [
                     for (final item in cluster.items)

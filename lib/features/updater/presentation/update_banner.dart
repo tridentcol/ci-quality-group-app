@@ -110,8 +110,11 @@ class UpdateBanner extends ConsumerWidget {
       case UpdaterPhase.downloaded:
         content = Row(
           children: [
-            Icon(Icons.check_circle_outline,
-                color: colors.primary, size: 20),
+            Icon(
+              Icons.check_circle_outline,
+              color: colors.primary,
+              size: 20,
+            ),
             const SizedBox(width: 10),
             Expanded(
               child: Text(

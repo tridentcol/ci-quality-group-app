@@ -89,6 +89,10 @@ Future<Map<String, String>?> confirmFreeTextValues(
     for (final s in suspicious) s.label: _Choice.useExisting,
   };
 
+  // Tras los awaits anteriores (fetchItemsOnce), el context podría haber
+  // sido desmontado si el usuario navegó. Cancelamos en ese caso.
+  if (!context.mounted) return null;
+
   final resolved = await showDialog<Map<String, String>>(
     context: context,
     barrierDismissible: false,

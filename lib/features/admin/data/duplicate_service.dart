@@ -68,7 +68,7 @@ class DuplicateCluster {
   int totalSalesAffected(MasterListItem canonical) {
     return items
         .where((it) => it.id != canonical.id)
-        .fold<int>(0, (sum, it) => sum + (refCounts[it.value] ?? 0));
+        .fold<int>(0, (acc, it) => acc + (refCounts[it.value] ?? 0));
   }
 }
 
