@@ -275,11 +275,23 @@ class _DuplicateReviewScreenState extends ConsumerState<DuplicateReviewScreen> {
                       ),
                     ),
                     const SizedBox(width: 12),
+                    // Override del minimumSize: el tema global pone los
+                    // FilledButton a Size.fromHeight(52) (ancho infinito,
+                    // pensado para forms). Dentro de un Row eso explota
+                    // con BoxConstraints w=Infinity. Forzamos intrinsic.
                     FilledButton.icon(
-                      onPressed:
-                          _activeClusterCount == 0 || _applying ? null : _apply,
+                      onPressed: _activeClusterCount == 0 || _applying
+                          ? null
+                          : _apply,
                       icon: const Icon(Icons.merge_type),
                       label: const Text('Aplicar'),
+                      style: FilledButton.styleFrom(
+                        minimumSize: const Size(0, 44),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 10,
+                        ),
+                      ),
                     ),
                   ],
                 ),
