@@ -1,3 +1,4 @@
+import 'package:collection/collection.dart' show IterableExtension;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -8,6 +9,7 @@ import '../../../core/utils/clock.dart';
 import '../../../core/utils/dates.dart';
 import '../../../core/utils/errors.dart';
 import '../../../core/utils/money.dart';
+import '../../../shared/widgets/duplicate_check.dart';
 import '../../../shared/widgets/error_view.dart';
 import '../../../shared/widgets/loading_button.dart';
 import '../../../shared/widgets/master_list_field.dart';
@@ -108,6 +110,43 @@ class _SaleFormScreenState extends ConsumerState<SaleFormScreen> {
   Future<void> _submit() async {
     setState(() => _formError = null);
     if (!_formKey.currentState!.validate()) return;
+
+    // Anti-duplicados (última línea de defensa antes de escribir la
+    // venta): si "Cliente" o "Quién recibe" se parecen sospechosamente
+    // a alguien existente y el field no logró auto-snap, abrimos un
+    // modal para que el usuario confirme cuál usar. Si cancela, no
+    // guardamos.
+    final schema = ref.read(formSchemaProvider('sales')).valueOrNull;
+    final providerListId = schema?.fields
+            .firstWhereOrNull((f) => f.id == 'providerName')
+            ?.masterListId ??
+        'providers';
+    final payerListId = schema?.fields
+            .firstWhereOrNull((f) => f.id == 'payerName')
+            ?.masterListId ??
+        'payers';
+
+    final candidates = <DuplicateCandidate>[
+      if (_provider != null && _provider!.isNotEmpty)
+        DuplicateCandidate(
+          label: 'Cliente',
+          value: _provider!,
+          listId: providerListId,
+        ),
+      if (_payer != null && _payer!.isNotEmpty)
+        DuplicateCandidate(
+          label: 'Quién recibe',
+          value: _payer!,
+          listId: payerListId,
+        ),
+    ];
+    if (candidates.isNotEmpty) {
+      final resolved = await confirmFreeTextValues(context, ref, candidates);
+      if (!mounted) return;
+      if (resolved == null) return; // usuario canceló el modal
+      _provider = resolved['Cliente'] ?? _provider;
+      _payer = resolved['Quién recibe'] ?? _payer;
+    }
 
     final quantity = num.parse(_quantityCtrl.text.replaceAll(',', '.'));
     final unitPrice = num.parse(_unitPriceCtrl.text.replaceAll(',', '.'));

@@ -30,17 +30,86 @@ String normalizeForMatch(String s) {
 String normalizeAggressive(String s) =>
     normalizeForMatch(s).replaceAll(' ', '');
 
-/// Devuelve el valor canónico (de [existing]) que coincide exactamente con
-/// [input] tras normalizar (case/espacios/acentos). `null` si no hay match.
+/// Normalización **fonética** para español. Encima de la normalización
+/// estándar (case/acentos/espacios), neutraliza diferencias de spelling
+/// que suenan igual al pronunciarse en español, capturando los typos más
+/// comunes en nombres propios:
 ///
-/// Ejemplo: input="erick BARRAGAN", existing=["Erick Barragan"]
-/// → devuelve "Erick Barragan".
+///   - 'h' es muda          → "jhon" ≡ "jon", "hilo" ≡ "ilo"
+///   - 'v' suena como 'b'   → "barragan" ≡ "varragan"
+///   - 'z' = 's' (seseo)    → "perez" ≡ "peres"
+///   - 'll' = 'y' (yeísmo)  → "llano" ≡ "yano"
+///   - 'x' = 'ks'           → "méxico" ≡ "méksico"
+///   - 'c' antes de e/i = s → "ceci" ≡ "sesi", "cinco" ≡ "sinko"
+///   - 'c' / 'qu' / 'k' duros → todos a 'k'
+///   - 'g' antes de e/i = j → "gente" ≡ "jente"
+///   - letras dobles consecutivas → una sola: "barragan" ≡ "baragan"
+///
+/// Se usa **solo** para sugerencias y matching de duplicados, nunca para
+/// guardar el valor — el display siempre conserva el canónico tal cual
+/// está escrito en la lista maestra.
+String normalizePhonetic(String s) {
+  var t = normalizeForMatch(s);
+  // Letras mudas / equivalencias fonéticas globales.
+  t = t.replaceAll('h', '');
+  t = t.replaceAll('v', 'b');
+  t = t.replaceAll('z', 's');
+  t = t.replaceAll('ll', 'y');
+  t = t.replaceAll('x', 'ks');
+
+  // c/qu/g dependen de la siguiente letra. Procesamos char-by-char.
+  final buf = StringBuffer();
+  for (var i = 0; i < t.length; i++) {
+    final c = t[i];
+    final next = i + 1 < t.length ? t[i + 1] : '';
+    if (c == 'c') {
+      // c antes de e/i suena como s; en cualquier otra posición como k.
+      buf.write(next == 'e' || next == 'i' ? 's' : 'k');
+    } else if (c == 'q' && next == 'u') {
+      // qu se pronuncia como k (la u es muda en este contexto).
+      final after = i + 2 < t.length ? t[i + 2] : '';
+      buf.write(after == 'e' || after == 'i' ? 's' : 'k');
+      i++; // consumimos la u
+    } else if (c == 'g') {
+      // g antes de e/i suena como j; resto se mantiene como g.
+      buf.write(next == 'e' || next == 'i' ? 'j' : 'g');
+    } else {
+      buf.write(c);
+    }
+  }
+  // Colapsa letras dobles consecutivas: "barragan" → "baragan".
+  return buf.toString().replaceAll(RegExp(r'(.)\1+'), r'$1');
+}
+
+/// Devuelve el valor canónico (de [existing]) que coincide con [input]
+/// tras alguna de las normalizaciones — primero strict (case/espacios/
+/// acentos) y luego fonética (h muda, b/v iguales, z/s, etc).
+///
+/// `null` si no hay match. Si hay varios candidatos al mismo nivel, gana
+/// el primero según el orden de iteración de [existing].
+///
+/// Ejemplos:
+///   input="erick BARRAGAN", existing=["Erick Barragan"] → "Erick Barragan"
+///   input="jhon",           existing=["John"]           → "John"  (fonético)
+///   input="varragán",       existing=["Barragan"]       → "Barragan" (fonético)
 String? canonicalMatch(String input, Iterable<String> existing) {
   if (input.trim().isEmpty) return null;
+
+  // Match estricto primero (sin riesgo de colisiones falsas).
   final ni = normalizeForMatch(input);
   for (final v in existing) {
     if (normalizeForMatch(v) == ni) return v;
   }
+
+  // Match fonético después: captura typos comunes pero puede tener
+  // alguna colisión rara (ej. "casa" ≡ "kasa" ≡ "qaza"). Aceptable
+  // para nombres propios de un equipo de 10 personas.
+  final pi = normalizePhonetic(input);
+  if (pi.isEmpty) return null;
+  for (final v in existing) {
+    if (normalizePhonetic(v) == pi) return v;
+  }
+
   return null;
 }
 
@@ -79,21 +148,27 @@ int levenshtein(String a, String b) {
 /// umbral de "diferencia". Sirve para sugerencias del estilo "¿quisiste
 /// decir 'Erick Barragan'?" cuando el usuario escribió "Erik Baragan".
 ///
-/// Reglas:
-///  - Compara strings normalizados (case/espacios/acentos no penalizan).
-///  - También considera la versión "aggressive" sin espacios para detectar
-///    "jhon sanjuan" vs "jhon san juan" como cercanos.
-///  - Devuelve `null` si nada está dentro del umbral.
-///  - El umbral es proporcional al largo: ~25% de la longitud máxima, con
-///    un mínimo de 1 (siempre captura typos de 1 letra) y máximo de 4.
+/// Computa la distancia de Levenshtein con TRES normalizaciones distintas
+/// y se queda con la menor:
 ///
-/// IMPORTANTE: si hay un [canonicalMatch] exacto, devuelve ese (distancia 0).
+///  1. **Strict** (case/acentos/espacios)   → captura "Pedro" vs "pedro"
+///  2. **Aggressive** (sin espacios)        → captura "san juan" vs "sanjuan"
+///  3. **Phonetic** (h muda, b/v, etc)      → captura "jhon" vs "john",
+///                                            "barragan" vs "varragán"
+///
+/// Devuelve `null` si nada está dentro del umbral.
+/// El umbral es proporcional al largo: ~25% de la longitud máxima, con
+/// un mínimo de 1 (siempre captura typos de 1 letra) y máximo de 4.
+///
+/// Si hay un [canonicalMatch] exacto (distancia 0 en cualquiera de las
+/// normalizaciones), devuelve ese.
 String? closestMatch(String input, Iterable<String> existing) {
   final exact = canonicalMatch(input, existing);
   if (exact != null) return exact;
 
   final ni = normalizeForMatch(input);
   final niAgg = normalizeAggressive(input);
+  final niPhon = normalizePhonetic(input);
   if (ni.isEmpty) return null;
 
   final threshold = math.max(1, math.min(4, (ni.length * 0.25).ceil()));
@@ -103,10 +178,12 @@ String? closestMatch(String input, Iterable<String> existing) {
   for (final v in existing) {
     final nv = normalizeForMatch(v);
     final nvAgg = normalizeAggressive(v);
-    final dist = math.min(
+    final nvPhon = normalizePhonetic(v);
+    final dist = [
       levenshtein(ni, nv),
       levenshtein(niAgg, nvAgg),
-    );
+      levenshtein(niPhon, nvPhon),
+    ].reduce(math.min);
     if (dist < bestDist) {
       bestDist = dist;
       best = v;
