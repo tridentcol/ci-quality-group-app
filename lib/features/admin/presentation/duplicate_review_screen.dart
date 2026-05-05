@@ -9,19 +9,20 @@ import '../../../shared/widgets/error_view.dart';
 import '../../../shared/widgets/theme_mode_toggle.dart';
 import '../data/duplicate_service.dart';
 import '../data/master_lists_repository.dart';
+import '../domain/master_list.dart';
 
 /// Pantalla del admin para detectar y fusionar items duplicados de una
-/// lista maestra. Se llega desde el botón "Detectar duplicados" en el
-/// master_list_detail.
+/// lista maestra.
 ///
-/// Flujo:
-///   1. Al entrar, carga clusters via DuplicateService.findClusters.
-///   2. Por cada cluster muestra una card con todos los items + radio
-///      para elegir cuál es el canónico (default: el con más ventas).
-///   3. El admin puede saltar clusters (toggle) o cambiar la selección.
-///   4. "Aplicar" lanza un dialog de confirmación con totales y, si
-///      confirma, ejecuta DuplicateService.applyMerges.
-///   5. Snackbar con resumen + pop a la pantalla anterior.
+/// Flujo (todo guiado):
+///   1. Al entrar, sincroniza catálogo desde sales (backfill) + detecta
+///      clusters de items parecidos.
+///   2. Banner verde si hubo sincronización (con contador).
+///   3. Banner azul con totales de detección.
+///   4. Una card por grupo: header con "Grupo X" + ventas afectadas,
+///      cuerpo con cada item + radio + badge de uso, footer con "Saltar".
+///   5. Footer fijo con resumen + botón "Aplicar".
+///   6. Al aplicar: confirmación → merge → snackbar → pop.
 class DuplicateReviewScreen extends ConsumerStatefulWidget {
   const DuplicateReviewScreen({super.key, required this.listId});
 
@@ -36,19 +37,13 @@ class _DuplicateReviewScreenState extends ConsumerState<DuplicateReviewScreen> {
   bool _loading = true;
   Object? _error;
   List<DuplicateCluster> _clusters = const [];
-
-  /// Cuántos items se trajeron de `sales` al catálogo durante este run.
-  /// Lo mostramos en un banner informativo.
   int _backfilled = 0;
-
-  /// Total de items en el catálogo después del backfill (incluye los
-  /// recién agregados). Se usa en el header para dar contexto.
   int _totalCatalogItems = 0;
 
-  /// Para cada cluster (clave = índice en `_clusters`):
-  ///  - `canonicalId`: el item que el admin marcó como canónico
-  ///  - `skipped`: si el cluster se ignora en este aplicar
+  /// canonicalId por cluster (índice en `_clusters`).
   final Map<int, String> _canonicalSelection = {};
+
+  /// Clusters marcados como "no son duplicados" (saltar al aplicar).
   final Set<int> _skipped = {};
 
   bool _applying = false;
@@ -65,9 +60,6 @@ class _DuplicateReviewScreenState extends ConsumerState<DuplicateReviewScreen> {
       _error = null;
     });
     try {
-      // Timeout defensivo: si Firestore o el batch del backfill se
-      // cuelgan (peor caso = decenas de miles de items), mostramos
-      // un error después de 90s en lugar de spinner para siempre.
       final result = await ref
           .read(duplicateServiceProvider)
           .findClusters(listId: widget.listId)
@@ -86,8 +78,6 @@ class _DuplicateReviewScreenState extends ConsumerState<DuplicateReviewScreen> {
         _canonicalSelection[i] = _clusters[i].suggestedCanonical.id;
       }
       if (_backfilled > 0 && mounted) {
-        // Refresca también el provider de items para que la lista
-        // maestra muestre los recién importados.
         ref.invalidate(
           masterListItemsProvider(
             MasterListItemsQuery(listId: widget.listId),
@@ -95,7 +85,6 @@ class _DuplicateReviewScreenState extends ConsumerState<DuplicateReviewScreen> {
         );
       }
     } catch (e, st) {
-      // Log a consola para debug + guarda para mostrar en pantalla.
       debugPrint('DuplicateReviewScreen._detect error: $e\n$st');
       _error = e;
     } finally {
@@ -103,14 +92,13 @@ class _DuplicateReviewScreenState extends ConsumerState<DuplicateReviewScreen> {
     }
   }
 
-  int get _activeClusterCount =>
-      _clusters.length - _skipped.length;
+  int get _activeClusterCount => _clusters.length - _skipped.length;
 
   int get _totalItemsToDelete {
     var total = 0;
     for (var i = 0; i < _clusters.length; i++) {
       if (_skipped.contains(i)) continue;
-      total += _clusters[i].items.length - 1; // todos menos el canónico
+      total += _clusters[i].items.length - 1;
     }
     return total;
   }
@@ -135,12 +123,17 @@ class _DuplicateReviewScreenState extends ConsumerState<DuplicateReviewScreen> {
 
     final ok = await showConfirmDialog(
       context,
-      title: 'Aplicar fusión de duplicados',
+      title: 'Aplicar fusión',
       message:
-          'Se eliminarán $_totalItemsToDelete items del catálogo y '
-          'se actualizarán $_totalSalesToUpdate ventas para que apunten '
-          'al canónico de cada grupo.\n\n'
-          'Esta operación no es reversible.',
+          'Vas a fusionar $_totalItemsToDelete duplicado'
+          '${_totalItemsToDelete == 1 ? '' : 's'} en '
+          '$_activeClusterCount grupo'
+          '${_activeClusterCount == 1 ? '' : 's'}.\n\n'
+          '$_totalSalesToUpdate venta'
+          '${_totalSalesToUpdate == 1 ? '' : 's'} se actualizará'
+          '${_totalSalesToUpdate == 1 ? '' : 'n'} para apuntar a los '
+          'nombres canónicos.\n\n'
+          'Esta acción no se puede deshacer.',
       confirmLabel: 'Aplicar',
       icon: Icons.merge_type,
     );
@@ -175,19 +168,28 @@ class _DuplicateReviewScreenState extends ConsumerState<DuplicateReviewScreen> {
               );
 
       if (!mounted) return;
-      // Invalida el provider de items para que la lista maestra se refresque.
+      // Refresca el catálogo abierto detrás (la lista maestra).
       ref.invalidate(
         masterListItemsProvider(
           MasterListItemsQuery(listId: widget.listId),
         ),
       );
+      // Los providers de sales son StreamProviders que escuchan a
+      // Firestore directo: las actualizaciones de los documentos de
+      // sales (que el merge acaba de hacer) se propagan solas a las
+      // métricas, listas, etc. No hace falta invalidar manualmente.
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            '${result.itemsDeleted} duplicados fusionados, '
-            '${result.salesUpdated} ventas actualizadas.',
+            '✓ ${result.itemsDeleted} duplicado'
+            '${result.itemsDeleted == 1 ? '' : 's'} fusionado'
+            '${result.itemsDeleted == 1 ? '' : 's'} · '
+            '${result.salesUpdated} venta'
+            '${result.salesUpdated == 1 ? '' : 's'} actualizada'
+            '${result.salesUpdated == 1 ? '' : 's'}',
           ),
+          duration: const Duration(seconds: 4),
         ),
       );
       context.pop();
@@ -206,6 +208,9 @@ class _DuplicateReviewScreenState extends ConsumerState<DuplicateReviewScreen> {
   Widget build(BuildContext context) {
     final meta = ref.watch(masterListMetaProvider(widget.listId));
     final theme = Theme.of(context);
+    final hasResults = _clusters.isNotEmpty;
+    final hasSyncOnly = !hasResults && _backfilled > 0;
+    final hasNothing = !hasResults && _backfilled == 0;
 
     return Scaffold(
       appBar: AppBar(
@@ -219,183 +224,187 @@ class _DuplicateReviewScreenState extends ConsumerState<DuplicateReviewScreen> {
           const ThemeModeIconButton(),
         ],
       ),
-      body: Stack(
-        // Sin esto los hijos no-posicionados (Center del LoadingState,
-        // por ejemplo) se rinden con loose constraints y quedan en una
-        // esquinita pequeña — el resto de la pantalla aparece blanca y
-        // parece que la app crasheó. Con `expand`, todos los hijos se
-        // estiran al tamaño del Stack.
-        fit: StackFit.expand,
-        children: [
-          if (_loading)
-            const _LoadingState()
-          else if (_error != null)
-            AppErrorView(error: _error!, onRetry: _detect)
-          else
-            ListView.builder(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 120),
-              itemCount: _clusters.length + 1,
-              itemBuilder: (context, i) {
-                if (i == 0) {
-                  return _SummaryHeader(
-                    clusterCount: _clusters.length,
-                    backfilled: _backfilled,
-                    totalCatalogItems: _totalCatalogItems,
-                  );
-                }
-                final idx = i - 1;
-                final cluster = _clusters[idx];
-                return _ClusterCard(
-                  cluster: cluster,
-                  canonicalId: _canonicalSelection[idx]!,
-                  skipped: _skipped.contains(idx),
-                  onCanonicalChanged: (id) =>
-                      setState(() => _canonicalSelection[idx] = id),
-                  onSkipChanged: (skipped) => setState(() {
-                    if (skipped) {
-                      _skipped.add(idx);
-                    } else {
-                      _skipped.remove(idx);
-                    }
-                  }),
-                );
-              },
-            ),
-          if (_applying)
-            ColoredBox(
-              color: Colors.black.withValues(alpha: 0.4),
-              child: const Center(child: CircularProgressIndicator()),
-            ),
-        ],
-      ),
-      bottomNavigationBar: _clusters.isEmpty || _loading
-          ? null
-          : SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-                child: Row(
-                  children: [
-                    Expanded(
+      body: SafeArea(
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            if (_loading)
+              _LoadingState(theme: theme)
+            else if (_error != null)
+              AppErrorView(error: _error!, onRetry: _detect)
+            else if (hasNothing)
+              _NothingFoundState(theme: theme, totalItems: _totalCatalogItems)
+            else
+              ListView(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+                children: [
+                  if (_backfilled > 0)
+                    _SyncBanner(
+                      backfilled: _backfilled,
+                      totalCatalogItems: _totalCatalogItems,
+                    ),
+                  if (_backfilled > 0 && hasResults)
+                    const SizedBox(height: 12),
+                  if (hasResults)
+                    _DetectionBanner(
+                      clusterCount: _clusters.length,
+                      totalCatalogItems: _totalCatalogItems,
+                    ),
+                  if (hasSyncOnly)
+                    _AllCleanBanner(theme: theme),
+                  const SizedBox(height: 20),
+                  for (var i = 0; i < _clusters.length; i++) ...[
+                    _ClusterCard(
+                      number: i + 1,
+                      cluster: _clusters[i],
+                      canonicalId: _canonicalSelection[i]!,
+                      skipped: _skipped.contains(i),
+                      onCanonicalChanged: (id) =>
+                          setState(() => _canonicalSelection[i] = id),
+                      onSkipChanged: (skipped) => setState(() {
+                        if (skipped) {
+                          _skipped.add(i);
+                        } else {
+                          _skipped.remove(i);
+                        }
+                      }),
+                    ),
+                    if (i < _clusters.length - 1) const SizedBox(height: 16),
+                  ],
+                ],
+              ),
+            if (_applying)
+              ColoredBox(
+                color: Colors.black.withValues(alpha: 0.5),
+                child: Center(
+                  child: Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(20),
                       child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
                         children: [
+                          const CircularProgressIndicator(),
+                          const SizedBox(height: 12),
                           Text(
-                            '$_activeClusterCount grupo${_activeClusterCount == 1 ? '' : 's'}'
-                            ' · $_totalItemsToDelete item${_totalItemsToDelete == 1 ? '' : 's'}'
-                            ' · $_totalSalesToUpdate venta${_totalSalesToUpdate == 1 ? '' : 's'}',
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.colorScheme.onSurface
-                                  .withValues(alpha: 0.7),
-                            ),
+                            'Aplicando fusión…',
+                            style: theme.textTheme.bodyMedium,
                           ),
                         ],
                       ),
                     ),
-                    const SizedBox(width: 12),
-                    // Override del minimumSize: el tema global pone los
-                    // FilledButton a Size.fromHeight(52) (ancho infinito,
-                    // pensado para forms). Dentro de un Row eso explota
-                    // con BoxConstraints w=Infinity. Forzamos intrinsic.
-                    FilledButton.icon(
-                      onPressed: _activeClusterCount == 0 || _applying
-                          ? null
-                          : _apply,
-                      icon: const Icon(Icons.merge_type),
-                      label: const Text('Aplicar'),
-                      style: FilledButton.styleFrom(
-                        minimumSize: const Size(0, 44),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 20,
-                          vertical: 10,
-                        ),
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
               ),
-            ),
+          ],
+        ),
+      ),
+      bottomNavigationBar: hasResults && !_loading
+          ? _ApplyFooter(
+              activeClusters: _activeClusterCount,
+              itemsToDelete: _totalItemsToDelete,
+              salesToUpdate: _totalSalesToUpdate,
+              onApply: _applying ? null : _apply,
+            )
+          : null,
     );
   }
 }
 
-class _SummaryHeader extends StatelessWidget {
-  const _SummaryHeader({
-    required this.clusterCount,
+// ─────────────────────────────────────────────────────────────────────
+// Banners de estado (sync, detección, nothing, all-clean)
+// ─────────────────────────────────────────────────────────────────────
+
+class _SyncBanner extends StatelessWidget {
+  const _SyncBanner({
     required this.backfilled,
     required this.totalCatalogItems,
   });
-  final int clusterCount;
   final int backfilled;
   final int totalCatalogItems;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
-      child: Column(
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.secondary.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: theme.colorScheme.secondary.withValues(alpha: 0.4),
+        ),
+      ),
+      child: Row(
         children: [
-          if (backfilled > 0)
-            Container(
-              margin: const EdgeInsets.only(bottom: 12),
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: theme.colorScheme.secondary.withValues(alpha: 0.10),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: theme.colorScheme.secondary.withValues(alpha: 0.4),
-                ),
-              ),
-              child: Row(
+          Icon(Icons.cloud_done_outlined, color: theme.colorScheme.secondary),
+          const SizedBox(width: 12),
+          Expanded(
+            child: RichText(
+              text: TextSpan(
+                style: theme.textTheme.bodyMedium,
                 children: [
-                  Icon(
-                    Icons.cloud_sync_outlined,
-                    color: theme.colorScheme.secondary,
+                  const TextSpan(text: 'Importamos '),
+                  TextSpan(
+                    text: '$backfilled nombre${backfilled == 1 ? '' : 's'}',
+                    style: const TextStyle(fontWeight: FontWeight.w700),
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: RichText(
-                      text: TextSpan(
-                        style: theme.textTheme.bodySmall,
-                        children: [
-                          const TextSpan(text: 'Sincronizamos '),
-                          TextSpan(
-                            text: '$backfilled nombre${backfilled == 1 ? '' : 's'}',
-                            style: const TextStyle(fontWeight: FontWeight.w700),
-                          ),
-                          const TextSpan(
-                            text: ' que aparecían en ventas pero no estaban en '
-                                'el catálogo (la versión vieja de la app no '
-                                'los registraba). Ahora hacen parte del listado.',
-                          ),
-                        ],
-                      ),
-                    ),
+                  const TextSpan(
+                    text: ' que estaban en ventas pero faltaban en el '
+                        'catálogo. Ya hacen parte de los dropdowns y '
+                        'sugerencias.',
                   ),
                 ],
               ),
             ),
-          Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: theme.colorScheme.primary.withValues(alpha: 0.08),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Row(
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DetectionBanner extends StatelessWidget {
+  const _DetectionBanner({
+    required this.clusterCount,
+    required this.totalCatalogItems,
+  });
+  final int clusterCount;
+  final int totalCatalogItems;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.primary.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.warning_amber_rounded, color: theme.colorScheme.primary),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(Icons.info_outline, color: theme.colorScheme.primary),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    clusterCount == 0
-                        ? 'No se detectaron duplicados en los $totalCatalogItems '
-                            'items del catálogo.'
-                        : 'Se detectaron $clusterCount grupo${clusterCount == 1 ? '' : 's'} '
-                            'de posibles duplicados sobre $totalCatalogItems '
-                            'items totales. Por cada uno, escoge cuál spelling '
-                            'se queda como canónico — los otros se borran y '
-                            'todas las ventas que los usen se actualizan.',
-                    style: theme.textTheme.bodySmall,
+                Text(
+                  '$clusterCount grupo${clusterCount == 1 ? '' : 's'} '
+                  'de posibles duplicados',
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Sobre $totalCatalogItems items en el catálogo. Por cada '
+                  'grupo, escoge la versión que se queda; las demás se '
+                  'borran y todas las ventas que las usen se actualizan al '
+                  'canónico. Si crees que un grupo NO es realmente '
+                  'duplicado, márcalo como "Saltar".',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurface.withValues(alpha: 0.75),
                   ),
                 ),
               ],
@@ -407,8 +416,84 @@ class _SummaryHeader extends StatelessWidget {
   }
 }
 
+class _AllCleanBanner extends StatelessWidget {
+  const _AllCleanBanner({required this.theme});
+  final ThemeData theme;
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.primary.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.check_circle, color: theme.colorScheme.primary),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              'No se detectaron duplicados en el catálogo. '
+              'Todo el listado parece consistente.',
+              style: theme.textTheme.bodyMedium,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _NothingFoundState extends StatelessWidget {
+  const _NothingFoundState({required this.theme, required this.totalItems});
+  final ThemeData theme;
+  final int totalItems;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.check_circle_outline,
+              size: 56,
+              color: theme.colorScheme.primary,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Catálogo limpio',
+              style: theme.textTheme.headlineSmall,
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              totalItems == 0
+                  ? 'La lista está vacía y no hay nombres pendientes en '
+                      'ventas que importar.'
+                  : 'Revisamos los $totalItems items del catálogo y todos '
+                      'los nombres de ventas. No detectamos duplicados.',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// Card de cluster
+// ─────────────────────────────────────────────────────────────────────
+
 class _ClusterCard extends StatelessWidget {
   const _ClusterCard({
+    required this.number,
     required this.cluster,
     required this.canonicalId,
     required this.skipped,
@@ -416,6 +501,7 @@ class _ClusterCard extends StatelessWidget {
     required this.onSkipChanged,
   });
 
+  final int number;
   final DuplicateCluster cluster;
   final String canonicalId;
   final bool skipped;
@@ -425,61 +511,87 @@ class _ClusterCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final salesAffected = cluster.totalSalesAffected(
-      cluster.items.firstWhere(
-        (it) => it.id == canonicalId,
-        orElse: () => cluster.suggestedCanonical,
-      ),
+    final canonical = cluster.items.firstWhere(
+      (it) => it.id == canonicalId,
+      orElse: () => cluster.suggestedCanonical,
     );
+    final salesAffected = cluster.totalSalesAffected(canonical);
 
     return Opacity(
       opacity: skipped ? 0.4 : 1,
       child: Card(
-        margin: const EdgeInsets.only(bottom: 12),
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
+        margin: EdgeInsets.zero,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header: número + impacto
+            Container(
+              padding: const EdgeInsets.fromLTRB(16, 12, 12, 12),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.primary.withValues(alpha: 0.06),
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(16),
+                ),
+              ),
+              child: Row(
                 children: [
-                  Expanded(
+                  Container(
+                    width: 28,
+                    height: 28,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.primary,
+                      shape: BoxShape.circle,
+                    ),
                     child: Text(
-                      'Grupo de ${cluster.items.length} parecidos',
-                      style: theme.textTheme.titleSmall,
+                      '$number',
+                      style: theme.textTheme.labelMedium?.copyWith(
+                        color: theme.colorScheme.onPrimary,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ),
-                  TextButton.icon(
-                    onPressed: () => onSkipChanged(!skipped),
-                    icon: Icon(
-                      skipped ? Icons.refresh : Icons.close,
-                      size: 16,
-                    ),
-                    label: Text(skipped ? 'Reactivar' : 'Saltar'),
-                    style: TextButton.styleFrom(
-                      visualDensity: VisualDensity.compact,
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Grupo de ${cluster.items.length} parecidos',
+                          style: theme.textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        if (!skipped && salesAffected > 0)
+                          Text(
+                            '$salesAffected venta'
+                            '${salesAffected == 1 ? '' : 's'} '
+                            'se actualizará'
+                            '${salesAffected == 1 ? '' : 'n'}',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.onSurface
+                                  .withValues(alpha: 0.65),
+                            ),
+                          )
+                        else if (skipped)
+                          Text(
+                            'Marcado como NO duplicado',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.onSurface
+                                  .withValues(alpha: 0.65),
+                              fontStyle: FontStyle.italic,
+                            ),
+                          ),
+                      ],
                     ),
                   ),
                 ],
               ),
-              if (!skipped)
-                Padding(
-                  padding: const EdgeInsets.only(left: 4, bottom: 4),
-                  child: Text(
-                    '$salesAffected venta${salesAffected == 1 ? '' : 's'} se '
-                    'actualizará${salesAffected == 1 ? '' : 'n'}',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
-                    ),
-                  ),
-                ),
-              const SizedBox(height: 4),
-              // RadioGroup.onChanged es required y non-nullable en Flutter
-              // 3.32+. Cuando el cluster está "skipped" la card entera está
-              // con Opacity(0.4) y al aplicar el merge se ignora; no hace
-              // falta deshabilitar los radios — si el admin reactiva el
-              // cluster su selección sigue ahí.
-              RadioGroup<String>(
+            ),
+            // Body: items con radio
+            Padding(
+              padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
+              child: RadioGroup<String>(
                 groupValue: canonicalId,
                 onChanged: (v) {
                   if (v != null) onCanonicalChanged(v);
@@ -487,37 +599,191 @@ class _ClusterCard extends StatelessWidget {
                 child: Column(
                   children: [
                     for (final item in cluster.items)
-                      RadioListTile<String>(
-                        value: item.id,
-                        contentPadding: EdgeInsets.zero,
-                        dense: true,
-                        title: Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                item.value,
-                                style: theme.textTheme.bodyMedium?.copyWith(
-                                  fontWeight: item.id == canonicalId
-                                      ? FontWeight.w600
-                                      : FontWeight.normal,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            _RefBadge(count: cluster.refCounts[item.value] ?? 0),
-                          ],
-                        ),
-                        subtitle: item.userSuggested
-                            ? Text(
-                                'Sugerencia sin formalizar',
-                                style: theme.textTheme.labelSmall?.copyWith(
-                                  color: theme.colorScheme.onSurface
-                                      .withValues(alpha: 0.55),
-                                ),
-                              )
-                            : null,
+                      _ItemRow(
+                        item: item,
+                        isCanonical: item.id == canonicalId,
+                        refCount: cluster.refCounts[item.value] ?? 0,
                       ),
                   ],
+                ),
+              ),
+            ),
+            // Footer: skip toggle
+            Padding(
+              padding: const EdgeInsets.fromLTRB(8, 4, 8, 8),
+              child: Align(
+                alignment: Alignment.centerRight,
+                child: TextButton.icon(
+                  onPressed: () => onSkipChanged(!skipped),
+                  icon: Icon(
+                    skipped ? Icons.refresh : Icons.block,
+                    size: 16,
+                  ),
+                  label: Text(
+                    skipped
+                        ? 'Reactivar grupo'
+                        : 'No son duplicados — saltar',
+                  ),
+                  style: TextButton.styleFrom(
+                    foregroundColor: skipped
+                        ? theme.colorScheme.primary
+                        : theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ItemRow extends StatelessWidget {
+  const _ItemRow({
+    required this.item,
+    required this.isCanonical,
+    required this.refCount,
+  });
+  final MasterListItem item;
+  final bool isCanonical;
+  final int refCount;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+      decoration: BoxDecoration(
+        color: isCanonical
+            ? theme.colorScheme.primary.withValues(alpha: 0.06)
+            : null,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: RadioListTile<String>(
+        value: item.id,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 8),
+        dense: true,
+        title: Row(
+          children: [
+            Expanded(
+              child: Text(
+                item.value,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  fontWeight:
+                      isCanonical ? FontWeight.w700 : FontWeight.w400,
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            _RefBadge(count: refCount, highlighted: isCanonical),
+          ],
+        ),
+        subtitle: item.userSuggested
+            ? Padding(
+                padding: const EdgeInsets.only(top: 2),
+                child: Text(
+                  'Importada de una venta · sin formalizar',
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: theme.colorScheme.onSurface
+                        .withValues(alpha: 0.55),
+                  ),
+                ),
+              )
+            : null,
+      ),
+    );
+  }
+}
+
+class _RefBadge extends StatelessWidget {
+  const _RefBadge({required this.count, required this.highlighted});
+  final int count;
+  final bool highlighted;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final color = count == 0
+        ? theme.colorScheme.onSurface.withValues(alpha: 0.4)
+        : theme.colorScheme.primary;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: highlighted ? 0.18 : 0.10),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        count == 1 ? '1 venta' : '$count ventas',
+        style: theme.textTheme.labelSmall?.copyWith(
+          color: color,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// Footer fijo con totales + botón Aplicar
+// ─────────────────────────────────────────────────────────────────────
+
+class _ApplyFooter extends StatelessWidget {
+  const _ApplyFooter({
+    required this.activeClusters,
+    required this.itemsToDelete,
+    required this.salesToUpdate,
+    required this.onApply,
+  });
+
+  final int activeClusters;
+  final int itemsToDelete;
+  final int salesToUpdate;
+  final VoidCallback? onApply;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Material(
+      elevation: 8,
+      color: theme.colorScheme.surface,
+      child: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  _Stat(
+                    label: 'Grupos',
+                    value: '$activeClusters',
+                    color: theme.colorScheme.primary,
+                  ),
+                  const SizedBox(width: 16),
+                  _Stat(
+                    label: 'Items a borrar',
+                    value: '$itemsToDelete',
+                    color: theme.colorScheme.primary,
+                  ),
+                  const SizedBox(width: 16),
+                  _Stat(
+                    label: 'Ventas afectadas',
+                    value: '$salesToUpdate',
+                    color: theme.colorScheme.primary,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              FilledButton.icon(
+                onPressed: activeClusters == 0 ? null : onApply,
+                icon: const Icon(Icons.merge_type),
+                label: Text(
+                  activeClusters == 0
+                      ? 'Nada que aplicar'
+                      : 'Aplicar fusión',
                 ),
               ),
             ],
@@ -528,47 +794,37 @@ class _ClusterCard extends StatelessWidget {
   }
 }
 
-class _RefBadge extends StatelessWidget {
-  const _RefBadge({required this.count});
-  final int count;
+class _Stat extends StatelessWidget {
+  const _Stat({
+    required this.label,
+    required this.value,
+    required this.color,
+  });
+  final String label;
+  final String value;
+  final Color color;
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final color = count == 0
-        ? theme.colorScheme.onSurface.withValues(alpha: 0.4)
-        : theme.colorScheme.primary;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Text(
-        count == 1 ? '1 venta' : '$count ventas',
-        style: theme.textTheme.labelSmall?.copyWith(
-          color: color,
-          fontWeight: FontWeight.w600,
-        ),
-      ),
-    );
-  }
-}
-
-class _LoadingState extends StatelessWidget {
-  const _LoadingState();
-  @override
-  Widget build(BuildContext context) {
-    return const Center(
+    return Expanded(
       child: Column(
-        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          CircularProgressIndicator(),
-          SizedBox(height: 16),
-          Text('Buscando duplicados…'),
-          SizedBox(height: 4),
           Text(
-            'Comparando items + contando referencias en ventas',
-            style: TextStyle(fontSize: 12),
+            value,
+            style: theme.textTheme.headlineSmall?.copyWith(
+              color: color,
+              fontWeight: FontWeight.w700,
+              height: 1.1,
+            ),
+          ),
+          Text(
+            label,
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+            ),
+            maxLines: 2,
           ),
         ],
       ),
@@ -576,3 +832,44 @@ class _LoadingState extends StatelessWidget {
   }
 }
 
+// ─────────────────────────────────────────────────────────────────────
+// Loading
+// ─────────────────────────────────────────────────────────────────────
+
+class _LoadingState extends StatelessWidget {
+  const _LoadingState({required this.theme});
+  final ThemeData theme;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(
+              width: 48,
+              height: 48,
+              child: CircularProgressIndicator(),
+            ),
+            const SizedBox(height: 24),
+            Text(
+              'Sincronizando catálogo y buscando duplicados…',
+              style: theme.textTheme.titleSmall,
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Importando nombres de ventas + comparando spelling',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
