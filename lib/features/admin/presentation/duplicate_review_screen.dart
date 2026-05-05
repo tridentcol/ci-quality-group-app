@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -64,10 +65,18 @@ class _DuplicateReviewScreenState extends ConsumerState<DuplicateReviewScreen> {
       _error = null;
     });
     try {
-      final result =
-          await ref.read(duplicateServiceProvider).findClusters(
-                listId: widget.listId,
-              );
+      // Timeout defensivo: si Firestore o el batch del backfill se
+      // cuelgan (peor caso = decenas de miles de items), mostramos
+      // un error después de 90s en lugar de spinner para siempre.
+      final result = await ref
+          .read(duplicateServiceProvider)
+          .findClusters(listId: widget.listId)
+          .timeout(
+            const Duration(seconds: 90),
+            onTimeout: () => throw 'Tomó demasiado tiempo (>90s). '
+                'Probablemente la lista tiene muchos items o la red '
+                'está lenta. Intenta de nuevo.',
+          );
       _clusters = result.clusters;
       _backfilled = result.backfilled;
       _totalCatalogItems = result.totalCatalogItems;
@@ -85,7 +94,9 @@ class _DuplicateReviewScreenState extends ConsumerState<DuplicateReviewScreen> {
           ),
         );
       }
-    } catch (e) {
+    } catch (e, st) {
+      // Log a consola para debug + guarda para mostrar en pantalla.
+      debugPrint('DuplicateReviewScreen._detect error: $e\n$st');
       _error = e;
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -209,6 +220,12 @@ class _DuplicateReviewScreenState extends ConsumerState<DuplicateReviewScreen> {
         ],
       ),
       body: Stack(
+        // Sin esto los hijos no-posicionados (Center del LoadingState,
+        // por ejemplo) se rinden con loose constraints y quedan en una
+        // esquinita pequeña — el resto de la pantalla aparece blanca y
+        // parece que la app crasheó. Con `expand`, todos los hijos se
+        // estiran al tamaño del Stack.
+        fit: StackFit.expand,
         children: [
           if (_loading)
             const _LoadingState()
