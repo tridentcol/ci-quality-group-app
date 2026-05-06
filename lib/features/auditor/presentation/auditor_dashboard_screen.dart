@@ -324,7 +324,15 @@ class _DailyTrendCard extends StatelessWidget {
     final maxY =
         daily.map((d) => d.total).fold<num>(0, (a, b) => a > b ? a : b);
     final niceMaxY = maxY == 0 ? 1.0 : maxY * 1.15;
-    final dayFmt = DateFormat('d MMM', 'es_CO');
+    // Format más corto para no aplastar el eje X cuando hay muchos días.
+    // Para >14 días usamos solo "d/M" (ej. "5/5"); menos días sí aguanta
+    // "d MMM" (ej. "5 may").
+    final useShortFmt = daily.length > 14;
+    final dayFmt = DateFormat(useShortFmt ? 'd/M' : 'd MMM', 'es_CO');
+    // Interval: en pantallas mobile (~360-400px de chart útil) caben
+    // ~5-6 labels cómodamente. Para 31 días, label cada 7. Para
+    // 7 días, cada 1. Para 30 días, cada 6.
+    final labelInterval = (daily.length / 5).ceil().clamp(1, 30).toDouble();
 
     return Card(
       child: Padding(
@@ -365,8 +373,7 @@ class _DailyTrendCard extends StatelessWidget {
                       sideTitles: SideTitles(
                         showTitles: true,
                         reservedSize: 28,
-                        interval:
-                            (daily.length / 5).clamp(1, 10).toDouble(),
+                        interval: labelInterval,
                         getTitlesWidget: (v, _) {
                           final i = v.toInt();
                           if (i < 0 || i >= daily.length) {

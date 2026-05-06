@@ -320,25 +320,54 @@ class _ItemCard extends StatelessWidget {
                   ],
                 ),
               ),
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
+        trailing: PopupMenuButton<_ItemAction>(
+          tooltip: 'Acciones',
+          icon: const Icon(Icons.more_vert),
+          onSelected: (action) {
+            switch (action) {
+              case _ItemAction.approve:
+                onApprove();
+              case _ItemAction.edit:
+                onEdit();
+              case _ItemAction.delete:
+                onDelete();
+            }
+          },
+          itemBuilder: (context) => [
             if (item.userSuggested)
-              IconButton(
-                tooltip: 'Aprobar sugerencia',
-                icon: const Icon(Icons.check_circle_outline),
-                color: theme.colorScheme.primary,
-                onPressed: onApprove,
+              PopupMenuItem(
+                value: _ItemAction.approve,
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.check_circle_outline,
+                      size: 20,
+                      color: theme.colorScheme.primary,
+                    ),
+                    const SizedBox(width: 12),
+                    const Text('Aprobar sugerencia'),
+                  ],
+                ),
               ),
-            IconButton(
-              tooltip: 'Editar',
-              icon: const Icon(Icons.edit_outlined),
-              onPressed: onEdit,
+            const PopupMenuItem(
+              value: _ItemAction.edit,
+              child: Row(
+                children: [
+                  Icon(Icons.edit_outlined, size: 20),
+                  SizedBox(width: 12),
+                  Text('Editar'),
+                ],
+              ),
             ),
-            IconButton(
-              tooltip: 'Eliminar',
-              icon: const Icon(Icons.delete_outline),
-              onPressed: onDelete,
+            const PopupMenuItem(
+              value: _ItemAction.delete,
+              child: Row(
+                children: [
+                  Icon(Icons.delete_outline, size: 20),
+                  SizedBox(width: 12),
+                  Text('Eliminar'),
+                ],
+              ),
             ),
           ],
         ),
@@ -346,6 +375,8 @@ class _ItemCard extends StatelessWidget {
     );
   }
 }
+
+enum _ItemAction { approve, edit, delete }
 
 class _ItemEditResult {
   const _ItemEditResult({required this.value, this.parent});

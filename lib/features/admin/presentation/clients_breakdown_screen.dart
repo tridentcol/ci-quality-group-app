@@ -170,36 +170,35 @@ class _ClientsBreakdownScreenState
                       ),
                     ),
                     const SizedBox(height: 16),
-                    Row(
-                      children: [
-                        Text(
-                          'Lista de clientes',
-                          style: theme.textTheme.titleMedium,
-                        ),
-                        const Spacer(),
-                        SegmentedButton<_ClientFilter>(
-                          segments: const [
-                            ButtonSegment(
-                              value: _ClientFilter.all,
-                              label: Text('Todos'),
-                            ),
-                            ButtonSegment(
-                              value: _ClientFilter.nuevos,
-                              label: Text('Nuevos'),
-                            ),
-                            ButtonSegment(
-                              value: _ClientFilter.recurrentes,
-                              label: Text('Recurrentes'),
-                            ),
-                          ],
-                          selected: {_filter},
-                          onSelectionChanged: (s) =>
-                              setState(() => _filter = s.first),
-                          style: const ButtonStyle(
-                            visualDensity: VisualDensity.compact,
+                    // Encabezado + filtro segmentado en columna para que
+                    // no se aplaste en pantallas estrechas (el SegmentedButton
+                    // de 3 segmentos no cabe al lado del título en mobile).
+                    Text(
+                      'Lista de clientes',
+                      style: theme.textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      width: double.infinity,
+                      child: SegmentedButton<_ClientFilter>(
+                        segments: const [
+                          ButtonSegment(
+                            value: _ClientFilter.all,
+                            label: Text('Todos'),
                           ),
-                        ),
-                      ],
+                          ButtonSegment(
+                            value: _ClientFilter.nuevos,
+                            label: Text('Nuevos'),
+                          ),
+                          ButtonSegment(
+                            value: _ClientFilter.recurrentes,
+                            label: Text('Recurrentes'),
+                          ),
+                        ],
+                        selected: {_filter},
+                        onSelectionChanged: (s) =>
+                            setState(() => _filter = s.first),
+                      ),
                     ),
                     const SizedBox(height: 8),
                     if (filtered.isEmpty)
