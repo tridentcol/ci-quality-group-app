@@ -61,6 +61,7 @@ class RolePill extends StatelessWidget {
       AppRole.admin => isDark ? AppColors.leafGreen : AppColors.treeGreen,
       AppRole.sales => AppColors.info,
       AppRole.hours => AppColors.warning,
+      AppRole.auditor => const Color(0xFF7C3AED), // morado profundo
     };
   }
 

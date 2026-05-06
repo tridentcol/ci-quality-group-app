@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../features/admin/presentation/admin_metrics_screen.dart';
 import '../../features/admin/presentation/admin_shell.dart';
+import '../../features/auditor/presentation/auditor_dashboard_screen.dart';
 import '../../features/admin/presentation/duplicate_review_screen.dart';
 import '../../features/admin/presentation/master_list_detail_screen.dart';
 import '../../features/admin/presentation/master_lists_screen.dart';
@@ -67,6 +68,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         AppRole.admin => '/admin',
         AppRole.sales => '/sales',
         AppRole.hours => '/hours',
+        AppRole.auditor => '/audit',
       };
 
       if (atLogin || atSplash) return home;
@@ -83,6 +85,9 @@ final routerProvider = Provider<GoRouter>((ref) {
           user.role != AppRole.hours) {
         return home;
       }
+      if (loc.startsWith('/audit') && user.role != AppRole.auditor) {
+        return home;
+      }
       return null;
     },
     routes: [
@@ -91,6 +96,12 @@ final routerProvider = Provider<GoRouter>((ref) {
       // Pantalla del in-app updater. Se abre desde el banner que aparece
       // en cada home cuando hay un APK más nuevo publicado.
       GoRoute(path: '/update', builder: (_, __) => const UpdateScreen()),
+      // Dashboard exclusivo para auditores (socios/inversores). Solo
+      // ven las ventas que matchean su `auditFilter`.
+      GoRoute(
+        path: '/audit',
+        builder: (_, __) => const AuditorDashboardScreen(),
+      ),
 
       // Admin: todas las rutas /admin/* viven dentro de un ShellRoute
       // que provee el AdminShell — NavigationRail persistente en wide

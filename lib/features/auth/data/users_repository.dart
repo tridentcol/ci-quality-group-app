@@ -55,6 +55,7 @@ class UsersRepository {
     required String password,
     required String fullName,
     required AppRole role,
+    AuditFilter? auditFilter,
   }) async {
     final email = AppUser.emailFor(username);
     // App secundaria temporal para no perder la sesión del admin actual.
@@ -74,6 +75,7 @@ class UsersRepository {
         username: username,
         fullName: fullName,
         role: role,
+        auditFilter: role == AppRole.auditor ? auditFilter : null,
       );
       await _col.doc(uid).set(user.toMap());
       // Cierra la sesión secundaria antes de borrar la app.
@@ -89,11 +91,17 @@ class UsersRepository {
     String? fullName,
     AppRole? role,
     bool? active,
+    AuditFilter? auditFilter,
+    bool clearAuditFilter = false,
   }) async {
     final patch = <String, dynamic>{
       if (fullName != null) 'fullName': fullName.trim(),
       if (role != null) 'role': role.id,
       if (active != null) 'active': active,
+      if (clearAuditFilter)
+        'auditFilter': FieldValue.delete()
+      else if (auditFilter != null)
+        'auditFilter': auditFilter.toMap(),
     };
     if (patch.isEmpty) return;
     await _col.doc(uid).update(patch);

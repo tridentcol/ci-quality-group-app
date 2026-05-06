@@ -7,6 +7,7 @@ import '../../../core/constants/roles.dart';
 import '../../../core/utils/errors.dart';
 import '../../../shared/widgets/error_view.dart';
 import '../../../shared/widgets/loading_button.dart';
+import '../../../shared/widgets/master_list_field.dart';
 import '../../../shared/widgets/theme_mode_toggle.dart';
 import '../../auth/data/auth_repository.dart';
 import '../../auth/data/users_repository.dart';
@@ -41,6 +42,15 @@ class _UserFormScreenState extends ConsumerState<UserFormScreen> {
   bool _obscurePassword = true;
   String? _error;
 
+  /// Campo del documento `sales` que filtra la vista del auditor (solo
+  /// se usa cuando _role == auditor). Default: `materialVariant` que
+  /// es el caso típico (socio de un material/marca).
+  String _auditField = 'materialVariant';
+
+  /// Valor exacto a filtrar (ej. "PEDRO"). Lo escoge el admin desde el
+  /// MasterListField que se carga según _auditField.
+  String? _auditValue;
+
   bool get _isEdit => widget.editing != null;
 
   @override
@@ -53,6 +63,10 @@ class _UserFormScreenState extends ConsumerState<UserFormScreen> {
     if (u != null) {
       _role = u.role;
       _active = u.active;
+      if (u.auditFilter != null) {
+        _auditField = u.auditFilter!.field;
+        _auditValue = u.auditFilter!.value;
+      }
     }
   }
 
@@ -66,17 +80,33 @@ class _UserFormScreenState extends ConsumerState<UserFormScreen> {
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
+
+    // Validación específica de auditor: si el rol es auditor, debe
+    // tener un value seleccionado, sino el dashboard sale vacío.
+    if (_role == AppRole.auditor &&
+        (_auditValue == null || _auditValue!.isEmpty)) {
+      setState(() => _error =
+          'Un auditor necesita un valor de filtro asignado para que su '
+          'dashboard tenga datos.');
+      return;
+    }
+
     setState(() {
       _busy = true;
       _error = null;
     });
     try {
+      final auditFilter = _role == AppRole.auditor
+          ? AuditFilter(field: _auditField, value: _auditValue!)
+          : null;
       if (_isEdit) {
         await ref.read(usersRepositoryProvider).updateProfile(
               widget.editing!.uid,
               fullName: _fullName.text,
               role: _role,
               active: _active,
+              auditFilter: auditFilter,
+              clearAuditFilter: _role != AppRole.auditor,
             );
       } else {
         await ref.read(usersRepositoryProvider).createUser(
@@ -84,6 +114,7 @@ class _UserFormScreenState extends ConsumerState<UserFormScreen> {
               password: _password.text,
               fullName: _fullName.text,
               role: _role,
+              auditFilter: auditFilter,
             );
       }
       if (mounted) {
@@ -100,6 +131,27 @@ class _UserFormScreenState extends ConsumerState<UserFormScreen> {
       if (mounted) setState(() => _busy = false);
     }
   }
+
+  /// Mapeo del campo de auditoría al listId de la lista maestra que
+  /// provee los valores válidos. Si en el futuro se agregan más campos
+  /// de filtro, basta con extender este map.
+  String _listIdForField(String field) => switch (field) {
+        'materialVariant' => 'lamina_brands',
+        'material' => 'materials',
+        'providerName' => 'providers',
+        'payerName' => 'payers',
+        'paymentMethod' => 'payment_methods',
+        _ => 'providers',
+      };
+
+  String _labelForField(String field) => switch (field) {
+        'materialVariant' => 'Tipo de material',
+        'material' => 'Material',
+        'providerName' => 'Cliente',
+        'payerName' => 'Quién recibe',
+        'paymentMethod' => 'Método de pago',
+        _ => field,
+      };
 
   @override
   Widget build(BuildContext context) {
@@ -220,9 +272,33 @@ class _UserFormScreenState extends ConsumerState<UserFormScreen> {
                           child: Text(r.label),
                         ),)
                     .toList(),
-                onChanged:
-                    isSelf ? null : (r) => setState(() => _role = r ?? _role),
+                onChanged: isSelf
+                    ? null
+                    : (r) => setState(() {
+                          _role = r ?? _role;
+                          // Al cambiar de auditor a otro rol, limpiamos
+                          // el filtro para no guardar datos colgados.
+                          if (_role != AppRole.auditor) {
+                            _auditValue = null;
+                          }
+                        }),
               ),
+              if (_role == AppRole.auditor) ...[
+                const SizedBox(height: 16),
+                _AuditorFilterCard(
+                  field: _auditField,
+                  value: _auditValue,
+                  onFieldChanged: (f) => setState(() {
+                    _auditField = f;
+                    // Al cambiar de campo, el value anterior deja de
+                    // tener sentido (es de otra lista maestra).
+                    _auditValue = null;
+                  }),
+                  onValueChanged: (v) => setState(() => _auditValue = v),
+                  listIdForField: _listIdForField,
+                  labelForField: _labelForField,
+                ),
+              ],
               const SizedBox(height: 8),
               if (_isEdit)
                 SwitchListTile.adaptive(
@@ -247,6 +323,108 @@ class _UserFormScreenState extends ConsumerState<UserFormScreen> {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Card mostrada cuando el rol seleccionado es auditor: dos campos —
+/// "campo a filtrar" y "valor del filtro". El admin escoge a qué subset
+/// de ventas tiene acceso este auditor (ej. socio Pedro: campo
+/// `materialVariant`, valor `PEDRO`).
+class _AuditorFilterCard extends StatelessWidget {
+  const _AuditorFilterCard({
+    required this.field,
+    required this.value,
+    required this.onFieldChanged,
+    required this.onValueChanged,
+    required this.listIdForField,
+    required this.labelForField,
+  });
+
+  final String field;
+  final String? value;
+  final ValueChanged<String> onFieldChanged;
+  final ValueChanged<String?> onValueChanged;
+  final String Function(String) listIdForField;
+  final String Function(String) labelForField;
+
+  static const _fieldOptions = [
+    'materialVariant',
+    'material',
+    'providerName',
+    'payerName',
+    'paymentMethod',
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.primary.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: theme.colorScheme.primary.withValues(alpha: 0.3),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.visibility_outlined,
+                size: 18,
+                color: theme.colorScheme.primary,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'Filtro de auditoría',
+                style: theme.textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'El auditor solo verá las ventas que matcheen el campo + valor '
+            'que escojas abajo. Ejemplo: para un socio que provee láminas '
+            'tipo PEDRO, el campo es "Tipo de material" y el valor es '
+            '"PEDRO".',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.75),
+            ),
+          ),
+          const SizedBox(height: 16),
+          DropdownButtonFormField<String>(
+            initialValue: field,
+            decoration: const InputDecoration(
+              labelText: 'Campo a filtrar',
+              prefixIcon: Icon(Icons.tune_outlined),
+            ),
+            items: [
+              for (final f in _fieldOptions)
+                DropdownMenuItem(value: f, child: Text(labelForField(f))),
+            ],
+            onChanged: (v) => v != null ? onFieldChanged(v) : null,
+          ),
+          const SizedBox(height: 12),
+          MasterListField(
+            key: ValueKey('audit-value-$field'),
+            listId: listIdForField(field),
+            label: 'Valor del filtro',
+            initialValue: value,
+            onChanged: onValueChanged,
+            required: true,
+            allowSuggestions: false,
+            helperText:
+                'Escoge de la lista. Si no aparece la opción, créala '
+                'primero en la lista maestra correspondiente.',
+          ),
+        ],
       ),
     );
   }

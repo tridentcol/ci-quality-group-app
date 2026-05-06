@@ -135,6 +135,25 @@ class SalesRepository {
         .map((snap) => snap.docs.map(Sale.fromSnapshot).toList());
   }
 
+  /// Stream de ventas filtradas por un campo específico. Lo usa el
+  /// dashboard del auditor: `watchByField('materialVariant', 'PEDRO')`
+  /// devuelve TODAS las ventas históricas (sin rango) cuyo
+  /// `materialVariant == 'PEDRO'`. El filtro de rango después se aplica
+  /// en memoria sobre el resultado para no requerir un índice compuesto
+  /// extra por cada combinación field+date.
+  Stream<List<Sale>> watchByField(String field, String value) {
+    return _col
+        .where(field, isEqualTo: value)
+        .snapshots()
+        .map((snap) {
+      final docs = snap.docs.map(Sale.fromSnapshot).toList();
+      // Orden cronológico DESC en memoria (cabe holgado para el
+      // volumen típico de un auditor — ~cientos de ventas máximo).
+      docs.sort((a, b) => b.date.compareTo(a.date));
+      return docs;
+    });
+  }
+
   Stream<List<Sale>> watchRecent({int limit = 50}) {
     return _col
         .orderBy('createdAt', descending: true)
@@ -192,6 +211,28 @@ final salesByRangeProvider =
 final recentSalesProvider = StreamProvider.autoDispose<List<Sale>>((ref) {
   ref.watch(authStateProvider);
   return ref.watch(salesRepositoryProvider).watchRecent();
+});
+
+/// Argumentos para el filtro genérico por campo. Lo usa el dashboard
+/// del auditor: el campo lo dicta su `auditFilter` (ej. materialVariant
+/// = 'PEDRO').
+class SalesFieldQuery {
+  const SalesFieldQuery({required this.field, required this.value});
+  final String field;
+  final String value;
+
+  @override
+  bool operator ==(Object other) =>
+      other is SalesFieldQuery && other.field == field && other.value == value;
+
+  @override
+  int get hashCode => Object.hash(field, value);
+}
+
+final salesByFieldProvider =
+    StreamProvider.family.autoDispose<List<Sale>, SalesFieldQuery>((ref, q) {
+  ref.watch(authStateProvider);
+  return ref.watch(salesRepositoryProvider).watchByField(q.field, q.value);
 });
 
 /// Stream a una venta específica. Mantener actualizado en vivo (en lugar
