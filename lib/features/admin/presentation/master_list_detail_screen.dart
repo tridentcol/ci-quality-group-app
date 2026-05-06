@@ -199,7 +199,7 @@ class MasterListDetailScreen extends ConsumerWidget {
           if (supportsMerge)
             IconButton(
               tooltip: 'Detectar y fusionar duplicados',
-              icon: const Icon(Icons.merge_type),
+              icon: const Icon(Icons.merge),
               onPressed: () =>
                   context.push('/admin/master-lists/$listId/duplicates'),
             ),
