@@ -280,12 +280,13 @@ class _SalesSection extends StatelessWidget {
       ],
     );
   }
+}
 
-  List<MapEntry<String, num>> _sortedEntries(Map<String, num> m) {
-    final l = m.entries.toList();
-    l.sort((a, b) => b.value.compareTo(a.value));
-    return l;
-  }
+/// Helper top-level: usado por _SalesSection y _MaterialsSummaryCard.
+List<MapEntry<String, num>> _sortedEntries(Map<String, num> m) {
+  final l = m.entries.toList();
+  l.sort((a, b) => b.value.compareTo(a.value));
+  return l;
 }
 
 class _SalesLineChart extends StatelessWidget {
