@@ -114,11 +114,13 @@ class MasterListDetailScreen extends ConsumerWidget {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(_buildEditSuccessMessage(
-              valueChanged: valueChanged,
-              parentChanged: parentChanged,
-              salesUpdated: salesUpdated,
-            )),
+            content: Text(
+              _buildEditSuccessMessage(
+                valueChanged: valueChanged,
+                parentChanged: parentChanged,
+                salesUpdated: salesUpdated,
+              ),
+            ),
           ),
         );
       }

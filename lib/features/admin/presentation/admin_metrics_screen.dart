@@ -676,8 +676,10 @@ class _ClientsSummaryCard extends ConsumerWidget {
       error: (e, _) => Card(
         child: Padding(
           padding: const EdgeInsets.all(20),
-          child: Text('Error cargando clientes: $e',
-              style: theme.textTheme.bodySmall),
+          child: Text(
+            'Error cargando clientes: $e',
+            style: theme.textTheme.bodySmall,
+          ),
         ),
       ),
       data: (metrics) {
@@ -924,13 +926,17 @@ final _currentRangeProvider =
 final _clientsCardStateProvider =
     Provider.autoDispose<AsyncValue<ClientMetrics>>((ref) {
   final range = ref.watch(_currentRangeProvider);
-  if (range == null) return const AsyncValue.data(ClientMetrics(
-    totalClientsInRange: 0,
-    newClientsCount: 0,
-    recurrentClientsCount: 0,
-    newClientsRevenue: 0,
-    recurrentClientsRevenue: 0,
-    byClient: [],
-  ));
+  if (range == null) {
+    return const AsyncValue.data(
+      ClientMetrics(
+        totalClientsInRange: 0,
+        newClientsCount: 0,
+        recurrentClientsCount: 0,
+        newClientsRevenue: 0,
+        recurrentClientsRevenue: 0,
+        byClient: [],
+      ),
+    );
+  }
   return ref.watch(clientMetricsProvider(range));
 });

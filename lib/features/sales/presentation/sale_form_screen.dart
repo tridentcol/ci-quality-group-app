@@ -367,9 +367,11 @@ class _SaleFormScreenState extends ConsumerState<SaleFormScreen> {
         final mat = _material;
         if (mat == null || mat.isEmpty) return null;
         final variantListId = f.masterListId ?? 'lamina_brands';
-        final variantsAsync = ref.watch(masterListItemsProvider(
-          MasterListItemsQuery(listId: variantListId, parent: mat),
-        ));
+        final variantsAsync = ref.watch(
+          masterListItemsProvider(
+            MasterListItemsQuery(listId: variantListId, parent: mat),
+          ),
+        );
         // Mientras carga la primera vez NO mostramos el campo (evita
         // un parpadeo). Una vez con data: mostramos solo si hay >= 1.
         final variants = variantsAsync.valueOrNull;

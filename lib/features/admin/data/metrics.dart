@@ -278,7 +278,7 @@ class ClientMetrics {
         firstPurchaseInRange: acc.firstInRange!,
         lastPurchaseInRange: acc.lastInRange!,
         isNew: isNew,
-      ));
+      ),);
     }
     perClient.sort((a, b) => b.revenue.compareTo(a.revenue));
 

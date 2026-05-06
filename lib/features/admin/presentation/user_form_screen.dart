@@ -85,9 +85,11 @@ class _UserFormScreenState extends ConsumerState<UserFormScreen> {
     // tener un value seleccionado, sino el dashboard sale vacío.
     if (_role == AppRole.auditor &&
         (_auditValue == null || _auditValue!.isEmpty)) {
-      setState(() => _error =
-          'Un auditor necesita un valor de filtro asignado para que su '
-          'dashboard tenga datos.');
+      setState(
+        () => _error =
+            'Un auditor necesita un valor de filtro asignado para que su '
+            'dashboard tenga datos.',
+      );
       return;
     }
 

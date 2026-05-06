@@ -6,7 +6,6 @@ import 'package:intl/intl.dart';
 import '../../../core/constants/roles.dart';
 import '../../../core/utils/clock.dart';
 import '../../../core/utils/dates.dart';
-import '../../../core/utils/errors.dart';
 import '../../../core/utils/money.dart';
 import '../../../shared/widgets/empty_state.dart';
 import '../../../shared/widgets/error_view.dart';
@@ -114,9 +113,11 @@ class _AuditorDashboardScreenState
     AppUser user,
     AuditFilter filter,
   ) {
-    final salesAsync = ref.watch(salesByFieldProvider(
-      SalesFieldQuery(field: filter.field, value: filter.value),
-    ));
+    final salesAsync = ref.watch(
+      salesByFieldProvider(
+        SalesFieldQuery(field: filter.field, value: filter.value),
+      ),
+    );
 
     return Scaffold(
       appBar: _buildAppBar(context, ref, user),
@@ -124,9 +125,11 @@ class _AuditorDashboardScreenState
         loading: () => const SkeletonList(),
         error: (e, _) => AppErrorView(
           error: e,
-          onRetry: () => ref.invalidate(salesByFieldProvider(
-            SalesFieldQuery(field: filter.field, value: filter.value),
-          )),
+          onRetry: () => ref.invalidate(
+            salesByFieldProvider(
+              SalesFieldQuery(field: filter.field, value: filter.value),
+            ),
+          ),
         ),
         data: (allSales) {
           // Filtrar por rango en memoria.
