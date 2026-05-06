@@ -172,6 +172,198 @@ class HoursMetrics {
 
 int _ordinal(DateTime d) => d.year * 10000 + d.month * 100 + d.day;
 
+/// Resumen del breakdown de clientes para el dashboard del admin.
+///
+/// Distingue entre **clientes nuevos** (cuyo primer compra es dentro
+/// del rango) y **clientes recurrentes** (que ya habían comprado
+/// antes del rango). Sirve para evaluar fidelización vs adquisición:
+/// si la mayoría son nuevos → enfocar marketing en retención; si son
+/// recurrentes → la base es leal y conviene captar nuevos.
+class ClientMetrics {
+  const ClientMetrics({
+    required this.totalClientsInRange,
+    required this.newClientsCount,
+    required this.recurrentClientsCount,
+    required this.newClientsRevenue,
+    required this.recurrentClientsRevenue,
+    required this.byClient,
+  });
+
+  final int totalClientsInRange;
+  final int newClientsCount;
+  final int recurrentClientsCount;
+  final num newClientsRevenue;
+  final num recurrentClientsRevenue;
+
+  /// Lista ordenada (DESC por revenue del rango) de cada cliente activo
+  /// en el rango con sus stats.
+  final List<ClientStat> byClient;
+
+  num get totalRevenue => newClientsRevenue + recurrentClientsRevenue;
+
+  /// Tasa de nuevos clientes — % del rango que son primera compra.
+  /// 0 si no hay clientes.
+  double get newClientRate {
+    if (totalClientsInRange == 0) return 0;
+    return newClientsCount / totalClientsInRange;
+  }
+
+  static ClientMetrics empty() => const ClientMetrics(
+        totalClientsInRange: 0,
+        newClientsCount: 0,
+        recurrentClientsCount: 0,
+        newClientsRevenue: 0,
+        recurrentClientsRevenue: 0,
+        byClient: [],
+      );
+
+  /// Computa el breakdown a partir de **todas** las ventas históricas
+  /// (no solo las del rango) para poder distinguir nuevos vs recurrentes.
+  factory ClientMetrics.compute(
+    List<Sale> allSales, {
+    required DateTime rangeStart,
+    required DateTime rangeEnd,
+  }) {
+    if (allSales.isEmpty) return ClientMetrics.empty();
+
+    // Por cada cliente: fecha de primera compra (histórica) + stats
+    // dentro del rango (revenue, count, primera y última en rango).
+    final firstEverByClient = <String, DateTime>{};
+    final inRangeStats = <String, _ClientRangeAccum>{};
+
+    for (final s in allSales) {
+      final name = s.providerName;
+      // Primera compra histórica (mantenemos el min).
+      firstEverByClient.update(
+        name,
+        (prev) => s.date.isBefore(prev) ? s.date : prev,
+        ifAbsent: () => s.date,
+      );
+
+      // Stats del rango.
+      if (!s.date.isBefore(rangeStart) && !s.date.isAfter(rangeEnd)) {
+        inRangeStats.update(
+          name,
+          (acc) => acc.add(s),
+          ifAbsent: () => _ClientRangeAccum(name: name).add(s),
+        );
+      }
+    }
+
+    if (inRangeStats.isEmpty) return ClientMetrics.empty();
+
+    var newCount = 0;
+    var recurrentCount = 0;
+    num newRevenue = 0;
+    num recurrentRevenue = 0;
+    final perClient = <ClientStat>[];
+
+    for (final entry in inRangeStats.entries) {
+      final name = entry.key;
+      final acc = entry.value;
+      final firstEver = firstEverByClient[name]!;
+      final isNew = !firstEver.isBefore(rangeStart);
+      if (isNew) {
+        newCount++;
+        newRevenue += acc.revenue;
+      } else {
+        recurrentCount++;
+        recurrentRevenue += acc.revenue;
+      }
+      perClient.add(ClientStat(
+        name: name,
+        salesCount: acc.count,
+        revenue: acc.revenue,
+        firstPurchaseEver: firstEver,
+        firstPurchaseInRange: acc.firstInRange!,
+        lastPurchaseInRange: acc.lastInRange!,
+        isNew: isNew,
+      ));
+    }
+    perClient.sort((a, b) => b.revenue.compareTo(a.revenue));
+
+    return ClientMetrics(
+      totalClientsInRange: inRangeStats.length,
+      newClientsCount: newCount,
+      recurrentClientsCount: recurrentCount,
+      newClientsRevenue: newRevenue,
+      recurrentClientsRevenue: recurrentRevenue,
+      byClient: perClient,
+    );
+  }
+}
+
+class ClientStat {
+  const ClientStat({
+    required this.name,
+    required this.salesCount,
+    required this.revenue,
+    required this.firstPurchaseEver,
+    required this.firstPurchaseInRange,
+    required this.lastPurchaseInRange,
+    required this.isNew,
+  });
+  final String name;
+  final int salesCount;
+  final num revenue;
+  final DateTime firstPurchaseEver;
+  final DateTime firstPurchaseInRange;
+  final DateTime lastPurchaseInRange;
+
+  /// `true` si la primera compra histórica del cliente cae DENTRO del
+  /// rango analizado. Si el rango es "este mes" y el cliente compró
+  /// por primera vez este mes, es nuevo. Si compró antes (cualquier
+  /// fecha previa al inicio del rango), es recurrente.
+  final bool isNew;
+}
+
+class _ClientRangeAccum {
+  _ClientRangeAccum({required this.name});
+  final String name;
+  num revenue = 0;
+  int count = 0;
+  DateTime? firstInRange;
+  DateTime? lastInRange;
+
+  _ClientRangeAccum add(Sale s) {
+    revenue += s.totalValue;
+    count++;
+    firstInRange = firstInRange == null || s.date.isBefore(firstInRange!)
+        ? s.date
+        : firstInRange;
+    lastInRange = lastInRange == null || s.date.isAfter(lastInRange!)
+        ? s.date
+        : lastInRange;
+    return this;
+  }
+}
+
+/// Stream de TODAS las ventas históricas. Se usa para el breakdown de
+/// clientes (necesita saber la fecha de primera compra de cada cliente,
+/// que puede ser anterior al rango filtrado). Para volúmenes típicos
+/// (<10K ventas) es liviano. Si crece mucho, conviene mover a una
+/// agregación server-side via Cloud Functions.
+final allSalesProvider = StreamProvider.autoDispose<List<Sale>>((ref) {
+  final repo = ref.watch(salesRepositoryProvider);
+  // Reuso watchByDateRange con un rango "amplio" para no tener que
+  // agregar otro método al repository — desde 2020 hasta mañana.
+  return repo.watchByDateRange(
+    DateTime(2020),
+    DateTime.now().add(const Duration(days: 1)),
+  );
+});
+
+/// Métricas de clientes memoizadas por rango.
+final clientMetricsProvider = Provider.family
+    .autoDispose<AsyncValue<ClientMetrics>, SalesDateRange>((ref, range) {
+  final all = ref.watch(allSalesProvider);
+  return all.whenData((list) => ClientMetrics.compute(
+        list,
+        rangeStart: range.start,
+        rangeEnd: range.end,
+      ),);
+});
+
 /// Métricas de ventas memoizadas. Riverpod las recalcula solo cuando
 /// `salesByRangeProvider` emite una lista nueva, no en cada `build()`
 /// de la pantalla.

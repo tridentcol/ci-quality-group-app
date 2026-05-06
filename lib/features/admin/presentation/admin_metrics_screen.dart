@@ -1,6 +1,7 @@
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../../core/theme/app_colors.dart';
@@ -116,9 +117,15 @@ class _SalesView extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final metricsAsync = ref.watch(
-      salesMetricsProvider(SalesDateRange(start: start, end: end)),
-    );
+    final range = SalesDateRange(start: start, end: end);
+    final metricsAsync = ref.watch(salesMetricsProvider(range));
+    // Publicar el rango actual para que la card de "Clientes" pueda
+    // leer su provider sin tener que pasarle el rango por constructor.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (ref.read(_currentRangeProvider) != range) {
+        ref.read(_currentRangeProvider.notifier).state = range;
+      }
+    });
     return metricsAsync.when(
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (e, _) => AppErrorView(error: e),
@@ -212,33 +219,17 @@ class _SalesSection extends StatelessWidget {
             ),
           ),
         const SizedBox(height: 16),
+        // Resumen de clientes (nuevos vs recurrentes). Tap → pantalla
+        // detallada con KPIs, lista, filtros.
+        _ClientsSummaryCard(rangeStart: rangeStart),
+        const SizedBox(height: 16),
         _DonutCard(
           title: 'Por método de pago',
           data: metrics.byMethod,
         ),
         const SizedBox(height: 16),
         if (metrics.byMaterial.isNotEmpty)
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Por material', style: theme.textTheme.titleMedium),
-                  const SizedBox(height: 16),
-                  ..._sortedEntries(metrics.byMaterial).map(
-                    (e) => _BarRow(
-                      label: e.key,
-                      value: e.value,
-                      max: metrics.byMaterial.values
-                          .reduce((a, b) => a > b ? a : b),
-                      formatter: formatCop,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
+          _MaterialsSummaryCard(metrics: metrics),
         if (metrics.topPayers.isNotEmpty) ...[
           const SizedBox(height: 16),
           Card(
@@ -647,3 +638,298 @@ class _HoursSection extends StatelessWidget {
     );
   }
 }
+
+/// Card resumen de clientes en el dashboard del admin. Lee del
+/// `clientMetricsProvider` para mostrar nuevos vs recurrentes en el
+/// rango actual. Tap en cualquier parte → abre el breakdown detallado.
+class _ClientsSummaryCard extends ConsumerWidget {
+  const _ClientsSummaryCard({required this.rangeStart});
+  final DateTime rangeStart;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    // Ojo: el rango lo manejan los _SalesView/_HoursView. Aquí
+    // necesitamos los stats actuales — los recibimos vía un selector
+    // del provider que sabemos que ya está cargado para esta fecha.
+    // Como el tab activo en _SalesView ya hizo `salesByRangeProvider`,
+    // re-watcheamos `allSalesProvider` que es independiente.
+    final state = ref.watch(_clientsCardStateProvider);
+
+    return state.when(
+      loading: () => Card(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Center(
+            child: SizedBox(
+              width: 24,
+              height: 24,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: theme.colorScheme.primary,
+              ),
+            ),
+          ),
+        ),
+      ),
+      error: (e, _) => Card(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Text('Error cargando clientes: $e',
+              style: theme.textTheme.bodySmall),
+        ),
+      ),
+      data: (metrics) {
+        if (metrics.totalClientsInRange == 0) {
+          return Card(
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Center(
+                child: Text('Sin clientes activos en el rango.',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: theme.colorScheme.onSurface
+                          .withValues(alpha: 0.6),
+                    ),),
+              ),
+            ),
+          );
+        }
+        final newRate = (metrics.newClientRate * 100).toStringAsFixed(0);
+        return Card(
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: () => context.push('/admin/metrics/clients'),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'Clientes',
+                          style: theme.textTheme.titleMedium,
+                        ),
+                      ),
+                      Icon(
+                        Icons.chevron_right,
+                        color: theme.colorScheme.onSurface
+                            .withValues(alpha: 0.5),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      _ClientsSplitTile(
+                        count: metrics.recurrentClientsCount,
+                        revenue: metrics.recurrentClientsRevenue,
+                        label: 'Recurrentes',
+                        color: theme.colorScheme.primary,
+                      ),
+                      const SizedBox(width: 12),
+                      _ClientsSplitTile(
+                        count: metrics.newClientsCount,
+                        revenue: metrics.newClientsRevenue,
+                        label: 'Nuevos',
+                        color: theme.colorScheme.secondary,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(999),
+                    child: Row(
+                      children: [
+                        if (metrics.recurrentClientsCount > 0)
+                          Expanded(
+                            flex: metrics.recurrentClientsCount,
+                            child: Container(
+                              height: 8,
+                              color: theme.colorScheme.primary,
+                            ),
+                          ),
+                        if (metrics.newClientsCount > 0)
+                          Expanded(
+                            flex: metrics.newClientsCount,
+                            child: Container(
+                              height: 8,
+                              color: theme.colorScheme.secondary,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    '$newRate% de los clientes activos del rango son nuevos. '
+                    'Toca para ver el detalle.',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurface
+                          .withValues(alpha: 0.7),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _ClientsSplitTile extends StatelessWidget {
+  const _ClientsSplitTile({
+    required this.count,
+    required this.revenue,
+    required this.label,
+    required this.color,
+  });
+  final int count;
+  final num revenue;
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.10),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 8,
+                  height: 8,
+                  decoration: BoxDecoration(
+                    color: color,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  label,
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    color: theme.colorScheme.onSurface
+                        .withValues(alpha: 0.75),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Text(
+              '$count',
+              style: theme.textTheme.headlineSmall?.copyWith(
+                fontWeight: FontWeight.w700,
+                color: color,
+                height: 1.1,
+              ),
+            ),
+            Text(
+              formatCop(revenue),
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.65),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Card resumen del breakdown por material (con tap-to-expand). Misma
+/// estructura visual que la previa pero con InkWell para abrir el
+/// detalle. Mantiene la lista corta acá; el detalle muestra todo.
+class _MaterialsSummaryCard extends StatelessWidget {
+  const _MaterialsSummaryCard({required this.metrics});
+  final SalesMetrics metrics;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final entries = _sortedEntries(metrics.byMaterial);
+    final maxValue =
+        metrics.byMaterial.values.reduce((a, b) => a > b ? a : b);
+    final preview = entries.take(4).toList();
+    final hasMore = entries.length > preview.length;
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: () => context.push('/admin/metrics/materials'),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child:
+                        Text('Por material', style: theme.textTheme.titleMedium),
+                  ),
+                  Icon(
+                    Icons.chevron_right,
+                    color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              ...preview.map(
+                (e) => _BarRow(
+                  label: e.key,
+                  value: e.value,
+                  max: maxValue,
+                  formatter: formatCop,
+                ),
+              ),
+              if (hasMore)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Text(
+                    '… y ${entries.length - preview.length} material'
+                    '${entries.length - preview.length == 1 ? '' : 'es'} '
+                    'más. Toca para ver todo.',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurface
+                          .withValues(alpha: 0.7),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Provider local que envuelve `clientMetricsProvider` con el rango
+/// que está mostrando _SalesView. Como _ClientsSummaryCard NO tiene
+/// acceso directo al state de _SalesView, leemos el último rango
+/// publicado vía `_currentRangeProvider`.
+final _currentRangeProvider =
+    StateProvider<SalesDateRange?>((ref) => null);
+
+final _clientsCardStateProvider =
+    Provider.autoDispose<AsyncValue<ClientMetrics>>((ref) {
+  final range = ref.watch(_currentRangeProvider);
+  if (range == null) return const AsyncValue.data(ClientMetrics(
+    totalClientsInRange: 0,
+    newClientsCount: 0,
+    recurrentClientsCount: 0,
+    newClientsRevenue: 0,
+    recurrentClientsRevenue: 0,
+    byClient: [],
+  ));
+  return ref.watch(clientMetricsProvider(range));
+});

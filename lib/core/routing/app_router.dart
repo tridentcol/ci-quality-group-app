@@ -4,6 +4,8 @@ import 'package:go_router/go_router.dart';
 
 import '../../features/admin/presentation/admin_metrics_screen.dart';
 import '../../features/admin/presentation/admin_shell.dart';
+import '../../features/admin/presentation/clients_breakdown_screen.dart';
+import '../../features/admin/presentation/materials_breakdown_screen.dart';
 import '../../features/auditor/presentation/auditor_dashboard_screen.dart';
 import '../../features/admin/presentation/duplicate_review_screen.dart';
 import '../../features/admin/presentation/master_list_detail_screen.dart';
@@ -120,6 +122,16 @@ final routerProvider = Provider<GoRouter>((ref) {
             // pero el drawer (con todos los módulos) lo dejó redundante.
             builder: (_, __) => const AdminMetricsScreen(),
             routes: [
+              // Breakdowns detallados — accesibles desde tap en las cards
+              // del dashboard de métricas, no aparecen en el menú lateral.
+              GoRoute(
+                path: 'metrics/clients',
+                builder: (_, __) => const ClientsBreakdownScreen(),
+              ),
+              GoRoute(
+                path: 'metrics/materials',
+                builder: (_, __) => const MaterialsBreakdownScreen(),
+              ),
               GoRoute(
                 path: 'master-lists',
                 builder: (_, __) => const MasterListsScreen(),
