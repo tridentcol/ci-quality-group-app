@@ -8,7 +8,6 @@ import '../../../shared/widgets/empty_state.dart';
 import '../../../shared/widgets/error_view.dart';
 import '../../../shared/widgets/skeleton.dart';
 import '../../../shared/widgets/theme_mode_toggle.dart';
-import '../../updater/presentation/update_banner.dart';
 import '../../auth/data/auth_repository.dart';
 import '../../workers/data/workers_repository.dart';
 import '../../workers/domain/worker.dart';
@@ -46,7 +45,6 @@ class _HoursHomeScreenState extends ConsumerState<HoursHomeScreen> {
       ),
       body: Column(
         children: [
-          const UpdateBanner(),
           _TodayHeader(
             entries: today.valueOrNull ?? const {},
             workers: workers.valueOrNull ?? const [],

@@ -10,7 +10,6 @@ import '../../../shared/widgets/error_view.dart';
 import '../../../shared/widgets/hero_banner.dart';
 import '../../../shared/widgets/skeleton.dart';
 import '../../../shared/widgets/theme_mode_toggle.dart';
-import '../../updater/presentation/update_banner.dart';
 import '../../auth/data/auth_repository.dart';
 import '../data/sales_repository.dart';
 import '../domain/sale.dart';
@@ -46,13 +45,9 @@ class SalesHomeScreen extends ConsumerWidget {
         icon: const Icon(Icons.add),
         label: const Text('Nueva venta'),
       ),
-      body: Column(
-        children: [
-          const UpdateBanner(),
-          Expanded(
-            child: RefreshIndicator(
-              onRefresh: () async => ref.invalidate(recentSalesProvider),
-              child: salesAsync.when(
+      body: RefreshIndicator(
+        onRefresh: () async => ref.invalidate(recentSalesProvider),
+        child: salesAsync.when(
           loading: () => const SkeletonList(),
           error: (e, _) => AppErrorView(
             error: e,
@@ -111,9 +106,6 @@ class SalesHomeScreen extends ConsumerWidget {
             );
           },
         ),
-      ),
-          ),
-        ],
       ),
     );
   }

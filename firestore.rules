@@ -124,13 +124,5 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
-    // ---------- App metadata (in-app updater) ----------
-    // Doc `app_metadata/release` con la última versión publicada.
-    // Cualquier autenticado lo lee al arrancar para chequear updates.
-    // Solo admin lo actualiza (al subir nuevo APK a Firebase Storage).
-    match /app_metadata/{docId} {
-      allow read: if isSignedIn();
-      allow write: if isAdmin();
-    }
   }
 }

@@ -27,7 +27,6 @@ import '../../features/sales/presentation/sale_detail_screen.dart';
 import '../../features/sales/presentation/sale_form_screen.dart';
 import '../../features/sales/presentation/sales_home_screen.dart';
 import '../../features/sales/presentation/sales_list_screen.dart';
-import '../../features/updater/presentation/update_screen.dart';
 import '../../features/workers/data/workers_repository.dart';
 import '../../features/workers/presentation/worker_form_screen.dart';
 import '../../features/workers/presentation/workers_screen.dart';
@@ -95,9 +94,6 @@ final routerProvider = Provider<GoRouter>((ref) {
     routes: [
       GoRoute(path: '/', builder: (_, __) => const _SplashScreen()),
       GoRoute(path: '/login', builder: (_, __) => const LoginScreen()),
-      // Pantalla del in-app updater. Se abre desde el banner que aparece
-      // en cada home cuando hay un APK más nuevo publicado.
-      GoRoute(path: '/update', builder: (_, __) => const UpdateScreen()),
       // Dashboard exclusivo para auditores (socios/inversores). Solo
       // ven las ventas que matchean su `auditFilter`.
       GoRoute(

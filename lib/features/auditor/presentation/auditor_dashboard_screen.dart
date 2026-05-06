@@ -18,7 +18,6 @@ import '../../auth/data/auth_repository.dart';
 import '../../auth/domain/app_user.dart';
 import '../../sales/data/sales_repository.dart';
 import '../../sales/domain/sale.dart';
-import '../../updater/presentation/update_banner.dart';
 
 /// Dashboard exclusivo para usuarios con rol `auditor`. Muestra solo
 /// las ventas que matchean el `auditFilter` configurado por el admin
@@ -144,13 +143,9 @@ class _AuditorDashboardScreenState
           final daily = _dailyTotals(inRange, _start, _end);
           final allTimeBest = _bestDayAllTime(allSales);
 
-          return Column(
+          return ListView(
+            padding: const EdgeInsets.fromLTRB(0, 0, 0, 32),
             children: [
-              const UpdateBanner(),
-              Expanded(
-                child: ListView(
-                  padding: const EdgeInsets.fromLTRB(0, 0, 0, 32),
-                  children: [
                     HeroBanner(
                       title: '${filter.fieldLabel}: ${filter.value} · '
                           '${formatDate(_start)} – ${formatDate(_end)}',
@@ -245,10 +240,7 @@ class _AuditorDashboardScreenState
                         ),
                       ),
                   ],
-                ),
-              ),
-            ],
-          );
+                );
         },
       ),
     );

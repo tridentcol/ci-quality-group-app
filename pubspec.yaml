@@ -45,11 +45,6 @@ dependencies:
   # Persistencia local (preferencia de tema)
   shared_preferences: ^2.3.0
 
-  # In-app updater (descarga de APK + abrir el instalador del sistema)
-  package_info_plus: ^8.0.0
-  dio: ^5.7.0
-  open_filex: ^4.5.0
-
 dev_dependencies:
   flutter_test:
     sdk: flutter
