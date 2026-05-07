@@ -319,15 +319,17 @@ class _DailyTrendCard extends StatelessWidget {
     final maxY =
         daily.map((d) => d.total).fold<num>(0, (a, b) => a > b ? a : b);
     final niceMaxY = maxY == 0 ? 1.0 : maxY * 1.15;
-    // Format más corto para no aplastar el eje X cuando hay muchos días.
-    // Para >14 días usamos solo "d/M" (ej. "5/5"); menos días sí aguanta
-    // "d MMM" (ej. "5 may").
+    // Para >14 días usamos solo "d/M" (ej. "5/5"); menos días sí
+    // aguanta "d MMM" (ej. "5 may").
     final useShortFmt = daily.length > 14;
     final dayFmt = DateFormat(useShortFmt ? 'd/M' : 'd MMM', 'es_CO');
-    // Interval: en pantallas mobile (~360-400px de chart útil) caben
-    // ~5-6 labels cómodamente. Para 31 días, label cada 7. Para
-    // 7 días, cada 1. Para 30 días, cada 6.
-    final labelInterval = (daily.length / 5).ceil().clamp(1, 30).toDouble();
+    // Cantidad máxima de labels visibles. Para rangos largos rotamos
+    // las etiquetas (ver `SideTitleWidget(angle: -0.6)`), lo que las
+    // hace más angostas y permite ~7 sin solapar. Para rangos cortos
+    // (<=14 días) sin rotar, ~5 etiquetas horizontales son cómodas.
+    final targetLabels = useShortFmt ? 7 : 5;
+    final labelInterval =
+        (daily.length / targetLabels).ceil().clamp(1, 30).toDouble();
 
     return Card(
       child: Padding(
@@ -367,19 +369,32 @@ class _DailyTrendCard extends StatelessWidget {
                     bottomTitles: AxisTitles(
                       sideTitles: SideTitles(
                         showTitles: true,
-                        reservedSize: 28,
+                        // Rangos >14 días: rotamos las labels para
+                        // que no se solapen — eso requiere más alto
+                        // reservado. Rangos cortos quedan horizontales.
+                        reservedSize: useShortFmt ? 56 : 28,
                         interval: labelInterval,
-                        getTitlesWidget: (v, _) {
+                        getTitlesWidget: (v, meta) {
                           final i = v.toInt();
                           if (i < 0 || i >= daily.length) {
                             return const SizedBox.shrink();
                           }
-                          return Padding(
-                            padding: const EdgeInsets.only(top: 6),
-                            child: Text(
-                              dayFmt.format(daily[i].day),
-                              style: theme.textTheme.labelSmall,
-                            ),
+                          final text = dayFmt.format(daily[i].day);
+                          final style = theme.textTheme.labelSmall;
+                          if (!useShortFmt) {
+                            return SideTitleWidget(
+                              meta: meta,
+                              space: 6,
+                              child: Text(text, style: style),
+                            );
+                          }
+                          return SideTitleWidget(
+                            meta: meta,
+                            space: 8,
+                            // ~ -34° en radianes — legible sin
+                            // robar mucho ancho.
+                            angle: -0.6,
+                            child: Text(text, style: style),
                           );
                         },
                       ),

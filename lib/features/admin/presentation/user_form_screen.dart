@@ -143,6 +143,7 @@ class _UserFormScreenState extends ConsumerState<UserFormScreen> {
         'providerName' => 'providers',
         'payerName' => 'payers',
         'paymentMethod' => 'payment_methods',
+        'transferDestination' => 'transfer_destinations',
         _ => 'providers',
       };
 
@@ -152,6 +153,7 @@ class _UserFormScreenState extends ConsumerState<UserFormScreen> {
         'providerName' => 'Cliente',
         'payerName' => 'Quién recibe',
         'paymentMethod' => 'Método de pago',
+        'transferDestination' => 'Destino transferencia',
         _ => field,
       };
 
@@ -357,6 +359,7 @@ class _AuditorFilterCard extends StatelessWidget {
     'providerName',
     'payerName',
     'paymentMethod',
+    'transferDestination',
   ];
 
   @override

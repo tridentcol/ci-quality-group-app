@@ -24,6 +24,7 @@ class AuditFilter {
         'providerName' => 'Cliente',
         'payerName' => 'Quién recibe',
         'paymentMethod' => 'Método de pago',
+        'transferDestination' => 'Destino transferencia',
         _ => field,
       };
 

@@ -37,6 +37,9 @@ class SalesRepository {
     required num quantity,
     required num unitPrice,
     required String paymentMethod,
+    num? cashAmount,
+    num? transferAmount,
+    String? transferDestination,
     required String payerName,
     required String createdBy,
     required String createdByName,
@@ -66,6 +69,9 @@ class SalesRepository {
         unitPrice: unitPrice,
         totalValue: totalValue,
         paymentMethod: paymentMethod,
+        cashAmount: cashAmount,
+        transferAmount: transferAmount,
+        transferDestination: transferDestination,
         payerName: payerName,
         createdBy: createdBy,
         createdByName: createdByName,
@@ -92,6 +98,16 @@ class SalesRepository {
     num? quantity,
     num? unitPrice,
     String? paymentMethod,
+    // Para los campos de pago dividido pasamos `setNullable*: true`
+    // cuando explícitamente queremos limpiar el valor (ej. cambiar
+    // de Mixto a Solo Efectivo borra el `transferDestination`).
+    // Si queda en false, no tocamos el campo en el patch.
+    num? cashAmount,
+    bool clearCashAmount = false,
+    num? transferAmount,
+    bool clearTransferAmount = false,
+    String? transferDestination,
+    bool clearTransferDestination = false,
     String? payerName,
     Map<String, dynamic>? customFields,
   }) async {
@@ -106,6 +122,13 @@ class SalesRepository {
       if (quantity != null) 'quantity': quantity,
       if (unitPrice != null) 'unitPrice': unitPrice,
       if (paymentMethod != null) 'paymentMethod': paymentMethod,
+      if (clearCashAmount) 'cashAmount': null
+      else if (cashAmount != null) 'cashAmount': cashAmount,
+      if (clearTransferAmount) 'transferAmount': null
+      else if (transferAmount != null) 'transferAmount': transferAmount,
+      if (clearTransferDestination) 'transferDestination': null
+      else if (transferDestination != null)
+        'transferDestination': transferDestination,
       if (payerName != null) 'payerName': payerName,
       if (customFields != null) 'customFields': customFields,
       'updatedAt': Timestamp.fromDate(AppClock.toInstant(AppClock.now())),

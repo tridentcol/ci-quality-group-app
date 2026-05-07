@@ -25,6 +25,7 @@ const Map<String, String> _saleFieldByListId = {
   'lamina_brands': 'materialVariant',
   'units': 'unit',
   'payment_methods': 'paymentMethod',
+  'transfer_destinations': 'transferDestination',
 };
 
 bool listSupportsMerge(String listId) =>
@@ -299,7 +300,22 @@ List<Map<String, dynamic>> _defaultListsSeed() => [
         'name': 'Métodos de pago',
         'allowFreeText': false,
         'description': 'Cómo se recibe el pago. No se permite captura libre.',
-        'items': <String>['Efectivo', 'Transferencia'],
+        'items': <String>['Efectivo', 'Transferencia', 'Mixto'],
+      },
+      {
+        'id': 'transfer_destinations',
+        'name': 'Destinos de transferencia',
+        'allowFreeText': true,
+        'description':
+            'Bancos / billeteras receptoras cuando el pago es por '
+                'transferencia (total o parcial). El admin puede agregar '
+                'destinos nuevos sin tocar código.',
+        'items': <String>[
+          'Bancolombia',
+          'Nequi',
+          'Daviplata',
+          'Bancolombia Ahorro a la Mano',
+        ],
       },
       {
         'id': 'units',

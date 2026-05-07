@@ -23,7 +23,41 @@ import '../data/sales_repository.dart';
 import '../domain/sale.dart';
 
 const _defaultUnit = 'Kilogramos';
-const _defaultPaymentMethod = 'Efectivo';
+
+/// Modo de pago. Lo escogemos al renderizar el formulario y derivamos
+/// `paymentMethod` (string que se persiste) de aquí al guardar.
+enum _PaymentMode {
+  /// 100% en efectivo. paymentMethod = 'Efectivo'.
+  cash,
+
+  /// 100% por transferencia (Bancolombia, Nequi, etc.).
+  /// paymentMethod = 'Transferencia'.
+  transfer,
+
+  /// Una parte en efectivo y otra por transferencia.
+  /// paymentMethod = 'Mixto'.
+  mixed,
+}
+
+extension _PaymentModeExt on _PaymentMode {
+  String get label {
+    return switch (this) {
+      _PaymentMode.cash => 'Efectivo',
+      _PaymentMode.transfer => 'Transferencia',
+      _PaymentMode.mixed => 'Mixto',
+    };
+  }
+
+  /// String que se persiste en `paymentMethod` y respeta los valores
+  /// históricos ('Efectivo', 'Transferencia', 'Mixto').
+  String get paymentMethodValue {
+    return switch (this) {
+      _PaymentMode.cash => 'Efectivo',
+      _PaymentMode.transfer => 'Transferencia',
+      _PaymentMode.mixed => 'Mixto',
+    };
+  }
+}
 
 /// Pantalla para crear una nueva venta o editar una existente (si está
 /// dentro de la ventana de 24 h o el usuario es admin).
@@ -41,6 +75,10 @@ class _SaleFormScreenState extends ConsumerState<SaleFormScreen> {
   final _docNumberCtrl = TextEditingController();
   final _quantityCtrl = TextEditingController();
   final _unitPriceCtrl = TextEditingController();
+  // Inputs solo para el modo de pago Mixto. En Efectivo/Transferencia
+  // se calcula automáticamente (todo o nada al respectivo bucket).
+  final _cashAmountCtrl = TextEditingController();
+  final _transferAmountCtrl = TextEditingController();
 
   DateTime _date = AppClock.now();
   String _documentType = 'Cédula';
@@ -48,7 +86,8 @@ class _SaleFormScreenState extends ConsumerState<SaleFormScreen> {
   String? _material;
   String? _materialVariant;
   String _unit = _defaultUnit;
-  String _paymentMethod = _defaultPaymentMethod;
+  _PaymentMode _paymentMode = _PaymentMode.cash;
+  String? _transferDestination;
   String? _payer;
 
   bool _saving = false;
@@ -75,7 +114,16 @@ class _SaleFormScreenState extends ConsumerState<SaleFormScreen> {
       _unit = s.unit;
       _quantityCtrl.text = s.quantity.toString();
       _unitPriceCtrl.text = s.unitPrice.toString();
-      _paymentMethod = s.paymentMethod;
+      // Reconstruimos el modo de pago a partir de los campos guardados.
+      // Ventas viejas (sin cashAmount/transferAmount) caen al método
+      // string ('Efectivo' o 'Transferencia') y prellenamos el destino
+      // si la venta era transferencia con destino conocido.
+      _paymentMode = _inferPaymentMode(s);
+      _transferDestination = s.transferDestination;
+      if (_paymentMode == _PaymentMode.mixed) {
+        _cashAmountCtrl.text = (s.cashAmount ?? 0).toString();
+        _transferAmountCtrl.text = (s.transferAmount ?? 0).toString();
+      }
       _payer = s.payerName;
     }
     _customFieldsController =
@@ -90,8 +138,28 @@ class _SaleFormScreenState extends ConsumerState<SaleFormScreen> {
     _docNumberCtrl.dispose();
     _quantityCtrl.dispose();
     _unitPriceCtrl.dispose();
+    _cashAmountCtrl.dispose();
+    _transferAmountCtrl.dispose();
     _customFieldsController.dispose();
     super.dispose();
+  }
+
+  /// Mapea una venta existente (que puede tener el modelo viejo o el
+  /// nuevo) al modo de pago actual del form. Prioridad:
+  ///   1. Si tiene cashAmount Y transferAmount con ambos > 0 → mixed
+  ///   2. Si paymentMethod == 'Mixto' (compat por si se guardó sin
+  ///      desglose) → mixed
+  ///   3. Si paymentMethod == 'Transferencia' → transfer
+  ///   4. Cualquier otra cosa (Efectivo) → cash
+  _PaymentMode _inferPaymentMode(Sale s) {
+    final cash = s.cashAmount ?? 0;
+    final transfer = s.transferAmount ?? 0;
+    if (cash > 0 && transfer > 0) return _PaymentMode.mixed;
+    if (s.paymentMethod.toLowerCase() == 'mixto') return _PaymentMode.mixed;
+    if (s.paymentMethod.toLowerCase() == 'transferencia') {
+      return _PaymentMode.transfer;
+    }
+    return _PaymentMode.cash;
   }
 
   Future<void> _pickDate() async {
@@ -150,6 +218,56 @@ class _SaleFormScreenState extends ConsumerState<SaleFormScreen> {
 
     final quantity = num.parse(_quantityCtrl.text.replaceAll(',', '.'));
     final unitPrice = num.parse(_unitPriceCtrl.text.replaceAll(',', '.'));
+    final totalValue = quantity * unitPrice;
+
+    // Calcula los montos cash/transfer según el modo. En Mixto los
+    // valores los digita el usuario y se valida que sumen el total
+    // (con tolerancia de 1 peso para evitar problemas de redondeo).
+    num? cashAmount;
+    num? transferAmount;
+    String? transferDestination;
+
+    switch (_paymentMode) {
+      case _PaymentMode.cash:
+        cashAmount = totalValue;
+        transferAmount = null;
+        transferDestination = null;
+      case _PaymentMode.transfer:
+        cashAmount = null;
+        transferAmount = totalValue;
+        transferDestination = _transferDestination;
+        if (transferDestination == null || transferDestination.isEmpty) {
+          setState(() => _formError =
+              'Selecciona el destino de la transferencia.');
+          return;
+        }
+      case _PaymentMode.mixed:
+        final cashStr = _cashAmountCtrl.text.replaceAll(',', '.').trim();
+        final transferStr =
+            _transferAmountCtrl.text.replaceAll(',', '.').trim();
+        final cash = num.tryParse(cashStr);
+        final transfer = num.tryParse(transferStr);
+        if (cash == null || transfer == null || cash < 0 || transfer < 0) {
+          setState(() => _formError =
+              'Ingresa los montos en efectivo y por transferencia.');
+          return;
+        }
+        if ((cash + transfer - totalValue).abs() > 1) {
+          setState(() => _formError =
+              'La suma de efectivo (${formatCop(cash)}) más '
+              'transferencia (${formatCop(transfer)}) debe ser igual al '
+              'total (${formatCop(totalValue)}).');
+          return;
+        }
+        cashAmount = cash;
+        transferAmount = transfer;
+        transferDestination = _transferDestination;
+        if (transferDestination == null || transferDestination.isEmpty) {
+          setState(() => _formError =
+              'Selecciona el destino de la transferencia.');
+          return;
+        }
+    }
 
     setState(() => _saving = true);
     try {
@@ -188,7 +306,13 @@ class _SaleFormScreenState extends ConsumerState<SaleFormScreen> {
               unit: _unit,
               quantity: quantity,
               unitPrice: unitPrice,
-              paymentMethod: _paymentMethod,
+              paymentMethod: _paymentMode.paymentMethodValue,
+              cashAmount: cashAmount,
+              clearCashAmount: cashAmount == null,
+              transferAmount: transferAmount,
+              clearTransferAmount: transferAmount == null,
+              transferDestination: transferDestination,
+              clearTransferDestination: transferDestination == null,
               payerName: _payer!,
               customFields: customFields,
             );
@@ -209,7 +333,10 @@ class _SaleFormScreenState extends ConsumerState<SaleFormScreen> {
               unit: _unit,
               quantity: quantity,
               unitPrice: unitPrice,
-              paymentMethod: _paymentMethod,
+              paymentMethod: _paymentMode.paymentMethodValue,
+              cashAmount: cashAmount,
+              transferAmount: transferAmount,
+              transferDestination: transferDestination,
               payerName: _payer!,
               createdBy: profile.uid,
               createdByName: profile.fullName,
@@ -425,14 +552,33 @@ class _SaleFormScreenState extends ConsumerState<SaleFormScreen> {
           unitPriceCtrl: _unitPriceCtrl,
         );
       case 'paymentMethod':
-        return MasterListField(
-          listId: f.masterListId ?? 'payment_methods',
+        return _PaymentSection(
           label: f.label,
-          initialValue: _paymentMethod,
-          required: f.required,
-          allowSuggestions: false,
-          onChanged: (v) =>
-              setState(() => _paymentMethod = v ?? _defaultPaymentMethod),
+          mode: _paymentMode,
+          transferDestination: _transferDestination,
+          cashAmountCtrl: _cashAmountCtrl,
+          transferAmountCtrl: _transferAmountCtrl,
+          quantityCtrl: _quantityCtrl,
+          unitPriceCtrl: _unitPriceCtrl,
+          onModeChanged: (v) {
+            setState(() {
+              _paymentMode = v;
+              // Al cambiar a Solo efectivo limpiamos los campos de
+              // transferencia. Al cambiar a Solo transferencia
+              // limpiamos los inputs de mixto. En Mixto dejamos
+              // todo lo que el usuario ya tipeó.
+              if (v == _PaymentMode.cash) {
+                _transferDestination = null;
+                _cashAmountCtrl.clear();
+                _transferAmountCtrl.clear();
+              } else if (v == _PaymentMode.transfer) {
+                _cashAmountCtrl.clear();
+                _transferAmountCtrl.clear();
+              }
+            });
+          },
+          onDestinationChanged: (v) =>
+              setState(() => _transferDestination = v),
         );
       case 'payerName':
         return MasterListField(
@@ -575,6 +721,219 @@ class _ConsecutiveBadge extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Sección de pago — reemplaza el simple dropdown de método de pago
+/// con un selector de modo (Efectivo / Transferencia / Mixto), sus
+/// inputs específicos según el modo elegido, y el dropdown de destino
+/// de transferencia (lista maestra `transfer_destinations`) cuando
+/// aplica.
+class _PaymentSection extends StatelessWidget {
+  const _PaymentSection({
+    required this.label,
+    required this.mode,
+    required this.transferDestination,
+    required this.cashAmountCtrl,
+    required this.transferAmountCtrl,
+    required this.quantityCtrl,
+    required this.unitPriceCtrl,
+    required this.onModeChanged,
+    required this.onDestinationChanged,
+  });
+
+  final String label;
+  final _PaymentMode mode;
+  final String? transferDestination;
+  final TextEditingController cashAmountCtrl;
+  final TextEditingController transferAmountCtrl;
+  // Para mostrar el total esperado y la diferencia en modo Mixto.
+  final TextEditingController quantityCtrl;
+  final TextEditingController unitPriceCtrl;
+  final ValueChanged<_PaymentMode> onModeChanged;
+  final ValueChanged<String?> onDestinationChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: theme.textTheme.labelLarge?.copyWith(
+            color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+          ),
+        ),
+        const SizedBox(height: 8),
+        SizedBox(
+          width: double.infinity,
+          child: SegmentedButton<_PaymentMode>(
+            segments: const [
+              ButtonSegment(
+                value: _PaymentMode.cash,
+                label: Text('Efectivo'),
+                icon: Icon(Icons.payments_outlined),
+              ),
+              ButtonSegment(
+                value: _PaymentMode.transfer,
+                label: Text('Transferencia'),
+                icon: Icon(Icons.account_balance_outlined),
+              ),
+              ButtonSegment(
+                value: _PaymentMode.mixed,
+                label: Text('Mixto'),
+                icon: Icon(Icons.call_split_outlined),
+              ),
+            ],
+            selected: {mode},
+            onSelectionChanged: (s) => onModeChanged(s.first),
+          ),
+        ),
+        if (mode == _PaymentMode.transfer) ...[
+          const SizedBox(height: 12),
+          MasterListField(
+            listId: 'transfer_destinations',
+            label: 'Destino de transferencia',
+            initialValue: transferDestination,
+            required: true,
+            onChanged: onDestinationChanged,
+            helperText: 'Bancolombia, Nequi, Daviplata, etc. Si no existe, '
+                'escríbelo y queda como sugerencia.',
+          ),
+        ],
+        if (mode == _PaymentMode.mixed) ...[
+          const SizedBox(height: 12),
+          _MixedAmountsRow(
+            cashAmountCtrl: cashAmountCtrl,
+            transferAmountCtrl: transferAmountCtrl,
+            quantityCtrl: quantityCtrl,
+            unitPriceCtrl: unitPriceCtrl,
+          ),
+          const SizedBox(height: 12),
+          MasterListField(
+            listId: 'transfer_destinations',
+            label: 'Destino de transferencia',
+            initialValue: transferDestination,
+            required: true,
+            onChanged: onDestinationChanged,
+            helperText: 'Bancolombia, Nequi, Daviplata, etc. Si no existe, '
+                'escríbelo y queda como sugerencia.',
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+/// Inputs de monto en efectivo + monto por transferencia para el modo
+/// Mixto. Muestra debajo el total esperado y la diferencia con un
+/// color que cambia según si la suma cuadra (verde) o no (naranja).
+class _MixedAmountsRow extends StatelessWidget {
+  const _MixedAmountsRow({
+    required this.cashAmountCtrl,
+    required this.transferAmountCtrl,
+    required this.quantityCtrl,
+    required this.unitPriceCtrl,
+  });
+
+  final TextEditingController cashAmountCtrl;
+  final TextEditingController transferAmountCtrl;
+  final TextEditingController quantityCtrl;
+  final TextEditingController unitPriceCtrl;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return ListenableBuilder(
+      listenable: Listenable.merge([
+        cashAmountCtrl,
+        transferAmountCtrl,
+        quantityCtrl,
+        unitPriceCtrl,
+      ]),
+      builder: (context, _) {
+        final q = num.tryParse(quantityCtrl.text.replaceAll(',', '.'));
+        final p = num.tryParse(unitPriceCtrl.text.replaceAll(',', '.'));
+        final total = (q != null && p != null) ? q * p : null;
+        final cash = num.tryParse(cashAmountCtrl.text.replaceAll(',', '.'));
+        final transfer =
+            num.tryParse(transferAmountCtrl.text.replaceAll(',', '.'));
+        num? diff;
+        if (total != null && cash != null && transfer != null) {
+          diff = total - cash - transfer;
+        }
+        final ok = diff != null && diff.abs() <= 1;
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: TextFormField(
+                    controller: cashAmountCtrl,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    inputFormatters: [
+                      FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
+                    ],
+                    decoration: const InputDecoration(
+                      labelText: 'Efectivo',
+                      prefixText: r'$ ',
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: TextFormField(
+                    controller: transferAmountCtrl,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    inputFormatters: [
+                      FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
+                    ],
+                    decoration: const InputDecoration(
+                      labelText: 'Transferencia',
+                      prefixText: r'$ ',
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            // Hint con el total esperado y diferencia. Verde si cuadra,
+            // ámbar si no, gris si todavía no hay total.
+            Builder(builder: (_) {
+              if (total == null) {
+                return Text(
+                  'Ingresa cantidad y valor unitario para validar la suma.',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                  ),
+                );
+              }
+              final color = ok
+                  ? theme.colorScheme.primary
+                  : theme.colorScheme.tertiary;
+              final diffText = diff == null
+                  ? ''
+                  : (ok
+                      ? '✓ Suma cuadra'
+                      : (diff > 0
+                          ? '· Falta ${formatCop(diff)}'
+                          : '· Sobra ${formatCop(-diff)}'));
+              return Text(
+                'Total: ${formatCop(total)} $diffText',
+                style: theme.textTheme.bodySmall?.copyWith(color: color),
+              );
+            },),
+          ],
+        );
+      },
     );
   }
 }

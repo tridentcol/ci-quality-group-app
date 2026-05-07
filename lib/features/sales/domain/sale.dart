@@ -28,6 +28,9 @@ class Sale {
     required this.createdAt,
     this.updatedAt,
     this.editableUntil,
+    this.cashAmount,
+    this.transferAmount,
+    this.transferDestination,
     this.customFields = const {},
   });
 
@@ -56,8 +59,26 @@ class Sale {
   final num unitPrice;
   final num totalValue;
 
-  /// `Efectivo` o `Transferencia` (gestionado por lista maestra).
+  /// Resumen del método de pago: `Efectivo`, `Transferencia` o `Mixto`.
+  /// Se deriva de `cashAmount` y `transferAmount` al guardar (para no
+  /// tener que filtrar por dos campos en queries / métricas viejas).
+  /// Ventas históricas pueden tener solo este campo (sin desglose).
   final String paymentMethod;
+
+  /// Monto pagado en efectivo. `null` en ventas viejas que solo
+  /// tienen `paymentMethod`. Usar [cashPortion] para obtener el
+  /// monto real con el fallback aplicado.
+  final num? cashAmount;
+
+  /// Monto pagado por transferencia. `null` en ventas viejas que
+  /// solo tienen `paymentMethod`. Usar [transferPortion].
+  final num? transferAmount;
+
+  /// Banco/billetera receptor de la transferencia (`Bancolombia`,
+  /// `Nequi`, etc.). `null` cuando no hay parte transferida o cuando
+  /// la venta es vieja sin desglose. Gestionado por lista maestra
+  /// `transfer_destinations`.
+  final String? transferDestination;
 
   final String payerName;
 
@@ -75,6 +96,27 @@ class Sale {
   /// esquema; valor = primitivo serializable: String / num / bool / Timestamp).
   final Map<String, dynamic> customFields;
 
+  /// Monto efectivo "real" — usa `cashAmount` si existe, si no infiere
+  /// del `paymentMethod` legacy: si era 'Efectivo' devuelve el total,
+  /// si era 'Transferencia' devuelve 0, si era 'Mixto' (no debería
+  /// pasar en ventas sin cashAmount) devuelve 0 conservadoramente.
+  num get cashPortion {
+    if (cashAmount != null) return cashAmount!;
+    if (paymentMethod.toLowerCase() == 'efectivo') return totalValue;
+    return 0;
+  }
+
+  /// Monto transferencia "real" — análogo a [cashPortion].
+  num get transferPortion {
+    if (transferAmount != null) return transferAmount!;
+    if (paymentMethod.toLowerCase() == 'transferencia') return totalValue;
+    return 0;
+  }
+
+  /// `true` si la venta tiene pago dividido (efectivo + transferencia
+  /// con ambos > 0). Útil para decidir si mostrar el donut de breakdown.
+  bool get isMixedPayment => cashPortion > 0 && transferPortion > 0;
+
   Map<String, dynamic> toMap() => {
         'consecutive': consecutive,
         'date': Timestamp.fromDate(AppClock.toInstant(date)),
@@ -88,6 +130,9 @@ class Sale {
         'unitPrice': unitPrice,
         'totalValue': totalValue,
         'paymentMethod': paymentMethod,
+        'cashAmount': cashAmount,
+        'transferAmount': transferAmount,
+        'transferDestination': transferDestination,
         'payerName': payerName,
         'createdBy': createdBy,
         'createdByName': createdByName,
@@ -117,6 +162,9 @@ class Sale {
       unitPrice: data['unitPrice'] as num,
       totalValue: data['totalValue'] as num,
       paymentMethod: data['paymentMethod'] as String,
+      cashAmount: data['cashAmount'] as num?,
+      transferAmount: data['transferAmount'] as num?,
+      transferDestination: data['transferDestination'] as String?,
       payerName: data['payerName'] as String,
       createdBy: data['createdBy'] as String,
       createdByName: data['createdByName'] as String,

@@ -1,8 +1,10 @@
+import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/roles.dart';
+import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/clock.dart';
 import '../../../core/utils/dates.dart';
 import '../../../core/utils/errors.dart';
@@ -125,7 +127,10 @@ class _SaleDetailBody extends ConsumerWidget {
                   const Divider(height: 24),
                   _Row(label: 'Material', value: sale.material),
                   if (sale.materialVariant != null)
-                    _Row(label: 'Tipo de lámina', value: sale.materialVariant!),
+                    _Row(
+                      label: 'Tipo de material',
+                      value: sale.materialVariant!,
+                    ),
                   _Row(label: 'Unidad', value: sale.unit),
                   _Row(label: 'Cantidad', value: sale.quantity.toString()),
                   _Row(
@@ -139,6 +144,12 @@ class _SaleDetailBody extends ConsumerWidget {
                   ],
                   const Divider(height: 24),
                   _Row(label: 'Método de pago', value: sale.paymentMethod),
+                  if (sale.transferDestination != null &&
+                      sale.transferDestination!.isNotEmpty)
+                    _Row(
+                      label: 'Destino transferencia',
+                      value: sale.transferDestination!,
+                    ),
                   _Row(label: 'Quién recibe', value: sale.payerName),
                   const Divider(height: 24),
                   _Row(label: 'Registrada por', value: sale.createdByName),
@@ -167,6 +178,19 @@ class _SaleDetailBody extends ConsumerWidget {
             ),
           ),
         ),
+        // Breakdown de pago: solo lo mostramos cuando aporta info más
+        // allá del row "Método de pago: Efectivo". Sale de adorno
+        // (vacío) cuando es 100% efectivo sin destino — para esas
+        // ventas el row dentro del card principal ya es suficiente.
+        if (sale.isMixedPayment ||
+            (sale.transferDestination != null &&
+                sale.transferDestination!.isNotEmpty)) ...[
+          const SizedBox(height: 16),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: _PaymentBreakdownCard(sale: sale),
+          ),
+        ],
         const SizedBox(height: 16),
         if (canEdit)
           Padding(
@@ -193,6 +217,157 @@ class _SaleDetailBody extends ConsumerWidget {
               ],
             ),
           ),
+      ],
+    );
+  }
+}
+
+/// Donut chart + texto con el desglose del pago. Solo se renderiza
+/// cuando aporta valor (pago mixto o transferencia con destino) — en
+/// ventas 100% efectivo el row "Método de pago" del card principal
+/// ya transmite todo lo que hay que saber.
+class _PaymentBreakdownCard extends StatelessWidget {
+  const _PaymentBreakdownCard({required this.sale});
+
+  final Sale sale;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cash = sale.cashPortion;
+    final transfer = sale.transferPortion;
+    final total = sale.totalValue;
+    final cashPct = total > 0 ? (cash / total) * 100 : 0;
+    final transferPct = total > 0 ? (transfer / total) * 100 : 0;
+    final cashColor = AppColors.leafGreen;
+    final transferColor = theme.colorScheme.primary;
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Desglose del pago',
+              style: theme.textTheme.titleMedium,
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                // Donut con las dos porciones. Si una es 0, fl_chart
+                // recibe una sola sección y se ve como dona completa.
+                SizedBox(
+                  width: 110,
+                  height: 110,
+                  child: PieChart(
+                    PieChartData(
+                      startDegreeOffset: -90,
+                      centerSpaceRadius: 32,
+                      sectionsSpace: 2,
+                      sections: [
+                        if (cash > 0)
+                          PieChartSectionData(
+                            value: cash.toDouble(),
+                            color: cashColor,
+                            radius: 18,
+                            showTitle: false,
+                          ),
+                        if (transfer > 0)
+                          PieChartSectionData(
+                            value: transfer.toDouble(),
+                            color: transferColor,
+                            radius: 18,
+                            showTitle: false,
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (cash > 0)
+                        _BreakdownRow(
+                          color: cashColor,
+                          label: 'Efectivo',
+                          amount: cash,
+                          percent: cashPct.toDouble(),
+                        ),
+                      if (cash > 0 && transfer > 0)
+                        const SizedBox(height: 8),
+                      if (transfer > 0)
+                        _BreakdownRow(
+                          color: transferColor,
+                          label: sale.transferDestination == null
+                              ? 'Transferencia'
+                              : 'Transferencia · '
+                                  '${sale.transferDestination}',
+                          amount: transfer,
+                          percent: transferPct.toDouble(),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _BreakdownRow extends StatelessWidget {
+  const _BreakdownRow({
+    required this.color,
+    required this.label,
+    required this.amount,
+    required this.percent,
+  });
+  final Color color;
+  final String label;
+  final num amount;
+  final double percent;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 12,
+          height: 12,
+          margin: const EdgeInsets.only(top: 4),
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.circular(3),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color:
+                      theme.colorScheme.onSurface.withValues(alpha: 0.7),
+                ),
+              ),
+              Text(
+                '${formatCop(amount)}  ·  ${percent.toStringAsFixed(0)}%',
+                style: theme.textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
       ],
     );
   }

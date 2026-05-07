@@ -62,8 +62,26 @@ class SalesMetrics {
     num total = 0;
     for (final s in sales) {
       total += s.totalValue;
-      byMethod.update(s.paymentMethod, (v) => v + s.totalValue,
-          ifAbsent: () => s.totalValue,);
+      // En lugar de meter `totalValue` completo a un solo bucket por
+      // `paymentMethod` (que infla "Mixto" como categoría aparte y
+      // pierde el detalle), distribuimos los montos reales a Efectivo
+      // y Transferencia. Las ventas históricas sin desglose caen al
+      // método legacy: `cashPortion` / `transferPortion` en el modelo
+      // Sale ya manejan la inferencia.
+      if (s.cashPortion > 0) {
+        byMethod.update(
+          'Efectivo',
+          (v) => v + s.cashPortion,
+          ifAbsent: () => s.cashPortion,
+        );
+      }
+      if (s.transferPortion > 0) {
+        byMethod.update(
+          'Transferencia',
+          (v) => v + s.transferPortion,
+          ifAbsent: () => s.transferPortion,
+        );
+      }
       final mat = s.materialVariant != null
           ? '${s.material} · ${s.materialVariant}'
           : s.material;

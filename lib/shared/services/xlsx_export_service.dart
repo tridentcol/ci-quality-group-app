@@ -60,6 +60,9 @@ class XlsxExportService {
       'Valor unitario',
       'Valor total',
       'Método de pago',
+      'Efectivo',
+      'Transferencia',
+      'Destino transferencia',
       'Quién recibe',
       'Registrada por',
       'Registrada el',
@@ -80,6 +83,9 @@ class XlsxExportService {
       16, // Valor unit
       18, // Valor total
       16, // Método pago
+      16, // Efectivo
+      16, // Transferencia
+      22, // Destino transferencia
       24, // Quién recibe
       22, // Registrada por
       22, // Registrada el
@@ -105,6 +111,9 @@ class XlsxExportService {
         DoubleCellValue(s.unitPrice.toDouble()),
         DoubleCellValue(s.totalValue.toDouble()),
         TextCellValue(s.paymentMethod),
+        DoubleCellValue(s.cashPortion.toDouble()),
+        DoubleCellValue(s.transferPortion.toDouble()),
+        TextCellValue(s.transferDestination ?? ''),
         TextCellValue(s.payerName),
         TextCellValue(s.createdByName),
         TextCellValue(dateTimeFmt.format(s.createdAt)),
