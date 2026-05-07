@@ -764,21 +764,21 @@ class _PaymentSection extends StatelessWidget {
         SizedBox(
           width: double.infinity,
           child: SegmentedButton<_PaymentMode>(
+            // Sin íconos: en mobile (~360px de ancho) "Transferencia"
+            // ya consume su porción y agregar un ícono al lado lo
+            // partía. Con solo texto los 3 segments respiran.
             segments: const [
               ButtonSegment(
                 value: _PaymentMode.cash,
                 label: Text('Efectivo'),
-                icon: Icon(Icons.payments_outlined),
               ),
               ButtonSegment(
                 value: _PaymentMode.transfer,
                 label: Text('Transferencia'),
-                icon: Icon(Icons.account_balance_outlined),
               ),
               ButtonSegment(
                 value: _PaymentMode.mixed,
                 label: Text('Mixto'),
-                icon: Icon(Icons.call_split_outlined),
               ),
             ],
             selected: {mode},

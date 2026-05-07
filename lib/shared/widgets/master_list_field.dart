@@ -78,8 +78,15 @@ class _MasterListFieldState extends ConsumerState<MasterListField> {
     final itemsAsync = ref.watch(masterListItemsProvider(query));
     final listAsync = ref.watch(masterListMetaProvider(widget.listId));
 
-    final allowFree = (listAsync.valueOrNull?.allowFreeText ?? false) &&
-        widget.allowSuggestions;
+    // Si la meta del list todavía no existe en Firestore (ej. lista
+    // nueva que el admin no ha "abierto" para disparar el seed),
+    // default a allowFreeText=true. Sin esto, un usuario de ventas
+    // intentando seleccionar el destino de transferencia se queda
+    // con un dropdown vacío que ni se despliega ni deja escribir.
+    // Con free text, escriben el valor → se crea la sugerencia.
+    final meta = listAsync.valueOrNull;
+    final allowFree =
+        (meta?.allowFreeText ?? true) && widget.allowSuggestions;
 
     return itemsAsync.when(
       loading: () => _LoadingPlaceholder(label: widget.label),

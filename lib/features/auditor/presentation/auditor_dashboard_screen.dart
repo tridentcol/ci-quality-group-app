@@ -316,20 +316,19 @@ class _DailyTrendCard extends StatelessWidget {
     final theme = Theme.of(context);
     if (daily.isEmpty) return const SizedBox.shrink();
 
-    final maxY =
-        daily.map((d) => d.total).fold<num>(0, (a, b) => a > b ? a : b);
+    // LineChart en lugar de BarChart porque fl_chart respeta el
+    // `interval` en SideTitles solo para line charts (en bar charts el
+    // callback se invoca para cada bar group y se solapan los labels).
+    // El admin usa este mismo patrón en _SalesLineChart y funciona.
+    final spots = <FlSpot>[];
+    for (var i = 0; i < daily.length; i++) {
+      spots.add(FlSpot(i.toDouble(), daily[i].total.toDouble()));
+    }
+    final maxY = spots.map((s) => s.y).fold<double>(0, (a, b) => a > b ? a : b);
     final niceMaxY = maxY == 0 ? 1.0 : maxY * 1.15;
-    // Para >14 días usamos solo "d/M" (ej. "5/5"); menos días sí
-    // aguanta "d MMM" (ej. "5 may").
-    final useShortFmt = daily.length > 14;
-    final dayFmt = DateFormat(useShortFmt ? 'd/M' : 'd MMM', 'es_CO');
-    // Cantidad máxima de labels visibles. Para rangos largos rotamos
-    // las etiquetas (ver `SideTitleWidget(angle: -0.6)`), lo que las
-    // hace más angostas y permite ~7 sin solapar. Para rangos cortos
-    // (<=14 días) sin rotar, ~5 etiquetas horizontales son cómodas.
-    final targetLabels = useShortFmt ? 7 : 5;
+    final dayFmt = DateFormat('d MMM', 'es_CO');
     final labelInterval =
-        (daily.length / targetLabels).ceil().clamp(1, 30).toDouble();
+        (daily.length / 5).clamp(1, 10).toDouble();
 
     return Card(
       child: Padding(
@@ -341,11 +340,12 @@ class _DailyTrendCard extends StatelessWidget {
             const SizedBox(height: 16),
             SizedBox(
               height: 220,
-              child: BarChart(
-                BarChartData(
-                  maxY: niceMaxY.toDouble(),
+              child: LineChart(
+                LineChartData(
                   minY: 0,
+                  maxY: niceMaxY,
                   gridData: FlGridData(
+                    show: true,
                     drawVerticalLine: false,
                     horizontalInterval: niceMaxY / 4,
                     getDrawingHorizontalLine: (_) => FlLine(
@@ -369,32 +369,19 @@ class _DailyTrendCard extends StatelessWidget {
                     bottomTitles: AxisTitles(
                       sideTitles: SideTitles(
                         showTitles: true,
-                        // Rangos >14 días: rotamos las labels para
-                        // que no se solapen — eso requiere más alto
-                        // reservado. Rangos cortos quedan horizontales.
-                        reservedSize: useShortFmt ? 56 : 28,
+                        reservedSize: 28,
                         interval: labelInterval,
-                        getTitlesWidget: (v, meta) {
+                        getTitlesWidget: (v, _) {
                           final i = v.toInt();
                           if (i < 0 || i >= daily.length) {
                             return const SizedBox.shrink();
                           }
-                          final text = dayFmt.format(daily[i].day);
-                          final style = theme.textTheme.labelSmall;
-                          if (!useShortFmt) {
-                            return SideTitleWidget(
-                              axisSide: meta.axisSide,
-                              space: 6,
-                              child: Text(text, style: style),
-                            );
-                          }
-                          return SideTitleWidget(
-                            axisSide: meta.axisSide,
-                            space: 8,
-                            // ~ -34° en radianes — legible sin
-                            // robar mucho ancho.
-                            angle: -0.6,
-                            child: Text(text, style: style),
+                          return Padding(
+                            padding: const EdgeInsets.only(top: 6),
+                            child: Text(
+                              dayFmt.format(daily[i].day),
+                              style: theme.textTheme.labelSmall,
+                            ),
                           );
                         },
                       ),
@@ -406,19 +393,20 @@ class _DailyTrendCard extends StatelessWidget {
                       sideTitles: SideTitles(showTitles: false),
                     ),
                   ),
-                  barGroups: [
-                    for (var i = 0; i < daily.length; i++)
-                      BarChartGroupData(
-                        x: i,
-                        barRods: [
-                          BarChartRodData(
-                            toY: daily[i].total.toDouble(),
-                            color: theme.colorScheme.primary,
-                            width: 10,
-                            borderRadius: BorderRadius.circular(2),
-                          ),
-                        ],
+                  lineBarsData: [
+                    LineChartBarData(
+                      spots: spots,
+                      isCurved: true,
+                      curveSmoothness: 0.25,
+                      color: theme.colorScheme.primary,
+                      barWidth: 2.5,
+                      dotData: const FlDotData(show: false),
+                      belowBarData: BarAreaData(
+                        show: true,
+                        color:
+                            theme.colorScheme.primary.withValues(alpha: 0.12),
                       ),
+                    ),
                   ],
                 ),
               ),
