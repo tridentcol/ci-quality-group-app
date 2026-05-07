@@ -40,14 +40,6 @@ enum _PaymentMode {
 }
 
 extension _PaymentModeExt on _PaymentMode {
-  String get label {
-    return switch (this) {
-      _PaymentMode.cash => 'Efectivo',
-      _PaymentMode.transfer => 'Transferencia',
-      _PaymentMode.mixed => 'Mixto',
-    };
-  }
-
   /// String que se persiste en `paymentMethod` y respeta los valores
   /// históricos ('Efectivo', 'Transferencia', 'Mixto').
   String get paymentMethodValue {
@@ -144,6 +136,10 @@ class _SaleFormScreenState extends ConsumerState<SaleFormScreen> {
     super.dispose();
   }
 
+  void _setError(String msg) {
+    setState(() => _formError = msg);
+  }
+
   /// Mapea una venta existente (que puede tener el modelo viejo o el
   /// nuevo) al modo de pago actual del form. Prioridad:
   ///   1. Si tiene cashAmount Y transferAmount con ambos > 0 → mixed
@@ -237,8 +233,7 @@ class _SaleFormScreenState extends ConsumerState<SaleFormScreen> {
         transferAmount = totalValue;
         transferDestination = _transferDestination;
         if (transferDestination == null || transferDestination.isEmpty) {
-          setState(() => _formError =
-              'Selecciona el destino de la transferencia.');
+          _setError('Selecciona el destino de la transferencia.');
           return;
         }
       case _PaymentMode.mixed:
@@ -248,23 +243,22 @@ class _SaleFormScreenState extends ConsumerState<SaleFormScreen> {
         final cash = num.tryParse(cashStr);
         final transfer = num.tryParse(transferStr);
         if (cash == null || transfer == null || cash < 0 || transfer < 0) {
-          setState(() => _formError =
-              'Ingresa los montos en efectivo y por transferencia.');
+          _setError('Ingresa los montos en efectivo y por transferencia.');
           return;
         }
         if ((cash + transfer - totalValue).abs() > 1) {
-          setState(() => _formError =
-              'La suma de efectivo (${formatCop(cash)}) más '
-              'transferencia (${formatCop(transfer)}) debe ser igual al '
-              'total (${formatCop(totalValue)}).');
+          _setError(
+            'La suma de efectivo (${formatCop(cash)}) más '
+            'transferencia (${formatCop(transfer)}) debe ser igual al '
+            'total (${formatCop(totalValue)}).',
+          );
           return;
         }
         cashAmount = cash;
         transferAmount = transfer;
         transferDestination = _transferDestination;
         if (transferDestination == null || transferDestination.isEmpty) {
-          setState(() => _formError =
-              'Selecciona el destino de la transferencia.');
+          _setError('Selecciona el destino de la transferencia.');
           return;
         }
     }

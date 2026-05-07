@@ -383,13 +383,13 @@ class _DailyTrendCard extends StatelessWidget {
                           final style = theme.textTheme.labelSmall;
                           if (!useShortFmt) {
                             return SideTitleWidget(
-                              meta: meta,
+                              axisSide: meta.axisSide,
                               space: 6,
                               child: Text(text, style: style),
                             );
                           }
                           return SideTitleWidget(
-                            meta: meta,
+                            axisSide: meta.axisSide,
                             space: 8,
                             // ~ -34° en radianes — legible sin
                             // robar mucho ancho.
