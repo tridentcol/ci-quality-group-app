@@ -165,7 +165,10 @@ class _SalesSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    if (metrics.count == 0) {
+    if (metrics.count == 0 &&
+        metrics.pendingCount == 0 &&
+        metrics.receivableCount == 0 &&
+        metrics.lossCount == 0) {
       return Card(
         child: Padding(
           padding: const EdgeInsets.all(20),
@@ -182,20 +185,49 @@ class _SalesSection extends StatelessWidget {
       children: [
         KpiRow(cards: [
           KpiCard(
-            label: 'Total',
+            label: 'Cobrado',
             value: formatCop(metrics.total),
             icon: Icons.payments_outlined,
           ),
           KpiCard(
-            label: 'Cantidad',
+            label: 'Procesadas',
             value: '${metrics.count}',
             subtitle: 'ventas',
             icon: Icons.receipt_long_outlined,
           ),
           KpiCard(
             label: 'Ticket prom.',
-            value: formatCop((metrics.total / metrics.count).round()),
+            value: metrics.count > 0
+                ? formatCop((metrics.total / metrics.count).round())
+                : '—',
             icon: Icons.calculate_outlined,
+          ),
+        ],),
+        const SizedBox(height: 12),
+        KpiRow(cards: [
+          KpiCard(
+            label: 'Pendientes en caja',
+            value: formatCop(metrics.pendingTotal),
+            subtitle:
+                '${metrics.pendingCount} solicitud${metrics.pendingCount == 1 ? '' : 'es'}',
+            icon: Icons.hourglass_top_outlined,
+            color: AppColors.warning,
+          ),
+          KpiCard(
+            label: 'Por cobrar',
+            value: formatCop(metrics.receivableTotal),
+            subtitle:
+                '${metrics.receivableCount} venta${metrics.receivableCount == 1 ? '' : 's'}',
+            icon: Icons.account_balance_wallet_outlined,
+            color: AppColors.info,
+          ),
+          KpiCard(
+            label: 'Pérdidas',
+            value: formatCop(metrics.lossTotal),
+            subtitle:
+                '${metrics.lossCount} venta${metrics.lossCount == 1 ? '' : 's'}',
+            icon: Icons.report_gmailerrorred_outlined,
+            color: AppColors.danger,
           ),
         ],),
         const SizedBox(height: 16),
@@ -206,7 +238,7 @@ class _SalesSection extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Total por día', style: theme.textTheme.titleMedium),
+                  Text('Cobrado por día', style: theme.textTheme.titleMedium),
                   const SizedBox(height: 16),
                   SizedBox(
                     height: 180,

@@ -131,17 +131,22 @@ class _AuditorDashboardScreenState
           ),
         ),
         data: (allSales) {
-          // Filtrar por rango en memoria.
-          final inRange = allSales.where((s) {
+          // El auditor solo ve ventas procesadas (material entregado).
+          // Pendientes y canceladas no le incumben — su rol es seguir
+          // el negocio cerrado. Los ingresos se computan con paidAmount
+          // (dinero realmente cobrado), no con totalValue (facturado).
+          final procesadasAll =
+              allSales.where((s) => s.state == SaleState.procesada).toList();
+          final inRange = procesadasAll.where((s) {
             return !s.date.isBefore(_start) && !s.date.isAfter(_end);
           }).toList();
 
-          final total = inRange.fold<num>(0, (acc, s) => acc + s.totalValue);
+          final total = inRange.fold<num>(0, (acc, s) => acc + s.paidAmount);
           final count = inRange.length;
           final avgTicket = count > 0 ? total / count : 0;
           final qtyByUnit = _aggregateQuantityByUnit(inRange);
           final daily = _dailyTotals(inRange, _start, _end);
-          final allTimeBest = _bestDayAllTime(allSales);
+          final allTimeBest = _bestDayAllTime(procesadasAll);
 
           return ListView(
             padding: const EdgeInsets.fromLTRB(0, 0, 0, 32),
@@ -265,7 +270,7 @@ class _AuditorDashboardScreenState
     final byDay = <int, num>{};
     for (final s in sales) {
       final key = _ordinal(s.date);
-      byDay.update(key, (v) => v + s.totalValue, ifAbsent: () => s.totalValue);
+      byDay.update(key, (v) => v + s.paidAmount, ifAbsent: () => s.paidAmount);
     }
     final out = <({DateTime day, num total})>[];
     var cursor = DateTime(start.year, start.month, start.day);
@@ -277,7 +282,7 @@ class _AuditorDashboardScreenState
     return out;
   }
 
-  /// Mejor día histórico (mayor venta en una fecha).
+  /// Mejor día histórico (mayor cobro en una fecha).
   ({DateTime day, num total})? _bestDayAllTime(List<Sale> sales) {
     if (sales.isEmpty) return null;
     final byDay = <int, num>{};
@@ -285,7 +290,7 @@ class _AuditorDashboardScreenState
     for (final s in sales) {
       final key = _ordinal(s.date);
       dayDate[key] = DateTime(s.date.year, s.date.month, s.date.day);
-      byDay.update(key, (v) => v + s.totalValue, ifAbsent: () => s.totalValue);
+      byDay.update(key, (v) => v + s.paidAmount, ifAbsent: () => s.paidAmount);
     }
     int? bestKey;
     num bestTotal = 0;
@@ -461,7 +466,7 @@ class _AuditorSaleRow extends StatelessWidget {
           ),
         ),
         trailing: Text(
-          formatCop(sale.totalValue),
+          formatCop(sale.paidAmount),
           style: theme.textTheme.titleMedium?.copyWith(
             fontWeight: FontWeight.w700,
             color: theme.colorScheme.primary,

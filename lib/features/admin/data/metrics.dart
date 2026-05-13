@@ -7,6 +7,15 @@ import '../../sales/data/sales_repository.dart';
 import '../../sales/domain/sale.dart';
 
 /// Resumen agregado de ventas para mostrar en el dashboard del admin.
+///
+/// Cambio crítico vs versiones anteriores: el `total` ahora representa
+/// **dinero cobrado** (sum de `paidAmount`), no dinero facturado. Las
+/// dimensiones que cuentan transacciones cerradas (`count`, `byMethod`,
+/// `byMaterial`, `dailyTotals`, `topPayers`) se calculan SOLO sobre
+/// ventas en `state == procesada`. Canceladas no entran. Los KPIs nuevos
+/// (`pending*`, `receivable*`, `loss*`) capturan el resto del cuadro
+/// financiero: cuánto queda en caja por procesar, cuánto está pendiente
+/// de cobrar y cuánto se castigó como pérdida.
 class SalesMetrics {
   const SalesMetrics({
     required this.total,
@@ -15,26 +24,48 @@ class SalesMetrics {
     required this.byMaterial,
     required this.dailyTotals,
     required this.topPayers,
+    required this.pendingCount,
+    required this.pendingTotal,
+    required this.receivableCount,
+    required this.receivableTotal,
+    required this.lossCount,
+    required this.lossTotal,
   });
 
-  /// Total facturado en el rango.
+  /// Dinero efectivamente cobrado en el rango = sum(`paidAmount`) sobre
+  /// TODAS las ventas en rango (incluye canceladas con abonos previos,
+  /// porque ese cobro sigue siendo plata real).
   final num total;
 
-  /// Cantidad de ventas en el rango.
+  /// Ventas `procesada` en el rango. Lo que sales entregó.
   final int count;
 
-  /// Distribución por método de pago.
+  /// Distribución por método de pago (sobre procesadas).
   final Map<String, num> byMethod;
 
-  /// Distribución por material.
+  /// Distribución por material (sobre procesadas).
   final Map<String, num> byMaterial;
 
   /// Lista ordenada (oldest → newest) de pares fecha/total para gráfica de
-  /// línea o barras temporales.
+  /// línea o barras temporales. Suma `paidAmount` de procesadas por día.
   final List<({DateTime day, num total})> dailyTotals;
 
-  /// Top quienes reciben (nombre, monto).
+  /// Top quienes reciben (nombre, monto cobrado).
   final List<({String name, num amount})> topPayers;
+
+  /// Solicitudes pendientes de procesar (`generada` o `en_proceso`) en
+  /// el rango. Indica trabajo en caja.
+  final int pendingCount;
+  final num pendingTotal;
+
+  /// Ventas procesadas con saldo (`pending` o `partiallyPaid`) — plata
+  /// que ya entregamos como material pero todavía no cobramos.
+  final int receivableCount;
+  final num receivableTotal;
+
+  /// Ventas marcadas como pérdida en el rango.
+  final int lossCount;
+  final num lossTotal;
 
   static SalesMetrics empty() => const SalesMetrics(
         total: 0,
@@ -43,6 +74,12 @@ class SalesMetrics {
         byMaterial: {},
         dailyTotals: [],
         topPayers: [],
+        pendingCount: 0,
+        pendingTotal: 0,
+        receivableCount: 0,
+        receivableTotal: 0,
+        lossCount: 0,
+        lossTotal: 0,
       );
 
   factory SalesMetrics.compute(
@@ -60,41 +97,80 @@ class SalesMetrics {
     final byDay = <int, num>{};
 
     num total = 0;
+    int procesadasCount = 0;
+    int pendingCount = 0;
+    num pendingTotal = 0;
+    int receivableCount = 0;
+    num receivableTotal = 0;
+    int lossCount = 0;
+    num lossTotal = 0;
+
     for (final s in sales) {
-      total += s.totalValue;
-      // En lugar de meter `totalValue` completo a un solo bucket por
-      // `paymentMethod` (que infla "Mixto" como categoría aparte y
-      // pierde el detalle), distribuimos los montos reales a Efectivo
-      // y Transferencia. Las ventas históricas sin desglose caen al
-      // método legacy: `cashPortion` / `transferPortion` en el modelo
-      // Sale ya manejan la inferencia.
-      if (s.cashPortion > 0) {
+      total += s.paidAmount;
+
+      if (s.state == SaleState.generada || s.state == SaleState.enProceso) {
+        pendingCount++;
+        pendingTotal += s.totalValue;
+      }
+      if (s.financialStatus == SaleFinancialStatus.lost) {
+        lossCount++;
+        lossTotal += s.lossAmount;
+      }
+      if (s.state == SaleState.procesada &&
+          (s.financialStatus == SaleFinancialStatus.pending ||
+              s.financialStatus == SaleFinancialStatus.partiallyPaid)) {
+        receivableCount++;
+        receivableTotal += s.outstandingBalance;
+      }
+
+      if (s.state != SaleState.procesada) continue;
+      procesadasCount++;
+
+      // El desglose Efectivo/Transferencia usa el método de pago
+      // registrado en la venta (legacy admin) o queda en cero para
+      // ventas del flujo nuevo donde el método se decide en cada
+      // abono — esas no aportan al chart de método (limitación
+      // documentada; si más adelante hace falta precisión, hay que
+      // agregar collectionGroup query a payments).
+      final ratio = s.totalValue == 0 ? 0 : s.paidAmount / s.totalValue;
+      final cashShare = s.cashPortion * ratio;
+      final transferShare = s.transferPortion * ratio;
+      if (cashShare > 0) {
         byMethod.update(
           'Efectivo',
-          (v) => v + s.cashPortion,
-          ifAbsent: () => s.cashPortion,
+          (v) => v + cashShare,
+          ifAbsent: () => cashShare,
         );
       }
-      if (s.transferPortion > 0) {
+      if (transferShare > 0) {
         byMethod.update(
           'Transferencia',
-          (v) => v + s.transferPortion,
-          ifAbsent: () => s.transferPortion,
+          (v) => v + transferShare,
+          ifAbsent: () => transferShare,
         );
       }
+
       final mat = s.materialVariant != null
           ? '${s.material} · ${s.materialVariant}'
           : s.material;
-      byMaterial.update(mat, (v) => v + s.totalValue,
-          ifAbsent: () => s.totalValue,);
-      byPayer.update(s.payerName, (v) => v + s.totalValue,
-          ifAbsent: () => s.totalValue,);
+      byMaterial.update(
+        mat,
+        (v) => v + s.paidAmount,
+        ifAbsent: () => s.paidAmount,
+      );
+      byPayer.update(
+        s.payerName,
+        (v) => v + s.paidAmount,
+        ifAbsent: () => s.paidAmount,
+      );
       final dayKey = _ordinal(s.date);
-      byDay.update(dayKey, (v) => v + s.totalValue,
-          ifAbsent: () => s.totalValue,);
+      byDay.update(
+        dayKey,
+        (v) => v + s.paidAmount,
+        ifAbsent: () => s.paidAmount,
+      );
     }
 
-    // Genera la serie diaria continua, rellenando con 0 los días sin ventas.
     final dailyTotals = <({DateTime day, num total})>[];
     var cursor = DateTime(rangeStart.year, rangeStart.month, rangeStart.day);
     final last = DateTime(rangeEnd.year, rangeEnd.month, rangeEnd.day);
@@ -111,11 +187,17 @@ class SalesMetrics {
 
     return SalesMetrics(
       total: total,
-      count: sales.length,
+      count: procesadasCount,
       byMethod: byMethod,
       byMaterial: byMaterial,
       dailyTotals: dailyTotals,
       topPayers: topPayers.take(5).toList(),
+      pendingCount: pendingCount,
+      pendingTotal: pendingTotal,
+      receivableCount: receivableCount,
+      receivableTotal: receivableTotal,
+      lossCount: lossCount,
+      lossTotal: lossTotal,
     );
   }
 }
@@ -344,7 +426,9 @@ class _ClientRangeAccum {
   DateTime? lastInRange;
 
   _ClientRangeAccum add(Sale s) {
-    revenue += s.totalValue;
+    // Revenue del cliente = paidAmount (dinero cobrado), no facturado.
+    // Consistente con SalesMetrics y con el panel post-Fase 5.
+    revenue += s.paidAmount;
     count++;
     firstInRange = firstInRange == null || s.date.isBefore(firstInRange!)
         ? s.date
