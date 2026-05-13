@@ -8,6 +8,7 @@ import '../../features/admin/presentation/clients_breakdown_screen.dart';
 import '../../features/admin/presentation/materials_breakdown_screen.dart';
 import '../../features/auditor/presentation/auditor_dashboard_screen.dart';
 import '../../features/cashier/presentation/cashier_home_screen.dart';
+import '../../features/cashier/presentation/sale_payments_screen.dart';
 import '../../features/cashier/presentation/sale_process_screen.dart';
 import '../../features/admin/presentation/duplicate_review_screen.dart';
 import '../../features/admin/presentation/master_list_detail_screen.dart';
@@ -277,6 +278,14 @@ final routerProvider = Provider<GoRouter>((ref) {
             path: ':saleId',
             builder: (_, state) =>
                 SaleProcessScreen(saleId: state.pathParameters['saleId']!),
+            routes: [
+              GoRoute(
+                path: 'payments',
+                builder: (_, state) => SalePaymentsScreen(
+                  saleId: state.pathParameters['saleId']!,
+                ),
+              ),
+            ],
           ),
         ],
       ),

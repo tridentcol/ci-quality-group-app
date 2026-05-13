@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/utils/dates.dart';
 import '../../../core/utils/errors.dart';
@@ -389,14 +390,7 @@ class _ActionsBar extends ConsumerWidget {
   }
 
   void _openPayments(BuildContext context) {
-    // Fase 4 enchufa la pantalla real. Por ahora avisamos.
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text(
-          'Pantalla de pagos disponible en la próxima fase.',
-        ),
-      ),
-    );
+    context.push('/cashier/${sale.id}/payments');
   }
 
   void _showError(BuildContext context, Object error) {

@@ -3,16 +3,17 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants/firestore_paths.dart';
 import '../../../core/utils/clock.dart';
+import '../../../core/constants/roles.dart';
 import '../../auth/data/auth_repository.dart';
 import '../../auth/domain/app_user.dart';
+import '../../sales/domain/payment.dart';
 import '../../sales/domain/sale.dart';
 
 /// Operaciones que el rol caja (o admin actuando como caja) ejecuta sobre
-/// una venta. Todas van en `runTransaction` para no dejar el doc en un
-/// estado inconsistente si dos cajeros la tocan a la vez.
-///
-/// El motor financiero (registrar abono, marcar pérdida, plazo) entra en
-/// Fase 4 — este archivo solo cubre el workflow del estado.
+/// una venta. Workflow (toma/proceso/devolución/cancelación) + motor
+/// financiero (abonos, pérdida, plazo). Todo lo que toca agregados va en
+/// `runTransaction` para no dejar el doc del padre desincronizado con su
+/// subcolección de payments.
 class CashierRepository {
   CashierRepository(this._firestore);
 
@@ -133,6 +134,181 @@ class CashierRepository {
     });
   }
 
+  /// Registra un abono contra una venta. Crea el doc en la subcolección
+  /// `payments` y recalcula los agregados denormalizados del padre
+  /// (`paidAmount`, `outstandingBalance`, `financialStatus`) en la misma
+  /// transacción. Permite sobrepago (la UI advierte).
+  ///
+  /// No permitido si la solicitud fue cancelada. Sí permitido si ya está
+  /// marcada como pérdida — la UI muestra warning pero deja registrar.
+  Future<SalePayment> registerPayment({
+    required String saleId,
+    required num amount,
+    required String paymentMethod,
+    num? cashAmount,
+    num? transferAmount,
+    String? transferDestination,
+    String? notes,
+    required AppUser actor,
+  }) async {
+    if (amount <= 0) {
+      throw ArgumentError('El abono debe ser mayor a cero.');
+    }
+    return _firestore.runTransaction((txn) async {
+      final saleRef = _col.doc(saleId);
+      final saleSnap = await txn.get(saleRef);
+      _ensureExists(saleSnap, saleId);
+      final data = saleSnap.data()!;
+      final state = SaleState.fromId(data['state'] as String?);
+      if (state == SaleState.cancelada) {
+        throw StateError(
+          'No se puede registrar un abono en una solicitud cancelada.',
+        );
+      }
+      final totalValue = data['totalValue'] as num;
+      final currentPaid = (data['paidAmount'] as num?) ?? 0;
+      final currentLoss = (data['lossAmount'] as num?) ?? 0;
+      final newPaid = currentPaid + amount;
+      final newOutstanding = totalValue - newPaid - currentLoss;
+      // Regla "lost absorbe": si ya hay lossAmount > 0, el status sigue
+      // siendo lost aunque después se cobre.
+      final newStatus = Sale.computeFinancialStatus(
+        totalValue: totalValue,
+        paidAmount: newPaid,
+        lossAmount: currentLoss,
+      );
+
+      final paymentRef = saleRef.collection('payments').doc();
+      final now = AppClock.now();
+      final payment = SalePayment(
+        id: paymentRef.id,
+        amount: amount,
+        paymentMethod: paymentMethod,
+        cashAmount: cashAmount,
+        transferAmount: transferAmount,
+        transferDestination: transferDestination,
+        registeredBy: actor.uid,
+        registeredByName: actor.fullName,
+        registeredAt: now,
+        notes: notes,
+      );
+      txn.set(paymentRef, payment.toMap());
+      txn.update(saleRef, {
+        'paidAmount': newPaid,
+        'outstandingBalance': newOutstanding,
+        'financialStatus': newStatus.id,
+        'updatedAt': _now(),
+      });
+      return payment;
+    });
+  }
+
+  /// Anula un abono. Solo admin (rule + assertion). Borra el doc y
+  /// recalcula los agregados del padre. La razón es obligatoria a nivel
+  /// UX pero no se persiste — el delete es la traza.
+  Future<void> voidPayment({
+    required String saleId,
+    required String paymentId,
+    required String reason,
+    required AppUser actor,
+  }) async {
+    if (actor.role != AppRole.admin) {
+      throw StateError('Solo el administrador puede anular pagos.');
+    }
+    if (reason.trim().isEmpty) {
+      throw ArgumentError('La razón es obligatoria para anular un pago.');
+    }
+    await _firestore.runTransaction((txn) async {
+      final saleRef = _col.doc(saleId);
+      final paymentRef = saleRef.collection('payments').doc(paymentId);
+      final saleSnap = await txn.get(saleRef);
+      final paymentSnap = await txn.get(paymentRef);
+      _ensureExists(saleSnap, saleId);
+      if (!paymentSnap.exists) {
+        throw StateError('El abono ya no existe.');
+      }
+      final amountVoided = paymentSnap.data()!['amount'] as num;
+      final data = saleSnap.data()!;
+      final totalValue = data['totalValue'] as num;
+      final currentPaid = (data['paidAmount'] as num?) ?? 0;
+      final currentLoss = (data['lossAmount'] as num?) ?? 0;
+      final newPaidRaw = currentPaid - amountVoided;
+      final newPaid = newPaidRaw < 0 ? 0 : newPaidRaw;
+      final newOutstanding = totalValue - newPaid - currentLoss;
+      final newStatus = Sale.computeFinancialStatus(
+        totalValue: totalValue,
+        paidAmount: newPaid,
+        lossAmount: currentLoss,
+      );
+      txn.delete(paymentRef);
+      txn.update(saleRef, {
+        'paidAmount': newPaid,
+        'outstandingBalance': newOutstanding,
+        'financialStatus': newStatus.id,
+        'updatedAt': _now(),
+      });
+    });
+  }
+
+  /// Marca el saldo pendiente como pérdida. `lossAmount` se incrementa en
+  /// el outstandingBalance al momento de marcar y `financialStatus` queda
+  /// `lost` (absorbente — registerPayment posterior no lo cambia).
+  ///
+  /// Permitido en cualquier momento mientras `outstandingBalance > 0`,
+  /// incluso si state == cancelada.
+  Future<void> markAsLoss({
+    required String saleId,
+    required String reason,
+    required AppUser actor,
+  }) async {
+    if (reason.trim().isEmpty) {
+      throw ArgumentError('La razón es obligatoria al marcar pérdida.');
+    }
+    await _firestore.runTransaction((txn) async {
+      final saleRef = _col.doc(saleId);
+      final saleSnap = await txn.get(saleRef);
+      _ensureExists(saleSnap, saleId);
+      final data = saleSnap.data()!;
+      final totalValue = data['totalValue'] as num;
+      final currentPaid = (data['paidAmount'] as num?) ?? 0;
+      final currentLoss = (data['lossAmount'] as num?) ?? 0;
+      final currentOutstanding = totalValue - currentPaid - currentLoss;
+      if (currentOutstanding <= 0) {
+        throw StateError(
+          'No hay saldo pendiente para marcar como pérdida.',
+        );
+      }
+      final newLoss = currentLoss + currentOutstanding;
+      final now = AppClock.now();
+      txn.update(saleRef, {
+        'lossAmount': newLoss,
+        'outstandingBalance': 0,
+        'financialStatus': SaleFinancialStatus.lost.id,
+        'markedAsLossBy': actor.uid,
+        'markedAsLossByName': actor.fullName,
+        'markedAsLossAt':
+            Timestamp.fromDate(AppClock.toInstant(now)),
+        'lossReason': reason.trim(),
+        'updatedAt': Timestamp.fromDate(AppClock.toInstant(now)),
+      });
+    });
+  }
+
+  /// Edita o quita el plazo de pago (`creditDueDate`). Pasar `null` lo
+  /// borra. Sin lógica automática — solo persiste el campo; la UI usa
+  /// ese valor para destacar deudas vencidas.
+  Future<void> updateCreditDueDate({
+    required String saleId,
+    required DateTime? date,
+  }) async {
+    await _col.doc(saleId).update({
+      'creditDueDate': date == null
+          ? null
+          : Timestamp.fromDate(AppClock.toInstant(date)),
+      'updatedAt': _now(),
+    });
+  }
+
   void _ensureExists(
     DocumentSnapshot<Map<String, dynamic>> snap,
     String saleId,
@@ -190,3 +366,17 @@ const processedStatesQuery =
     SalesByStatesQuery(<SaleState>{SaleState.procesada});
 const canceledStatesQuery =
     SalesByStatesQuery(<SaleState>{SaleState.cancelada});
+
+/// Lista reactiva de abonos para una venta, ordenada del más reciente al
+/// más antiguo. La pantalla de pagos la consume directamente.
+final paymentsBySaleProvider = StreamProvider.autoDispose
+    .family<List<SalePayment>, String>((ref, saleId) {
+  ref.watch(authStateProvider);
+  return FirebaseFirestore.instance
+      .collection(FirestorePaths.sales)
+      .doc(saleId)
+      .collection('payments')
+      .orderBy('registeredAt', descending: true)
+      .snapshots()
+      .map((snap) => snap.docs.map(SalePayment.fromSnapshot).toList());
+});
