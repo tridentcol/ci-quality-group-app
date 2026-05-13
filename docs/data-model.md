@@ -109,6 +109,7 @@ payment + actualización de agregados del padre (`paidAmount`,
 | `cashAmount`           | num?       | Componente efectivo (si aplica).       |
 | `transferAmount`       | num?       | Componente transferencia (si aplica).  |
 | `transferDestination`  | String?    | Banco/billetera, requerido si `transferAmount > 0`. |
+| `payerName`            | String?    | Quién en caja recibió el abono. Lista maestra `payers`. |
 | `registeredBy`         | String     | uid del cajero/admin que lo registró.  |
 | `registeredByName`     | String     | Nombre cacheado.                       |
 | `registeredAt`         | Timestamp  |                                        |

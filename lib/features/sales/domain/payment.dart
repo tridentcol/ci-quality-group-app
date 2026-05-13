@@ -21,6 +21,7 @@ class SalePayment {
     this.cashAmount,
     this.transferAmount,
     this.transferDestination,
+    this.payerName,
     this.notes,
   });
 
@@ -43,6 +44,11 @@ class SalePayment {
   /// por la lista maestra `transfer_destinations`.
   final String? transferDestination;
 
+  /// Quién en caja recibió este abono. Lista maestra `payers`. Reemplaza
+  /// al `payerName` del doc padre (que en el flujo nuevo queda vacío),
+  /// porque ahora cada abono puede ser cobrado por una persona distinta.
+  final String? payerName;
+
   /// uid del cajero/admin que registró el abono.
   final String registeredBy;
 
@@ -59,6 +65,7 @@ class SalePayment {
         'cashAmount': cashAmount,
         'transferAmount': transferAmount,
         'transferDestination': transferDestination,
+        'payerName': payerName,
         'registeredBy': registeredBy,
         'registeredByName': registeredByName,
         'registeredAt': Timestamp.fromDate(AppClock.toInstant(registeredAt)),
@@ -76,6 +83,7 @@ class SalePayment {
       cashAmount: data['cashAmount'] as num?,
       transferAmount: data['transferAmount'] as num?,
       transferDestination: data['transferDestination'] as String?,
+      payerName: data['payerName'] as String?,
       registeredBy: data['registeredBy'] as String,
       registeredByName: data['registeredByName'] as String,
       registeredAt:

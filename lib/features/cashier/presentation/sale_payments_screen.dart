@@ -429,9 +429,17 @@ class _PaymentCard extends ConsumerWidget {
                 style: theme.textTheme.bodySmall,
               ),
             ],
+            if (payment.payerName != null && payment.payerName!.isNotEmpty) ...[
+              const SizedBox(height: 4),
+              Text(
+                'Recibido por: ${payment.payerName}',
+                style: theme.textTheme.bodySmall,
+              ),
+            ],
             const SizedBox(height: 6),
             Text(
-              '${payment.registeredByName} · ${formatDateTime(payment.registeredAt)}',
+              'Registrado por ${payment.registeredByName} · '
+              '${formatDateTime(payment.registeredAt)}',
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
               ),
@@ -635,6 +643,7 @@ class _RegisterPaymentSheetState extends ConsumerState<_RegisterPaymentSheet> {
   final _notesCtrl = TextEditingController();
   _PayMode _mode = _PayMode.cash;
   String? _transferDestination;
+  String? _payerName;
   bool _saving = false;
   String? _error;
 
@@ -704,6 +713,11 @@ class _RegisterPaymentSheetState extends ConsumerState<_RegisterPaymentSheet> {
         }
     }
 
+    if (_payerName == null || _payerName!.isEmpty) {
+      setState(() => _error = 'Seleccioná quién recibe.');
+      return;
+    }
+
     setState(() => _saving = true);
     try {
       await ref.read(cashierRepositoryProvider).registerPayment(
@@ -713,6 +727,7 @@ class _RegisterPaymentSheetState extends ConsumerState<_RegisterPaymentSheet> {
             cashAmount: cash,
             transferAmount: transfer,
             transferDestination: destination,
+            payerName: _payerName,
             notes: _notesCtrl.text.trim().isEmpty
                 ? null
                 : _notesCtrl.text.trim(),
@@ -855,6 +870,15 @@ class _RegisterPaymentSheetState extends ConsumerState<_RegisterPaymentSheet> {
               onChanged: (v) => setState(() => _transferDestination = v),
             ),
           ],
+          const SizedBox(height: 12),
+          MasterListField(
+            listId: 'payers',
+            label: 'Quién recibe',
+            initialValue: _payerName,
+            required: true,
+            onChanged: (v) => setState(() => _payerName = v),
+            helperText: 'Persona en caja que recibe este abono.',
+          ),
           const SizedBox(height: 12),
           TextField(
             controller: _notesCtrl,

@@ -148,6 +148,7 @@ class CashierRepository {
     num? cashAmount,
     num? transferAmount,
     String? transferDestination,
+    String? payerName,
     String? notes,
     required AppUser actor,
   }) async {
@@ -187,6 +188,7 @@ class CashierRepository {
         cashAmount: cashAmount,
         transferAmount: transferAmount,
         transferDestination: transferDestination,
+        payerName: payerName,
         registeredBy: actor.uid,
         registeredByName: actor.fullName,
         registeredAt: now,
