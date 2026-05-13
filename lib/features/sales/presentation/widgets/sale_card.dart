@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/utils/dates.dart';
 import '../../../../core/utils/money.dart';
+import '../../../../shared/widgets/state_pill.dart';
 import '../../domain/sale.dart';
 
 /// Tarjeta compacta para listar una venta.
@@ -43,6 +44,8 @@ class SaleCard extends StatelessWidget {
                       ),
                     ),
                   ),
+                  const SizedBox(width: 6),
+                  StatePill(state: sale.state, compact: true),
                   const Spacer(),
                   Text(
                     formatDate(sale.date),
@@ -107,18 +110,21 @@ class SaleCard extends StatelessWidget {
                       ],
                     ),
                   ),
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: theme.colorScheme.surfaceContainerHighest,
-                      borderRadius: BorderRadius.circular(8),
+                  if (sale.paymentMethod.isNotEmpty)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 3,
+                      ),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.surfaceContainerHighest,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        sale.paymentMethod,
+                        style: theme.textTheme.labelSmall,
+                      ),
                     ),
-                    child: Text(
-                      sale.paymentMethod,
-                      style: theme.textTheme.labelSmall,
-                    ),
-                  ),
                 ],
               ),
             ],

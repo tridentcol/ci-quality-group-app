@@ -12,6 +12,7 @@ import '../../../core/utils/money.dart';
 import '../../../shared/widgets/confirm_dialog.dart';
 import '../../../shared/widgets/error_view.dart';
 import '../../../shared/widgets/hero_banner.dart';
+import '../../../shared/widgets/state_pill.dart';
 import '../../../shared/widgets/theme_mode_toggle.dart';
 import '../../auth/data/auth_repository.dart';
 import '../data/sales_repository.dart';
@@ -107,6 +108,12 @@ class _SaleDetailBody extends ConsumerWidget {
       (a) => a.valueOrNull?.role == AppRole.admin,
     ),);
 
+    // Sales no ve nada financiero. El admin sí — payment breakdown,
+    // método de pago, destino, etc. Esto NO incluye paidAmount /
+    // outstandingBalance / financialStatus (eso vive solo en la
+    // pantalla de pagos de caja).
+    final showPaymentInfo = isAdmin;
+
     return ListView(
       padding: const EdgeInsets.fromLTRB(0, 0, 0, 32),
       children: [
@@ -117,6 +124,11 @@ class _SaleDetailBody extends ConsumerWidget {
               '${sale.material}'
               '${sale.materialVariant != null ? ' · ${sale.materialVariant}' : ''}',
           icon: Icons.tag,
+        ),
+        const SizedBox(height: 12),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: _StateHeader(sale: sale),
         ),
         const SizedBox(height: 16),
         Padding(
@@ -148,16 +160,19 @@ class _SaleDetailBody extends ConsumerWidget {
                     for (final entry in sale.customFields.entries)
                       _Row(label: entry.key, value: entry.value.toString()),
                   ],
+                  if (showPaymentInfo) ...[
+                    const Divider(height: 24),
+                    if (sale.paymentMethod.isNotEmpty)
+                      _Row(label: 'Método de pago', value: sale.paymentMethod),
+                    if (sale.transferDestination != null &&
+                        sale.transferDestination!.isNotEmpty)
+                      _Row(
+                        label: 'Destino transferencia',
+                        value: sale.transferDestination!,
+                      ),
+                  ],
                   const Divider(height: 24),
-                  _Row(label: 'Método de pago', value: sale.paymentMethod),
-                  if (sale.transferDestination != null &&
-                      sale.transferDestination!.isNotEmpty)
-                    _Row(
-                      label: 'Destino transferencia',
-                      value: sale.transferDestination!,
-                    ),
                   _Row(label: 'Quién recibe', value: sale.payerName),
-                  const Divider(height: 24),
                   _Row(label: 'Registrada por', value: sale.createdByName),
                   _Row(
                       label: 'Registrada el',
@@ -170,9 +185,13 @@ class _SaleDetailBody extends ConsumerWidget {
                     Padding(
                       padding: const EdgeInsets.only(top: 8),
                       child: Text(
-                        AppClock.now().isBefore(sale.editableUntil!)
-                            ? 'Editable hasta ${formatDateTime(sale.editableUntil!)}'
-                            : 'Ya pasó la ventana de edición. Solo el admin puede modificar.',
+                        AppClock.now().isBefore(sale.editableUntil!) &&
+                                sale.state == SaleState.generada
+                            ? 'Editable hasta ${formatDateTime(sale.editableUntil!)} '
+                                'mientras la solicitud esté en estado generada.'
+                            : sale.state != SaleState.generada
+                                ? 'La solicitud ya no está en estado generada. Solo el admin puede modificar.'
+                                : 'Ya pasó la ventana de edición. Solo el admin puede modificar.',
                         style: theme.textTheme.bodySmall?.copyWith(
                           color: theme.colorScheme.onSurface
                               .withValues(alpha: 0.6),
@@ -184,13 +203,12 @@ class _SaleDetailBody extends ConsumerWidget {
             ),
           ),
         ),
-        // Breakdown de pago: solo lo mostramos cuando aporta info más
-        // allá del row "Método de pago: Efectivo". Sale de adorno
-        // (vacío) cuando es 100% efectivo sin destino — para esas
-        // ventas el row dentro del card principal ya es suficiente.
-        if (sale.isMixedPayment ||
-            (sale.transferDestination != null &&
-                sale.transferDestination!.isNotEmpty)) ...[
+        // Breakdown de pago: solo admin lo ve y solo cuando aporta info
+        // más allá del row "Método de pago: Efectivo".
+        if (showPaymentInfo &&
+            (sale.isMixedPayment ||
+                (sale.transferDestination != null &&
+                    sale.transferDestination!.isNotEmpty))) ...[
           const SizedBox(height: 16),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -374,6 +392,104 @@ class _BreakdownRow extends StatelessWidget {
             ],
           ),
         ),
+      ],
+    );
+  }
+}
+
+/// Encabezado de estado: muestra el state pill prominente + trazas
+/// (procesada → quién y cuándo; cancelada → razón). Sales NO ve nada
+/// financiero acá: paidAmount / outstandingBalance / financialStatus
+/// son del dominio de caja.
+class _StateHeader extends StatelessWidget {
+  const _StateHeader({required this.sale});
+  final Sale sale;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                StatePill(state: sale.state),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    _captionFor(sale.state),
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            if (sale.state == SaleState.procesada &&
+                sale.processedAt != null) ...[
+              const SizedBox(height: 8),
+              _TraceLine(
+                icon: Icons.check_circle_outline,
+                text: 'Procesada por ${sale.processedByName ?? '—'} · '
+                    '${formatDateTime(sale.processedAt!)}',
+              ),
+            ],
+            if (sale.state == SaleState.cancelada) ...[
+              if (sale.canceledAt != null) ...[
+                const SizedBox(height: 8),
+                _TraceLine(
+                  icon: Icons.cancel_outlined,
+                  text: 'Cancelada por ${sale.canceledByName ?? '—'} · '
+                      '${formatDateTime(sale.canceledAt!)}',
+                ),
+              ],
+              if (sale.cancelReason != null &&
+                  sale.cancelReason!.isNotEmpty) ...[
+                const SizedBox(height: 4),
+                _TraceLine(
+                  icon: Icons.notes_outlined,
+                  text: 'Motivo: ${sale.cancelReason}',
+                ),
+              ],
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _captionFor(SaleState state) => switch (state) {
+        SaleState.generada =>
+          'Esperando que caja la tome. Mientras tanto podés editarla.',
+        SaleState.enProceso =>
+          'Caja la está revisando. No la podés editar hasta que la procesen '
+              'o te la devuelvan.',
+        SaleState.procesada => 'Caja confirmó. Podés entregar el material.',
+        SaleState.cancelada => 'Esta solicitud fue cancelada.',
+      };
+}
+
+class _TraceLine extends StatelessWidget {
+  const _TraceLine({required this.icon, required this.text});
+  final IconData icon;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(
+          icon,
+          size: 16,
+          color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+        ),
+        const SizedBox(width: 6),
+        Expanded(child: Text(text, style: theme.textTheme.bodySmall)),
       ],
     );
   }
