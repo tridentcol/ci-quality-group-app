@@ -55,6 +55,10 @@ class SalesRepository {
       final consecutive = _formatConsecutive(next);
 
       final totalValue = quantity * unitPrice;
+      // El flujo actual (admin) captura pago junto a la venta y entrega
+      // material al instante. Por eso arrancamos en `procesada` + `paid`.
+      // El flujo nuevo de Fase 2 (rol sales sin pago) override-eará estos
+      // defaults pasando `state` / `paidAmount` distintos.
       final sale = Sale(
         id: docRef.id,
         consecutive: consecutive,
@@ -78,6 +82,11 @@ class SalesRepository {
         createdAt: now,
         editableUntil: now.add(const Duration(hours: 24)),
         customFields: customFields,
+        state: SaleState.procesada,
+        paidAmount: totalValue,
+        lossAmount: 0,
+        outstandingBalance: 0,
+        financialStatus: SaleFinancialStatus.paid,
       );
 
       txn.set(_counterRef, {'value': next}, SetOptions(merge: true));

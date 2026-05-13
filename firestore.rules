@@ -46,6 +46,10 @@ service cloud.firestore {
       return isSignedIn() && role() == 'auditor' && isActive();
     }
 
+    function isCajero() {
+      return isSignedIn() && role() == 'cajero' && isActive();
+    }
+
     // ---------- Users ----------
     // Cada usuario lee su propio perfil (necesario para arrancar la app
     // y resolver el rol). Admin lee y escribe todos los perfiles.
@@ -63,15 +67,42 @@ service cloud.firestore {
     }
 
     // ---------- Sales ----------
-    // Admin y sales: control total. Auditor: solo lectura (su dashboard
-    // muestra ventas filtradas por su `auditFilter`; el filtrado real
-    // lo hace la app cliente con .where(), las rules le permiten leer
-    // toda la colección porque enforcement query-side de Firestore es
-    // limitado).
+    // Admin, sales, cajero y auditor leen. Auditor: solo lectura (su
+    // dashboard muestra ventas filtradas por su `auditFilter`; el
+    // filtrado real lo hace la app cliente con .where()).
+    //
+    // - Admin: control total.
+    // - Sales: crea solicitudes; solo puede editar las suyas mientras
+    //   sigan en `generada` y estén dentro de la ventana de 24 h. No
+    //   puede tocar campos financieros ni el state.
+    // - Cajero: actualiza el workflow (state) y agregados de pago
+    //   (paidAmount, lossAmount, etc.). No puede borrar.
+    // Las validaciones detalladas de "qué campo puede tocar qué rol"
+    // se hacen en cliente; las rules dejan el guard rail grueso para
+    // que el rol incorrecto no pueda escribir nunca.
     match /sales/{sid} {
-      allow read: if isAdmin() || isSales() || isAuditor();
-      allow create, update: if isAdmin() || isSales();
+      allow read: if isAdmin() || isSales() || isCajero() || isAuditor();
+      allow create: if isAdmin() || isSales();
+      allow update: if isAdmin()
+        || isCajero()
+        || (isSales()
+            && resource.data.createdBy == request.auth.uid
+            && resource.data.get('state', 'procesada') == 'generada'
+            && resource.data.get('editableUntil', request.time) > request.time);
       allow delete: if isAdmin();
+
+      // ---------- Payments (subcolección) ----------
+      // Solo admin y cajero ven y registran abonos. Solo admin puede
+      // borrar (anular un pago se modela como delete + recalculo del
+      // padre en una transacción).
+      match /payments/{pid} {
+        allow read: if isAdmin() || isCajero();
+        allow create: if (isAdmin() || isCajero())
+          && request.resource.data.amount is number
+          && request.resource.data.amount > 0;
+        allow update: if false;
+        allow delete: if isAdmin();
+      }
     }
 
     // ---------- Hours entries ----------

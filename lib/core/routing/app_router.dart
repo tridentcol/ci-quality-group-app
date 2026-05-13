@@ -7,6 +7,7 @@ import '../../features/admin/presentation/admin_shell.dart';
 import '../../features/admin/presentation/clients_breakdown_screen.dart';
 import '../../features/admin/presentation/materials_breakdown_screen.dart';
 import '../../features/auditor/presentation/auditor_dashboard_screen.dart';
+import '../../features/cashier/presentation/cashier_home_screen.dart';
 import '../../features/admin/presentation/duplicate_review_screen.dart';
 import '../../features/admin/presentation/master_list_detail_screen.dart';
 import '../../features/admin/presentation/master_lists_screen.dart';
@@ -69,6 +70,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         AppRole.admin => '/admin',
         AppRole.sales => '/sales',
         AppRole.hours => '/hours',
+        AppRole.cajero => '/cashier',
         AppRole.auditor => '/audit',
       };
 
@@ -84,6 +86,11 @@ final routerProvider = Provider<GoRouter>((ref) {
       if (loc.startsWith('/hours') &&
           user.role != AppRole.admin &&
           user.role != AppRole.hours) {
+        return home;
+      }
+      if (loc.startsWith('/cashier') &&
+          user.role != AppRole.admin &&
+          user.role != AppRole.cajero) {
         return home;
       }
       if (loc.startsWith('/audit') && user.role != AppRole.auditor) {
@@ -255,6 +262,13 @@ final routerProvider = Provider<GoRouter>((ref) {
                 WorkerDayScreen(workerId: state.pathParameters['workerId']!),
           ),
         ],
+      ),
+
+      // Cashier (admin + cajero) — placeholder. El detalle real (tabs,
+      // detalle de solicitud, pagos) entra en Fase 3 y 4.
+      GoRoute(
+        path: '/cashier',
+        builder: (_, __) => const CashierHomeScreen(),
       ),
     ],
   );

@@ -13,7 +13,7 @@ este doc y `firestore.rules`.
 |---------------|-------------|-------------------------------------------------------|
 | `username`    | String      | Único, sin `@cqg.app`. Lo que el usuario tipea al login. |
 | `fullName`    | String      | Nombre completo para mostrar en UI.                   |
-| `role`        | String enum | `'admin' \| 'sales' \| 'hours' \| 'auditor'`.         |
+| `role`        | String enum | `'admin' \| 'sales' \| 'hours' \| 'cajero' \| 'auditor'`. |
 | `active`      | bool        | Si `false`, no puede iniciar sesión.                  |
 | `auditFilter` | Map?        | Solo para rol `auditor`. `{ field: String, value: String }`. |
 | `createdAt`   | Timestamp   | Cuándo se creó el doc.                                |
@@ -65,15 +65,59 @@ Reglas:
 | `updatedAt`            | Timestamp? |                                        |
 | `editableUntil`        | Timestamp? | 24h después de createdAt. Después solo admin edita. |
 | `customFields`         | Map        | Campos extra definidos por el admin en form builder. |
+| `state`                | String enum | `'generada' \| 'en_proceso' \| 'procesada' \| 'cancelada'`. Workflow informativo para sales (¿puedo entregar?). Lo controla cajero. Default legacy: `procesada`. |
+| `paidAmount`           | num        | Suma de abonos confirmados (denormalizado de la subcolección `payments`). |
+| `lossAmount`           | num        | Saldo castigado contablemente. Absorbe el `financialStatus` a `lost`. |
+| `outstandingBalance`   | num        | `totalValue - paidAmount - lossAmount`. Denormalizado para queries. |
+| `financialStatus`      | String enum | `'pending' \| 'partiallyPaid' \| 'paid' \| 'lost'`. Derivado por `Sale.computeFinancialStatus`. |
+| `creditDueDate`        | Timestamp? | Plazo opcional para cobrar. Si queda en el pasado, la deuda aparece como vencida. Sin lógica automática. |
+| `processedBy`          | String?    | uid del cajero que confirmó como `procesada`.    |
+| `processedByName`      | String?    | Nombre cacheado.                                 |
+| `processedAt`          | Timestamp? |                                                  |
+| `canceledBy` / `canceledByName` / `canceledAt` | String?/String?/Timestamp? | Trazabilidad de la cancelación. |
+| `cancelReason`         | String?    | Razón obligatoria al cancelar.                   |
+| `markedAsLossBy` / `markedAsLossByName` / `markedAsLossAt` | String?/String?/Timestamp? | Trazabilidad de "marcar saldo como pérdida". |
+| `lossReason`           | String?    | Razón obligatoria al marcar pérdida.             |
 
 **Backwards-compat**: ventas viejas no tienen `cashAmount`/`transferAmount`/`transferDestination`.
 El modelo `Sale` los expone como `cashPortion` / `transferPortion` con
 fallback inferido de `paymentMethod`.
 
+Las ventas viejas tampoco tienen `state` ni los campos financieros
+nuevos. `Sale.fromSnapshot` las interpreta como `state: procesada`,
+`paidAmount: totalValue`, `outstandingBalance: 0`, `financialStatus: paid`.
+No hay script de migración — el fallback in-place alcanza.
+
 Reglas:
-- Lee: `admin`, `sales`, `auditor`.
-- Crea/actualiza: `admin`, `sales`.
+- Lee: `admin`, `sales`, `cajero`, `auditor`.
+- Crea: `admin`, `sales`.
+- Actualiza: `admin`, `cajero`. Sales solo puede editar sus propias
+  ventas mientras sigan en `generada` y dentro de la ventana de 24 h.
 - Borra: solo `admin`.
+
+#### `sales/{id}/payments/{paymentId}`
+
+`SalePayment` — abonos parciales contra una venta. La creación de un
+payment + actualización de agregados del padre (`paidAmount`,
+`outstandingBalance`, `financialStatus`) va siempre en un
+`runTransaction` para mantener la consistencia.
+
+| Campo                  | Tipo       | Notas                                  |
+|------------------------|------------|----------------------------------------|
+| `amount`               | num        | Total del abono. Debe ser > 0.         |
+| `paymentMethod`        | String     | `'Efectivo' \| 'Transferencia' \| 'Mixto'`. |
+| `cashAmount`           | num?       | Componente efectivo (si aplica).       |
+| `transferAmount`       | num?       | Componente transferencia (si aplica).  |
+| `transferDestination`  | String?    | Banco/billetera, requerido si `transferAmount > 0`. |
+| `registeredBy`         | String     | uid del cajero/admin que lo registró.  |
+| `registeredByName`     | String     | Nombre cacheado.                       |
+| `registeredAt`         | Timestamp  |                                        |
+| `notes`                | String?    | Notas opcionales del cajero.           |
+
+Reglas:
+- Lee/crea: `admin`, `cajero`. Create exige `amount > 0`.
+- Update: nadie (corregir un abono se hace borrando y registrando uno nuevo).
+- Borra: solo `admin` (anula el pago y recalcula los agregados).
 
 ### `hours_entries/{id}`
 
