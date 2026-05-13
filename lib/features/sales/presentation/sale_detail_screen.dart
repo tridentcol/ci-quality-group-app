@@ -170,9 +170,9 @@ class _SaleDetailBody extends ConsumerWidget {
                         label: 'Destino transferencia',
                         value: sale.transferDestination!,
                       ),
+                    _Row(label: 'Quién recibe', value: sale.payerName),
                   ],
                   const Divider(height: 24),
-                  _Row(label: 'Quién recibe', value: sale.payerName),
                   _Row(label: 'Registrada por', value: sale.createdByName),
                   _Row(
                       label: 'Registrada el',
