@@ -8,6 +8,7 @@ import '../../../shared/widgets/empty_state.dart';
 import '../../../shared/widgets/error_view.dart';
 import '../../../shared/widgets/skeleton.dart';
 import '../../../shared/widgets/theme_mode_toggle.dart';
+import '../data/duplicate_service.dart';
 import '../data/master_lists_repository.dart';
 import '../domain/master_list.dart';
 
@@ -24,17 +25,35 @@ const Set<String> _listsWithParentPicker = {'lamina_brands'};
 /// `_listsWithParentPicker` contiene el listId actual.
 const String _parentSourceListId = 'materials';
 
-class MasterListDetailScreen extends ConsumerWidget {
+class MasterListDetailScreen extends ConsumerStatefulWidget {
   const MasterListDetailScreen({super.key, required this.listId});
 
   final String listId;
 
-  bool get _hasParentPicker => _listsWithParentPicker.contains(listId);
+  @override
+  ConsumerState<MasterListDetailScreen> createState() =>
+      _MasterListDetailScreenState();
+}
+
+class _MasterListDetailScreenState
+    extends ConsumerState<MasterListDetailScreen> {
+  /// Cuando está en `true`, cada item muestra un checkbox y el FAB se
+  /// reemplaza por la barra inferior de fusión manual. El admin sale del
+  /// modo con la X del AppBar o aplicando.
+  bool _selecting = false;
+
+  /// Ids de items marcados para fusionar.
+  final Set<String> _selectedIds = {};
+
+  bool _merging = false;
+
+  String get _listId => widget.listId;
+  bool get _hasParentPicker => _listsWithParentPicker.contains(_listId);
 
   /// Carga la lista de materiales para usar como opciones del picker
   /// de parent. Se hace por demanda (al abrir el dialog) en lugar de
   /// watch en el build, para no causar rebuilds extra.
-  Future<List<String>> _loadParentOptions(WidgetRef ref) async {
+  Future<List<String>> _loadParentOptions() async {
     if (!_hasParentPicker) return const [];
     final items = await ref
         .read(masterListsRepositoryProvider)
@@ -42,9 +61,9 @@ class MasterListDetailScreen extends ConsumerWidget {
     return items.map((it) => it.value).toList();
   }
 
-  Future<void> _addItem(BuildContext context, WidgetRef ref) async {
-    final parentOptions = await _loadParentOptions(ref);
-    if (!context.mounted) return;
+  Future<void> _addItem() async {
+    final parentOptions = await _loadParentOptions();
+    if (!mounted) return;
     final result = await _promptItem(
       context,
       title: 'Nueva opción',
@@ -54,12 +73,12 @@ class MasterListDetailScreen extends ConsumerWidget {
     if (result == null || result.value.isEmpty) return;
     try {
       await ref.read(masterListsRepositoryProvider).addItem(
-            listId,
+            _listId,
             value: result.value,
             parent: result.parent,
           );
     } catch (e) {
-      if (context.mounted) {
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(friendlyError(e))),
         );
@@ -67,13 +86,9 @@ class MasterListDetailScreen extends ConsumerWidget {
     }
   }
 
-  Future<void> _editItem(
-    BuildContext context,
-    WidgetRef ref,
-    MasterListItem item,
-  ) async {
-    final parentOptions = await _loadParentOptions(ref);
-    if (!context.mounted) return;
+  Future<void> _editItem(MasterListItem item) async {
+    final parentOptions = await _loadParentOptions();
+    if (!mounted) return;
     final result = await _promptItem(
       context,
       title: 'Editar opción',
@@ -89,29 +104,24 @@ class MasterListDetailScreen extends ConsumerWidget {
     if (!valueChanged && !parentChanged) return;
 
     try {
-      // Si el parent cambió, lo actualizamos primero (sin propagación
-      // a sales — el parent es metadata del catálogo, no se referencia
-      // en sales documents).
       if (parentChanged) {
         await ref.read(masterListsRepositoryProvider).updateItem(
-              listId,
+              _listId,
               item.id,
               parent: result.parent,
             );
       }
-      // Si el value cambió, renameItem lo actualiza Y propaga el rename
-      // a todas las ventas que apuntan al value viejo.
       var salesUpdated = 0;
       if (valueChanged) {
         salesUpdated =
             await ref.read(masterListsRepositoryProvider).renameItem(
-                  listId: listId,
+                  listId: _listId,
                   itemId: item.id,
                   oldValue: item.value,
                   newValue: result.value,
                 );
       }
-      if (context.mounted) {
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
@@ -125,7 +135,7 @@ class MasterListDetailScreen extends ConsumerWidget {
         );
       }
     } catch (e) {
-      if (context.mounted) {
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(friendlyError(e))),
         );
@@ -148,11 +158,7 @@ class MasterListDetailScreen extends ConsumerWidget {
     return 'Sin cambios.';
   }
 
-  Future<void> _deleteItem(
-    BuildContext context,
-    WidgetRef ref,
-    MasterListItem item,
-  ) async {
+  Future<void> _deleteItem(MasterListItem item) async {
     final ok = await showConfirmDialog(
       context,
       title: 'Eliminar opción',
@@ -165,9 +171,9 @@ class MasterListDetailScreen extends ConsumerWidget {
     );
     if (!ok) return;
     try {
-      await ref.read(masterListsRepositoryProvider).deleteItem(listId, item.id);
+      await ref.read(masterListsRepositoryProvider).deleteItem(_listId, item.id);
     } catch (e) {
-      if (context.mounted) {
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(friendlyError(e))),
         );
@@ -175,48 +181,169 @@ class MasterListDetailScreen extends ConsumerWidget {
     }
   }
 
-  Future<void> _approveSuggestion(WidgetRef ref, MasterListItem item) async {
+  Future<void> _approveSuggestion(MasterListItem item) async {
     await ref.read(masterListsRepositoryProvider).updateItem(
-          listId,
+          _listId,
           item.id,
           userSuggested: false,
         );
   }
 
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final items = ref.watch(
-      masterListItemsProvider(MasterListItemsQuery(listId: listId)),
-    );
-    final meta = ref.watch(masterListMetaProvider(listId));
+  void _enterSelecting() {
+    setState(() {
+      _selecting = true;
+      _selectedIds.clear();
+    });
+  }
 
-    final supportsMerge = listSupportsMerge(listId);
+  void _exitSelecting() {
+    setState(() {
+      _selecting = false;
+      _selectedIds.clear();
+    });
+  }
+
+  void _toggleSelect(String id) {
+    setState(() {
+      if (_selectedIds.contains(id)) {
+        _selectedIds.remove(id);
+      } else {
+        _selectedIds.add(id);
+      }
+    });
+  }
+
+  Future<void> _mergeSelected(List<MasterListItem> allItems) async {
+    if (_selectedIds.length < 2) return;
+    final selected =
+        allItems.where((it) => _selectedIds.contains(it.id)).toList();
+
+    final canonical = await _pickCanonical(context, selected);
+    if (canonical == null || !mounted) return;
+
+    final duplicates =
+        selected.where((it) => it.id != canonical.id).toList();
+    final dupNames = duplicates.map((d) => '"${d.value}"').join(', ');
+
+    final ok = await showConfirmDialog(
+      context,
+      title: 'Fusionar manualmente',
+      message: 'Vas a unir $dupNames en "${canonical.value}".\n\n'
+          'Las ventas que usaban esos nombres se van a actualizar al '
+          'canónico y los items duplicados se eliminan del catálogo.\n\n'
+          'Esta acción no se puede deshacer.',
+      confirmLabel: 'Fusionar',
+      icon: Icons.call_merge,
+    );
+    if (!ok || !mounted) return;
+
+    setState(() => _merging = true);
+    try {
+      final result = await ref.read(duplicateServiceProvider).applyMerges(
+        listId: _listId,
+        requests: [
+          DuplicateMergeRequest(
+            canonical: canonical,
+            duplicates: duplicates,
+          ),
+        ],
+      );
+      if (!mounted) return;
+      // Refresca catálogo. Los providers de sales son streams y se
+      // actualizan solos cuando los docs cambian.
+      ref.invalidate(
+        masterListItemsProvider(MasterListItemsQuery(listId: _listId)),
+      );
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            '✓ ${result.itemsDeleted} duplicado'
+            '${result.itemsDeleted == 1 ? '' : 's'} fusionado'
+            '${result.itemsDeleted == 1 ? '' : 's'} · '
+            '${result.salesUpdated} venta'
+            '${result.salesUpdated == 1 ? '' : 's'} actualizada'
+            '${result.salesUpdated == 1 ? '' : 's'}',
+          ),
+          duration: const Duration(seconds: 4),
+        ),
+      );
+      _exitSelecting();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(friendlyError(e))),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _merging = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final items = ref.watch(
+      masterListItemsProvider(MasterListItemsQuery(listId: _listId)),
+    );
+    final meta = ref.watch(masterListMetaProvider(_listId));
+    final supportsMerge = listSupportsMerge(_listId);
+    final theme = Theme.of(context);
+
+    final itemsList = items.valueOrNull ?? const <MasterListItem>[];
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(meta.valueOrNull?.name ?? 'Lista maestra'),
-        actions: [
-          if (supportsMerge)
-            IconButton(
-              tooltip: 'Detectar y fusionar duplicados',
-              icon: const Icon(Icons.call_merge),
-              onPressed: () =>
-                  context.push('/admin/master-lists/$listId/duplicates'),
+        leading: _selecting
+            ? IconButton(
+                icon: const Icon(Icons.close),
+                tooltip: 'Salir del modo selección',
+                onPressed: _merging ? null : _exitSelecting,
+              )
+            : null,
+        title: Text(
+          _selecting
+              ? '${_selectedIds.length} seleccionado'
+                  '${_selectedIds.length == 1 ? '' : 's'}'
+              : meta.valueOrNull?.name ?? 'Lista maestra',
+        ),
+        actions: _selecting
+            ? const [ThemeModeIconButton()]
+            : [
+                if (supportsMerge) ...[
+                  IconButton(
+                    tooltip: 'Fusionar manualmente',
+                    icon: const Icon(Icons.checklist_outlined),
+                    onPressed: itemsList.length < 2 ? null : _enterSelecting,
+                  ),
+                  IconButton(
+                    tooltip: 'Detectar y fusionar duplicados',
+                    icon: const Icon(Icons.call_merge),
+                    onPressed: () => context
+                        .push('/admin/master-lists/$_listId/duplicates'),
+                  ),
+                ],
+                const ThemeModeIconButton(),
+              ],
+      ),
+      floatingActionButton: _selecting
+          ? null
+          : FloatingActionButton.extended(
+              onPressed: _addItem,
+              icon: const Icon(Icons.add),
+              label: const Text('Agregar'),
             ),
-          const ThemeModeIconButton(),
-        ],
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _addItem(context, ref),
-        icon: const Icon(Icons.add),
-        label: const Text('Agregar'),
-      ),
+      bottomNavigationBar: _selecting
+          ? _ManualMergeBar(
+              count: _selectedIds.length,
+              busy: _merging,
+              onApply: () => _mergeSelected(itemsList),
+            )
+          : null,
       body: items.when(
         loading: () => const SkeletonList(),
         error: (e, _) => AppErrorView(
           error: e,
           onRetry: () => ref.invalidate(
-            masterListItemsProvider(MasterListItemsQuery(listId: listId)),
+            masterListItemsProvider(MasterListItemsQuery(listId: _listId)),
           ),
         ),
         data: (data) {
@@ -226,23 +353,42 @@ class MasterListDetailScreen extends ConsumerWidget {
               title: 'Lista vacía',
               message: 'Esta lista no tiene opciones todavía.',
               actionLabel: 'Agregar primera opción',
-              onAction: () => _addItem(context, ref),
+              onAction: _addItem,
             );
           }
-          return ListView.separated(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
-            itemCount: data.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 8),
-            itemBuilder: (context, i) {
-              final item = data[i];
-              return _ItemCard(
-                item: item,
-                showParent: _hasParentPicker,
-                onApprove: () => _approveSuggestion(ref, item),
-                onEdit: () => _editItem(context, ref, item),
-                onDelete: () => _deleteItem(context, ref, item),
-              );
-            },
+          return Stack(
+            children: [
+              ListView.separated(
+                padding: EdgeInsets.fromLTRB(
+                  16,
+                  _selecting ? 12 : 8,
+                  16,
+                  _selecting ? 96 : 96,
+                ),
+                itemCount: data.length,
+                separatorBuilder: (_, __) => const SizedBox(height: 8),
+                itemBuilder: (context, i) {
+                  final item = data[i];
+                  return _ItemCard(
+                    item: item,
+                    showParent: _hasParentPicker,
+                    selecting: _selecting,
+                    selected: _selectedIds.contains(item.id),
+                    onTap: _selecting ? () => _toggleSelect(item.id) : null,
+                    onApprove: () => _approveSuggestion(item),
+                    onEdit: () => _editItem(item),
+                    onDelete: () => _deleteItem(item),
+                  );
+                },
+              ),
+              if (_selecting && _selectedIds.length < 2)
+                Positioned(
+                  top: 8,
+                  left: 16,
+                  right: 16,
+                  child: _SelectingHint(theme: theme),
+                ),
+            ],
           );
         },
       ),
@@ -250,10 +396,16 @@ class MasterListDetailScreen extends ConsumerWidget {
   }
 }
 
+/// Card de un item. En modo normal expone las acciones (aprobar / editar
+/// / eliminar) en un popup menu. En modo selección, muestra un checkbox
+/// al frente y oculta el menú — todo el tile actúa como toggle.
 class _ItemCard extends StatelessWidget {
   const _ItemCard({
     required this.item,
     required this.showParent,
+    required this.selecting,
+    required this.selected,
+    required this.onTap,
     required this.onApprove,
     required this.onEdit,
     required this.onDelete,
@@ -261,6 +413,9 @@ class _ItemCard extends StatelessWidget {
 
   final MasterListItem item;
   final bool showParent;
+  final bool selecting;
+  final bool selected;
+  final VoidCallback? onTap;
   final VoidCallback onApprove;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
@@ -304,9 +459,18 @@ class _ItemCard extends StatelessWidget {
     }
 
     return Card(
+      color: selected
+          ? theme.colorScheme.primary.withValues(alpha: 0.10)
+          : null,
       child: ListTile(
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+        onTap: onTap,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        leading: selecting
+            ? Checkbox(
+                value: selected,
+                onChanged: (_) => onTap?.call(),
+              )
+            : null,
         title: Text(item.value),
         subtitle: subtitleParts.isEmpty
             ? null
@@ -322,58 +486,245 @@ class _ItemCard extends StatelessWidget {
                   ],
                 ),
               ),
-        trailing: PopupMenuButton<_ItemAction>(
-          tooltip: 'Acciones',
-          icon: const Icon(Icons.more_vert),
-          onSelected: (action) {
-            switch (action) {
-              case _ItemAction.approve:
-                onApprove();
-              case _ItemAction.edit:
-                onEdit();
-              case _ItemAction.delete:
-                onDelete();
-            }
-          },
-          itemBuilder: (context) => [
-            if (item.userSuggested)
-              PopupMenuItem(
-                value: _ItemAction.approve,
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.check_circle_outline,
-                      size: 20,
-                      color: theme.colorScheme.primary,
+        trailing: selecting
+            ? null
+            : PopupMenuButton<_ItemAction>(
+                tooltip: 'Acciones',
+                icon: const Icon(Icons.more_vert),
+                onSelected: (action) {
+                  switch (action) {
+                    case _ItemAction.approve:
+                      onApprove();
+                    case _ItemAction.edit:
+                      onEdit();
+                    case _ItemAction.delete:
+                      onDelete();
+                  }
+                },
+                itemBuilder: (context) => [
+                  if (item.userSuggested)
+                    PopupMenuItem(
+                      value: _ItemAction.approve,
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.check_circle_outline,
+                            size: 20,
+                            color: theme.colorScheme.primary,
+                          ),
+                          const SizedBox(width: 12),
+                          const Text('Aprobar sugerencia'),
+                        ],
+                      ),
                     ),
-                    const SizedBox(width: 12),
-                    const Text('Aprobar sugerencia'),
-                  ],
-                ),
-              ),
-            const PopupMenuItem(
-              value: _ItemAction.edit,
-              child: Row(
-                children: [
-                  Icon(Icons.edit_outlined, size: 20),
-                  SizedBox(width: 12),
-                  Text('Editar'),
+                  const PopupMenuItem(
+                    value: _ItemAction.edit,
+                    child: Row(
+                      children: [
+                        Icon(Icons.edit_outlined, size: 20),
+                        SizedBox(width: 12),
+                        Text('Editar'),
+                      ],
+                    ),
+                  ),
+                  const PopupMenuItem(
+                    value: _ItemAction.delete,
+                    child: Row(
+                      children: [
+                        Icon(Icons.delete_outline, size: 20),
+                        SizedBox(width: 12),
+                        Text('Eliminar'),
+                      ],
+                    ),
+                  ),
                 ],
               ),
+      ),
+    );
+  }
+}
+
+class _ManualMergeBar extends StatelessWidget {
+  const _ManualMergeBar({
+    required this.count,
+    required this.busy,
+    required this.onApply,
+  });
+
+  final int count;
+  final bool busy;
+  final VoidCallback onApply;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final canApply = count >= 2 && !busy;
+    return Material(
+      elevation: 8,
+      color: theme.colorScheme.surface,
+      child: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  count < 2
+                      ? 'Marcá al menos 2 items para fusionar.'
+                      : '$count item${count == 1 ? '' : 's'} seleccionado'
+                          '${count == 1 ? '' : 's'}.',
+                  style: theme.textTheme.bodyMedium,
+                ),
+              ),
+              FilledButton.icon(
+                onPressed: canApply ? onApply : null,
+                icon: busy
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.call_merge),
+                label: const Text('Fusionar'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SelectingHint extends StatelessWidget {
+  const _SelectingHint({required this.theme});
+  final ThemeData theme;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.primary.withValues(alpha: 0.10),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: theme.colorScheme.primary.withValues(alpha: 0.35),
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              Icons.touch_app_outlined,
+              size: 18,
+              color: theme.colorScheme.primary,
             ),
-            const PopupMenuItem(
-              value: _ItemAction.delete,
-              child: Row(
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Marcá los items que en realidad son la misma persona o '
+                'cosa. Al fusionar elegís cuál se queda; los demás se '
+                'borran y sus ventas se actualizan.',
+                style: theme.textTheme.bodySmall,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Muestra los items seleccionados con un radio para elegir cuál queda
+/// como canónico. Devuelve el item elegido o `null` si cancela.
+Future<MasterListItem?> _pickCanonical(
+  BuildContext context,
+  List<MasterListItem> selected,
+) async {
+  return showDialog<MasterListItem>(
+    context: context,
+    builder: (ctx) => _PickCanonicalDialog(items: selected),
+  );
+}
+
+class _PickCanonicalDialog extends StatefulWidget {
+  const _PickCanonicalDialog({required this.items});
+  final List<MasterListItem> items;
+
+  @override
+  State<_PickCanonicalDialog> createState() => _PickCanonicalDialogState();
+}
+
+class _PickCanonicalDialogState extends State<_PickCanonicalDialog> {
+  late String _selectedId;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedId = widget.items.first.id;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return AlertDialog(
+      title: const Text('Elegí el nombre canónico'),
+      content: SizedBox(
+        width: 320,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Es el nombre que se queda. Los demás se borran del catálogo '
+              'y todas las ventas que los usaban van a apuntar acá.',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+              ),
+            ),
+            const SizedBox(height: 12),
+            RadioGroup<String>(
+              groupValue: _selectedId,
+              onChanged: (v) {
+                if (v != null) setState(() => _selectedId = v);
+              },
+              child: Column(
                 children: [
-                  Icon(Icons.delete_outline, size: 20),
-                  SizedBox(width: 12),
-                  Text('Eliminar'),
+                  for (final item in widget.items)
+                    RadioListTile<String>(
+                      value: item.id,
+                      title: Text(item.value),
+                      subtitle: item.userSuggested
+                          ? Text(
+                              'Sugerida por un usuario',
+                              style: theme.textTheme.labelSmall,
+                            )
+                          : null,
+                      dense: true,
+                      contentPadding: EdgeInsets.zero,
+                    ),
                 ],
               ),
             ),
           ],
         ),
       ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancelar'),
+        ),
+        FilledButton(
+          onPressed: () {
+            final picked = widget.items.firstWhere(
+              (it) => it.id == _selectedId,
+              orElse: () => widget.items.first,
+            );
+            Navigator.pop(context, picked);
+          },
+          child: const Text('Continuar'),
+        ),
+      ],
     );
   }
 }
