@@ -26,6 +26,13 @@ class SalesRepository {
   /// Crea una nueva venta. El cliente arma la mayoría de campos; el
   /// repositorio se encarga del consecutivo, fechas de auditoría y la
   /// ventana de edición de 24 h.
+  ///
+  /// El `state` controla cómo arrancan los agregados financieros:
+  ///   - `procesada` (default, flujo legacy admin) → la venta se considera
+  ///     pagada al instante: paidAmount = totalValue, financialStatus = paid.
+  ///   - `generada` (flujo nuevo sales) → es una solicitud sin pago todavía:
+  ///     paidAmount = 0, outstandingBalance = totalValue, status = pending.
+  /// El resto de estados no tienen sentido al crear y caen al default.
   Future<Sale> createSale({
     required DateTime date,
     required String documentType,
@@ -44,6 +51,7 @@ class SalesRepository {
     required String createdBy,
     required String createdByName,
     Map<String, dynamic> customFields = const {},
+    SaleState state = SaleState.procesada,
   }) async {
     final now = AppClock.now();
     final docRef = _col.doc();
@@ -55,10 +63,15 @@ class SalesRepository {
       final consecutive = _formatConsecutive(next);
 
       final totalValue = quantity * unitPrice;
-      // El flujo actual (admin) captura pago junto a la venta y entrega
-      // material al instante. Por eso arrancamos en `procesada` + `paid`.
-      // El flujo nuevo de Fase 2 (rol sales sin pago) override-eará estos
-      // defaults pasando `state` / `paidAmount` distintos.
+      // Para solicitudes nuevas (state=generada) el pago se registra
+      // después desde caja. Para el flujo legacy (procesada) la venta
+      // se considera cobrada al instante.
+      final isRequest = state == SaleState.generada;
+      final paidAmount = isRequest ? 0 : totalValue;
+      final outstandingBalance = isRequest ? totalValue : 0;
+      final financialStatus = isRequest
+          ? SaleFinancialStatus.pending
+          : SaleFinancialStatus.paid;
       final sale = Sale(
         id: docRef.id,
         consecutive: consecutive,
@@ -82,11 +95,11 @@ class SalesRepository {
         createdAt: now,
         editableUntil: now.add(const Duration(hours: 24)),
         customFields: customFields,
-        state: SaleState.procesada,
-        paidAmount: totalValue,
+        state: state,
+        paidAmount: paidAmount,
         lossAmount: 0,
-        outstandingBalance: 0,
-        financialStatus: SaleFinancialStatus.paid,
+        outstandingBalance: outstandingBalance,
+        financialStatus: financialStatus,
       );
 
       txn.set(_counterRef, {'value': next}, SetOptions(merge: true));

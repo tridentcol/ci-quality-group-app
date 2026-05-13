@@ -212,63 +212,81 @@ class _SaleFormScreenState extends ConsumerState<SaleFormScreen> {
       _payer = resolved['Quién recibe'] ?? _payer;
     }
 
+    final profile = ref.read(currentProfileProvider).valueOrNull;
+    if (profile == null) {
+      _setError('Sesión no válida.');
+      return;
+    }
+    final isSalesRole = profile.role == AppRole.sales;
+
     final quantity = num.parse(_quantityCtrl.text.replaceAll(',', '.'));
     final unitPrice = num.parse(_unitPriceCtrl.text.replaceAll(',', '.'));
     final totalValue = quantity * unitPrice;
 
-    // Calcula los montos cash/transfer según el modo. En Mixto los
-    // valores los digita el usuario y se valida que sumen el total
-    // (con tolerancia de 1 peso para evitar problemas de redondeo).
     num? cashAmount;
     num? transferAmount;
     String? transferDestination;
+    String paymentMethodValue;
+    SaleState createState;
 
-    switch (_paymentMode) {
-      case _PaymentMode.cash:
-        cashAmount = totalValue;
-        transferAmount = null;
-        transferDestination = null;
-      case _PaymentMode.transfer:
-        cashAmount = null;
-        transferAmount = totalValue;
-        transferDestination = _transferDestination;
-        if (transferDestination == null || transferDestination.isEmpty) {
-          _setError('Selecciona el destino de la transferencia.');
-          return;
-        }
-      case _PaymentMode.mixed:
-        final cashStr = _cashAmountCtrl.text.replaceAll(',', '.').trim();
-        final transferStr =
-            _transferAmountCtrl.text.replaceAll(',', '.').trim();
-        final cash = num.tryParse(cashStr);
-        final transfer = num.tryParse(transferStr);
-        if (cash == null || transfer == null || cash < 0 || transfer < 0) {
-          _setError('Ingresa los montos en efectivo y por transferencia.');
-          return;
-        }
-        if ((cash + transfer - totalValue).abs() > 1) {
-          _setError(
-            'La suma de efectivo (${formatCop(cash)}) más '
-            'transferencia (${formatCop(transfer)}) debe ser igual al '
-            'total (${formatCop(totalValue)}).',
-          );
-          return;
-        }
-        cashAmount = cash;
-        transferAmount = transfer;
-        transferDestination = _transferDestination;
-        if (transferDestination == null || transferDestination.isEmpty) {
-          _setError('Selecciona el destino de la transferencia.');
-          return;
-        }
+    if (isSalesRole) {
+      // Sales solo captura datos comerciales. paymentMethod queda vacío y
+      // la solicitud arranca en `generada`; cajero define el método al
+      // registrar el primer abono.
+      cashAmount = null;
+      transferAmount = null;
+      transferDestination = null;
+      paymentMethodValue = '';
+      createState = SaleState.generada;
+    } else {
+      // Flujo admin: calcula los montos cash/transfer según el modo. En
+      // Mixto los digita el usuario y se valida que sumen el total
+      // (con tolerancia de 1 peso para evitar problemas de redondeo).
+      switch (_paymentMode) {
+        case _PaymentMode.cash:
+          cashAmount = totalValue;
+          transferAmount = null;
+          transferDestination = null;
+        case _PaymentMode.transfer:
+          cashAmount = null;
+          transferAmount = totalValue;
+          transferDestination = _transferDestination;
+          if (transferDestination == null || transferDestination.isEmpty) {
+            _setError('Selecciona el destino de la transferencia.');
+            return;
+          }
+        case _PaymentMode.mixed:
+          final cashStr = _cashAmountCtrl.text.replaceAll(',', '.').trim();
+          final transferStr =
+              _transferAmountCtrl.text.replaceAll(',', '.').trim();
+          final cash = num.tryParse(cashStr);
+          final transfer = num.tryParse(transferStr);
+          if (cash == null || transfer == null || cash < 0 || transfer < 0) {
+            _setError('Ingresa los montos en efectivo y por transferencia.');
+            return;
+          }
+          if ((cash + transfer - totalValue).abs() > 1) {
+            _setError(
+              'La suma de efectivo (${formatCop(cash)}) más '
+              'transferencia (${formatCop(transfer)}) debe ser igual al '
+              'total (${formatCop(totalValue)}).',
+            );
+            return;
+          }
+          cashAmount = cash;
+          transferAmount = transfer;
+          transferDestination = _transferDestination;
+          if (transferDestination == null || transferDestination.isEmpty) {
+            _setError('Selecciona el destino de la transferencia.');
+            return;
+          }
+      }
+      paymentMethodValue = _paymentMode.paymentMethodValue;
+      createState = SaleState.procesada;
     }
 
     setState(() => _saving = true);
     try {
-      final profile = ref.read(currentProfileProvider).valueOrNull;
-      if (profile == null) {
-        throw StateError('Sesión no válida.');
-      }
 
       // Solo persistimos los customFields que siguen vigentes en el
       // schema actual. Si el admin eliminó un campo del constructor,
@@ -289,6 +307,11 @@ class _SaleFormScreenState extends ConsumerState<SaleFormScreen> {
       });
 
       if (_isEdit) {
+        // Sales editando: no tocamos campos financieros. Como cuando es
+        // sales `paymentMethodValue == ''` y todos los amounts son null,
+        // omitimos esos params del patch para no sobreescribir valores
+        // previos del doc (defensivo — en el flujo nuevo no debería
+        // haber pago aún).
         await ref.read(salesRepositoryProvider).updateSale(
               widget.editingSale!.id,
               date: _date,
@@ -300,13 +323,14 @@ class _SaleFormScreenState extends ConsumerState<SaleFormScreen> {
               unit: _unit,
               quantity: quantity,
               unitPrice: unitPrice,
-              paymentMethod: _paymentMode.paymentMethodValue,
-              cashAmount: cashAmount,
-              clearCashAmount: cashAmount == null,
-              transferAmount: transferAmount,
-              clearTransferAmount: transferAmount == null,
-              transferDestination: transferDestination,
-              clearTransferDestination: transferDestination == null,
+              paymentMethod: isSalesRole ? null : paymentMethodValue,
+              cashAmount: isSalesRole ? null : cashAmount,
+              clearCashAmount: !isSalesRole && cashAmount == null,
+              transferAmount: isSalesRole ? null : transferAmount,
+              clearTransferAmount: !isSalesRole && transferAmount == null,
+              transferDestination: isSalesRole ? null : transferDestination,
+              clearTransferDestination:
+                  !isSalesRole && transferDestination == null,
               payerName: _payer!,
               customFields: customFields,
             );
@@ -327,7 +351,7 @@ class _SaleFormScreenState extends ConsumerState<SaleFormScreen> {
               unit: _unit,
               quantity: quantity,
               unitPrice: unitPrice,
-              paymentMethod: _paymentMode.paymentMethodValue,
+              paymentMethod: paymentMethodValue,
               cashAmount: cashAmount,
               transferAmount: transferAmount,
               transferDestination: transferDestination,
@@ -335,6 +359,7 @@ class _SaleFormScreenState extends ConsumerState<SaleFormScreen> {
               createdBy: profile.uid,
               createdByName: profile.fullName,
               customFields: customFields,
+              state: createState,
             );
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -408,6 +433,12 @@ class _SaleFormScreenState extends ConsumerState<SaleFormScreen> {
       // Visibilidad por rol según el schema. Si el campo no está marcado
       // como visible para el rol activo, lo omitimos por completo.
       if (role != null && !f.visibleToRoles.contains(role.id)) continue;
+
+      // Sales captura solo datos comerciales: el pago lo registra cajero
+      // después. Aunque el schema marque paymentMethod como visible para
+      // sales, lo ocultamos siempre — la sección queda reservada para
+      // admin y para cajero (cuando registre abonos).
+      if (role == AppRole.sales && f.id == 'paymentMethod') continue;
 
       Widget? w;
       if (f.coreField) {

@@ -60,6 +60,12 @@ class _SaleDetailBody extends ConsumerWidget {
     if (profile == null) return false;
     if (profile.role == AppRole.admin) return true;
     if (profile.uid != sale.createdBy) return false;
+    // Sales solo edita mientras la solicitud sigue en `generada`. Una
+    // vez que cajero la toma o procesa queda bloqueada para sales,
+    // aunque la ventana de 24 h siga abierta.
+    if (profile.role == AppRole.sales && sale.state != SaleState.generada) {
+      return false;
+    }
     final until = sale.editableUntil;
     if (until == null) return false;
     return AppClock.now().isBefore(until);
