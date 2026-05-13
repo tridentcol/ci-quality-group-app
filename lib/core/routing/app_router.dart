@@ -8,6 +8,7 @@ import '../../features/admin/presentation/clients_breakdown_screen.dart';
 import '../../features/admin/presentation/materials_breakdown_screen.dart';
 import '../../features/auditor/presentation/auditor_dashboard_screen.dart';
 import '../../features/cashier/presentation/cashier_home_screen.dart';
+import '../../features/cashier/presentation/sale_process_screen.dart';
 import '../../features/admin/presentation/duplicate_review_screen.dart';
 import '../../features/admin/presentation/master_list_detail_screen.dart';
 import '../../features/admin/presentation/master_lists_screen.dart';
@@ -264,11 +265,20 @@ final routerProvider = Provider<GoRouter>((ref) {
         ],
       ),
 
-      // Cashier (admin + cajero) — placeholder. El detalle real (tabs,
-      // detalle de solicitud, pagos) entra en Fase 3 y 4.
+      // Cashier (admin + cajero). El home tiene 3 tabs (Pendientes /
+      // Deudas / Cerradas) y desde una venta se llega al detalle de
+      // proceso. El detalle de pagos (`/cashier/:id/payments`) entra
+      // en Fase 4.
       GoRoute(
         path: '/cashier',
         builder: (_, __) => const CashierHomeScreen(),
+        routes: [
+          GoRoute(
+            path: ':saleId',
+            builder: (_, state) =>
+                SaleProcessScreen(saleId: state.pathParameters['saleId']!),
+          ),
+        ],
       ),
     ],
   );

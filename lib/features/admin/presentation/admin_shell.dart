@@ -40,6 +40,14 @@ class AdminShell extends ConsumerWidget {
       icon: Icons.receipt_long_outlined,
       route: '/admin/sales',
     ),
+    // Caja vive fuera del shell admin (`/cashier`, no `/admin/cashier`),
+    // así que al hacer tap el admin sale del shell. Vuelve con el botón
+    // back del AppBar de la pantalla de caja.
+    _AdminNavItem(
+      label: 'Caja',
+      icon: Icons.point_of_sale_outlined,
+      route: '/cashier',
+    ),
     _AdminNavItem(
       label: 'Horas',
       icon: Icons.schedule_outlined,
