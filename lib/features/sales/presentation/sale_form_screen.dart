@@ -331,7 +331,7 @@ class _SaleFormScreenState extends ConsumerState<SaleFormScreen> {
               transferDestination: isSalesRole ? null : transferDestination,
               clearTransferDestination:
                   !isSalesRole && transferDestination == null,
-              payerName: _payer!,
+              payerName: isSalesRole ? null : _payer!,
               customFields: customFields,
             );
         if (mounted) {
@@ -355,7 +355,7 @@ class _SaleFormScreenState extends ConsumerState<SaleFormScreen> {
               cashAmount: cashAmount,
               transferAmount: transferAmount,
               transferDestination: transferDestination,
-              payerName: _payer!,
+              payerName: isSalesRole ? '' : _payer!,
               createdBy: profile.uid,
               createdByName: profile.fullName,
               customFields: customFields,
@@ -435,10 +435,14 @@ class _SaleFormScreenState extends ConsumerState<SaleFormScreen> {
       if (role != null && !f.visibleToRoles.contains(role.id)) continue;
 
       // Sales captura solo datos comerciales: el pago lo registra cajero
-      // después. Aunque el schema marque paymentMethod como visible para
-      // sales, lo ocultamos siempre — la sección queda reservada para
-      // admin y para cajero (cuando registre abonos).
-      if (role == AppRole.sales && f.id == 'paymentMethod') continue;
+      // después. Aunque el schema marque paymentMethod / payerName como
+      // visibles para sales, los ocultamos siempre — esa info pertenece
+      // al dominio de caja (paymentMethod = método; payerName = quién en
+      // caja recibió la plata).
+      if (role == AppRole.sales &&
+          (f.id == 'paymentMethod' || f.id == 'payerName')) {
+        continue;
+      }
 
       Widget? w;
       if (f.coreField) {
