@@ -356,38 +356,33 @@ class _MasterListDetailScreenState
               onAction: _addItem,
             );
           }
-          return Stack(
+          return Column(
             children: [
-              ListView.separated(
-                padding: EdgeInsets.fromLTRB(
-                  16,
-                  _selecting ? 12 : 8,
-                  16,
-                  _selecting ? 96 : 96,
-                ),
-                itemCount: data.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 8),
-                itemBuilder: (context, i) {
-                  final item = data[i];
-                  return _ItemCard(
-                    item: item,
-                    showParent: _hasParentPicker,
-                    selecting: _selecting,
-                    selected: _selectedIds.contains(item.id),
-                    onTap: _selecting ? () => _toggleSelect(item.id) : null,
-                    onApprove: () => _approveSuggestion(item),
-                    onEdit: () => _editItem(item),
-                    onDelete: () => _deleteItem(item),
-                  );
-                },
-              ),
               if (_selecting && _selectedIds.length < 2)
-                Positioned(
-                  top: 8,
-                  left: 16,
-                  right: 16,
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
                   child: _SelectingHint(theme: theme),
                 ),
+              Expanded(
+                child: ListView.separated(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
+                  itemCount: data.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 8),
+                  itemBuilder: (context, i) {
+                    final item = data[i];
+                    return _ItemCard(
+                      item: item,
+                      showParent: _hasParentPicker,
+                      selecting: _selecting,
+                      selected: _selectedIds.contains(item.id),
+                      onTap: _selecting ? () => _toggleSelect(item.id) : null,
+                      onApprove: () => _approveSuggestion(item),
+                      onEdit: () => _editItem(item),
+                      onDelete: () => _deleteItem(item),
+                    );
+                  },
+                ),
+              ),
             ],
           );
         },
