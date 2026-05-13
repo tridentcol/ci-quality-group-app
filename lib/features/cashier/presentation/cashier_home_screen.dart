@@ -1,15 +1,29 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../../shared/widgets/theme_mode_toggle.dart';
+import '../../auth/data/auth_repository.dart';
 
 /// Placeholder de la pantalla de caja. El detalle real (tabs de
 /// pendientes / deudas / cerradas) entra en Fase 3.
-class CashierHomeScreen extends StatelessWidget {
+class CashierHomeScreen extends ConsumerWidget {
   const CashierHomeScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     return Scaffold(
-      appBar: AppBar(title: const Text('Caja')),
+      appBar: AppBar(
+        title: const Text('Caja'),
+        actions: [
+          const ThemeModeIconButton(),
+          IconButton(
+            tooltip: 'Cerrar sesión',
+            icon: const Icon(Icons.logout_outlined),
+            onPressed: () => ref.read(authRepositoryProvider).signOut(),
+          ),
+        ],
+      ),
       body: Center(
         child: Padding(
           padding: const EdgeInsets.all(24),
