@@ -578,6 +578,14 @@ class _ManualMergeBar extends StatelessWidget {
               ),
               FilledButton.icon(
                 onPressed: canApply ? onApply : null,
+                // El theme de la app aplica `minimumSize: Size.fromHeight(52)`
+                // (full-width) a todos los FilledButton. Acá el botón vive
+                // en una Row con un Expanded al lado, así que necesita
+                // shrink-to-content; sin este override crashea con
+                // BoxConstraints w=Infinity.
+                style: FilledButton.styleFrom(
+                  minimumSize: const Size(0, 48),
+                ),
                 icon: busy
                     ? const SizedBox(
                         width: 16,
