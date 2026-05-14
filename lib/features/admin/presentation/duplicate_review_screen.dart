@@ -134,7 +134,7 @@ class _DuplicateReviewScreenState extends ConsumerState<DuplicateReviewScreen> {
           'nombres canónicos.\n\n'
           'Esta acción no se puede deshacer.',
       confirmLabel: 'Aplicar',
-      icon: Icons.call_merge,
+      icon: Icons.compress,
     );
     if (!ok) return;
 
@@ -778,7 +778,7 @@ class _ApplyFooter extends StatelessWidget {
               const SizedBox(height: 12),
               FilledButton.icon(
                 onPressed: activeClusters == 0 ? null : onApply,
-                icon: const Icon(Icons.call_merge),
+                icon: const Icon(Icons.compress),
                 label: Text(
                   activeClusters == 0
                       ? 'Nada que aplicar'
