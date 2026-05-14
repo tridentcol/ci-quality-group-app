@@ -200,7 +200,7 @@ class _SalesSection extends StatelessWidget {
             value: metrics.count > 0
                 ? formatCop((metrics.total / metrics.count).round())
                 : '—',
-            icon: Icons.calculate_outlined,
+            icon: Icons.functions,
           ),
         ],),
         const SizedBox(height: 12),
@@ -210,7 +210,7 @@ class _SalesSection extends StatelessWidget {
             value: formatCop(metrics.pendingTotal),
             subtitle:
                 '${metrics.pendingCount} solicitud${metrics.pendingCount == 1 ? '' : 'es'}',
-            icon: Icons.hourglass_top_outlined,
+            icon: Icons.hourglass_empty,
             color: AppColors.warning,
           ),
           KpiCard(
@@ -218,7 +218,7 @@ class _SalesSection extends StatelessWidget {
             value: formatCop(metrics.receivableTotal),
             subtitle:
                 '${metrics.receivableCount} venta${metrics.receivableCount == 1 ? '' : 's'}',
-            icon: Icons.account_balance_wallet_outlined,
+            icon: Icons.account_balance_outlined,
             color: AppColors.info,
           ),
           KpiCard(
@@ -226,7 +226,7 @@ class _SalesSection extends StatelessWidget {
             value: formatCop(metrics.lossTotal),
             subtitle:
                 '${metrics.lossCount} venta${metrics.lossCount == 1 ? '' : 's'}',
-            icon: Icons.report_gmailerrorred_outlined,
+            icon: Icons.error_outline,
             color: AppColors.danger,
           ),
         ],),
@@ -581,7 +581,7 @@ class _HoursSection extends StatelessWidget {
           KpiCard(
             label: 'Horas pagas',
             value: formatHours(metrics.totalPaid),
-            icon: Icons.timer_outlined,
+            icon: Icons.timer,
           ),
           KpiCard(
             label: 'Trabajadores',
@@ -593,7 +593,7 @@ class _HoursSection extends StatelessWidget {
             label: 'Abiertos',
             value: '${metrics.openCount}',
             subtitle: 'sin cerrar',
-            icon: Icons.lock_open_outlined,
+            icon: Icons.lock_open,
             color: metrics.openCount > 0
                 ? AppColors.warning
                 : theme.colorScheme.primary,

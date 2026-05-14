@@ -33,9 +33,9 @@ enum NotificationType {
   IconData get icon => switch (this) {
         NotificationType.saleCreated => Icons.receipt_long_outlined,
         NotificationType.saleProcessed => Icons.check_circle_outline,
-        NotificationType.saleCanceled => Icons.cancel_outlined,
-        NotificationType.saleMarkedLoss => Icons.warning_amber_outlined,
-        NotificationType.unknown => Icons.notifications_outlined,
+        NotificationType.saleCanceled => Icons.cancel,
+        NotificationType.saleMarkedLoss => Icons.warning,
+        NotificationType.unknown => Icons.notifications_none,
       };
 
   /// Color "acento" del item en la lista. Usa la paleta de la app para

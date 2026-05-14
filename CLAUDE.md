@@ -50,8 +50,21 @@ Firestore + reglas de seguridad.
    (`if (dart.library.html)`). `dio`, `open_filex` rompen el bundle web.
 5. **No habilites `persistenceEnabled` de Firestore en web** —
    IndexedDB falla en incógnito y deja la app trabada en el splash.
-6. **No uses `Icons.merge_type` ni `Icons.merge`** — tree-shaking de web
-   los come. Usá `Icons.call_merge` (siempre presente en el icon font).
+6. **Font de íconos en web incompleto** — Flutter web incluye un subconjunto
+   antiguo de MaterialIcons. Íconos confirmados ROTOS en web (no usar):
+   `merge_type`, `merge`, `call_merge`, `compress`, `point_of_sale_outlined`,
+   `notifications_outlined`, `hourglass_top_outlined`,
+   `account_balance_wallet_outlined`, `report_gmailerrorred_outlined`,
+   `warning_amber_outlined`, `calculate_outlined`, `timer_outlined`,
+   `lock_open_outlined`, `play_arrow_outlined`, `undo_outlined`,
+   `notes_outlined`, `cancel_outlined`, `event_outlined`.
+   Íconos confirmados OK: `payments_outlined`, `schedule_outlined`,
+   `engineering_outlined`, `checklist_outlined`, `receipt_long_outlined`,
+   `check_circle_outline`, `error_outline`, `warning`, `timer`, `undo`,
+   `play_arrow`, `notes`, `cancel`, `lock_open`, `functions`,
+   `hourglass_empty`, `account_balance_outlined`, `notifications_none`,
+   `event`. Regla práctica: preferí variantes sin sufijo `_outlined` para
+   iconos poco comunes; la version con sufijo puede no estar en el font.
 7. **Comentarios**: solo escribí cuando el WHY no es obvio. Ver
    `docs/conventions.md`. No documentes lo que el código ya dice.
 8. **Trailing commas obligatorias** (lint configurado). Bloques de varias
