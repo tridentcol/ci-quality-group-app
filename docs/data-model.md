@@ -227,6 +227,44 @@ Acceso solo via `runTransaction` desde `SalesRepository.createSale`.
 
 Reglas: lee/escribe `admin`, `sales`.
 
+### `notifications/{id}`
+
+`AppNotification` — un aviso in-app. Colección plana, con dos arrays de
+targets (uid y/o rol). El cliente hace **dos queries paralelas**
+(`targetUids array-contains uid` y `targetRoles array-contains role`)
+y mergea + dedup en memoria, porque Firestore no permite OR en `where`.
+
+| Campo            | Tipo            | Notas                                  |
+|------------------|-----------------|----------------------------------------|
+| `type`           | String enum     | `'sale_created' \| 'sale_processed' \| 'sale_canceled' \| 'sale_marked_loss'`. |
+| `title`          | String          | Encabezado corto ("Solicitud procesada"). |
+| `body`           | String          | Cuerpo ("CQG-123 — Cliente X, $1.500.000"). |
+| `saleId`         | String?         | Venta asociada. Si está, tap navega al recurso. |
+| `createdAt`      | Timestamp       |                                        |
+| `createdBy`      | String          | uid del actor que disparó el evento.   |
+| `createdByName`  | String          | Nombre cacheado.                       |
+| `targetUids`     | List<String>    | uids específicos que reciben la notif. |
+| `targetRoles`    | List<String>    | Roles que reciben la notif (`'cajero'`, `'admin'`, etc.). |
+| `readBy`         | List<String>    | uids que ya marcaron como leída.       |
+| `data`           | Map?            | Payload extra para navegación/agrupación. |
+
+Reglas:
+- Lee: solo si el usuario está en `targetUids` o su rol está en `targetRoles`.
+- Crea: cualquier autenticado, exigiendo `createdBy == request.auth.uid`
+  (anti-suplantación). Los emisores reales son los repos de sales y
+  cashier dentro de su `runTransaction`.
+- Update: solo el target user, y solo el campo `readBy`
+  (`diff().affectedKeys().hasOnly(['readBy'])`). No se puede editar el
+  contenido — para anular una notif se borra.
+- Borra: solo admin (cleanup manual; no hay TTL).
+
+**Recorte visual a 30 días:** el repo filtra en memoria. Las notifs más
+viejas siguen en backend pero el sheet no las muestra.
+
+**Agrupación visual:** notifs consecutivas del mismo `type` en un bucket
+de 1h se colapsan en un solo item expandible (cada notif se persiste
+por separado; la dedup es solo UI).
+
 ### `settings/work_schedule`
 
 `WorkSchedule` — configuración de jornada laboral.

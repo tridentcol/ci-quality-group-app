@@ -7,6 +7,69 @@ versionado [SemVer](https://semver.org/spec/v2.0.0.html). El número entre `+`
 es el `versionCode` de Android — cada release se sube en uno para que los
 celulares acepten la actualización sobre la versión anterior.
 
+## [1.1.0+5] — 2026-05-13
+
+### Agregado
+- **Workflow de estado de venta.** Las solicitudes que crea ventas
+  arrancan en `generada` y solo caja puede llevarlas a `en_proceso` →
+  `procesada` o `cancelada`. Ventas viejas (sin `state` en backend) se
+  interpretan como `procesada` retro-compat. Trazas en el doc
+  (`processedBy`, `canceledBy`, `markedAsLossBy` + razones).
+- **Rol cajero** (color `#E6A100`). Toma solicitudes, las procesa,
+  registra abonos, anula pagos (solo admin), marca pérdidas. Único rol
+  con acceso a `/cashier/*`.
+- **Pagos parciales con timeline.** Subcolección
+  `sales/{id}/payments` con un doc por abono. Pantalla
+  `SalePaymentsScreen` con header (total / pagado / saldo / pérdida +
+  pill de `financialStatus` + plazo editable inline), timeline
+  cronológico y FAB con bottom sheet para registrar pago.
+- **payerName por abono.** Cada `SalePayment` lleva su propio campo
+  opcional `payerName` (lista maestra `payers`). El form de sales ya
+  no lo pide al crear: lo elige cajero al recibir cada abono.
+- **Pérdidas con razón obligatoria.** Marca el saldo pendiente como
+  `lost` (absorbente: `financialStatus` queda en `lost` aunque se cobre
+  después). Solo admin puede revertir.
+- **Plazo de pago** (`creditDueDate`) editable inline en
+  `SalePaymentsScreen`. Si queda en el pasado, la deuda aparece como
+  vencida en el tab `Deudas` del cajero (banner ámbar + chip "Solo
+  vencidas").
+- **Home de caja con 3 tabs** (Pendientes / Deudas / Cerradas), badges
+  numéricos, búsqueda por consecutivo o cliente, rango de fecha y sort
+  por antigüedad o saldo en Deudas.
+- **Notificaciones in-app** con campana en el AppBar y badge de no
+  leídas. Bottom sheet con filtro Todas/No leídas, marcar todas,
+  agrupación visual por hora y navegación al recurso. Triggers:
+  solicitud creada (→ cajero+admin), procesada (→ creador),
+  cancelada (→ creador), pérdida (→ admin). Sin push del SO ni Cloud
+  Functions — todo cliente.
+- **Modo de fusión manual de listas maestras.** Desde el detalle de una
+  lista que mapea a sales (clientes, materiales, etc.), botón
+  "Fusionar manualmente" entra a modo selección por checkbox y permite
+  juntar N items en uno canónico. Usa el mismo motor
+  (`DuplicateService.applyMerges`) que el detector automático.
+- **KPIs nuevos en admin.** Por cobrar, Pendientes en caja y Pérdidas
+  como tarjetas separadas en el dashboard de ventas, derivados de los
+  agregados denormalizados del doc Sale.
+
+### Cambiado
+- **Métricas de ventas** atribuyen `paidAmount` (no `totalValue`) y
+  solo cuentan ventas con `state == procesada`. KPIs y gráficas
+  reflejan lo realmente cobrado, no lo facturado. El auditor también
+  aplica este filtro.
+- **Form de sales** oculta `paymentMethod`, `transferDestination` y
+  `payerName` — esos campos los completa cajero al procesar.
+- **`SaleDetailScreen`** muestra pill de estado prominente + caption
+  con trazas (`Procesada por X · fecha`). Oculta breakdown de pago y
+  payer cuando el usuario es sales.
+
+### Reglas Firestore
+- Bloque nuevo `match /notifications/{id}` con target por uid o rol.
+- Subcolección `match /sales/{sid}/payments/{pid}` con `amount > 0`
+  exigido al crear; update prohibido; delete solo admin.
+- Sales solo puede update sobre sus ventas mientras sigan en `generada`
+  y dentro de la ventana de 24 h. Cajero puede update siempre. Admin
+  todo.
+
 ## [1.0.3+4] — 2026-05-07
 
 ### Agregado

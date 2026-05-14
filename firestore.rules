@@ -155,5 +155,33 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // ---------- Notifications (bell in-app) ----------
+    // Colección plana de notifs con target por uid y/o por rol. Firestore
+    // no permite OR en `where`, así que cada cliente hace dos queries
+    // paralelas y mergea. Los repos de sales y cashier las escriben en
+    // la misma transacción que produce el evento.
+    //
+    // - Lee/actualiza: solo si la notif te apunta (por uid o por rol).
+    //   El update está limitado a tocar SOLO el array `readBy` para que
+    //   un usuario pueda marcarla como leída pero no editar el contenido.
+    // - Crea: cualquier autenticado, siempre que `createdBy == uid` (la
+    //   regla evita que alguien suplante el actor). Limita el spam a las
+    //   acciones reales que el código emite.
+    // - Borra: solo admin (cleanup manual; no hay TTL).
+    match /notifications/{id} {
+      function isTargetUser() {
+        return isSignedIn()
+            && (request.auth.uid in resource.data.get('targetUids', [])
+                || role() in resource.data.get('targetRoles', []));
+      }
+      allow read: if isTargetUser();
+      allow create: if isSignedIn()
+                    && request.resource.data.createdBy == request.auth.uid;
+      allow update: if isTargetUser()
+                    && request.resource.data.diff(resource.data)
+                        .affectedKeys().hasOnly(['readBy']);
+      allow delete: if isAdmin();
+    }
+
   }
 }

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../shared/widgets/app_logo.dart';
+import '../../../shared/widgets/notifications_bell.dart';
 import '../../../shared/widgets/theme_mode_toggle.dart';
 import '../../auth/data/auth_repository.dart';
 
@@ -174,7 +175,7 @@ class AdminNavigationDrawer extends ConsumerWidget {
             // impone una altura fija de ~140px y deja mucho espacio en
             // blanco).
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+              padding: const EdgeInsets.fromLTRB(16, 12, 8, 12),
               child: Row(
                 children: [
                   const AppLogo(size: 36),
@@ -188,6 +189,7 @@ class AdminNavigationDrawer extends ConsumerWidget {
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
+                  const NotificationsBell(),
                 ],
               ),
             ),
@@ -286,10 +288,16 @@ class _AdminRail extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
+                    const NotificationsBell(),
                   ],
                 ],
               ),
             ),
+            if (!extended)
+              const Padding(
+                padding: EdgeInsets.only(top: 8),
+                child: NotificationsBell(),
+              ),
             const SizedBox(height: 16),
             const Divider(height: 1),
             Expanded(

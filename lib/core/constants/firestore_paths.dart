@@ -32,4 +32,8 @@ class FirestorePaths {
   // Configuración global (jornadas, hora de almuerzo, etc.).
   static const settings = 'settings';
   static const workScheduleSettings = 'work_schedule';
+
+  // Notificaciones in-app (campana del AppBar). Colección plana con
+  // targets por uid y/o rol — ver `AppNotification`.
+  static const notifications = 'notifications';
 }

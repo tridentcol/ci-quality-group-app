@@ -303,3 +303,79 @@ Caso: hay que sacar algo (ej. el in-app updater que sacamos en 1.0.2).
 ## 12. Debugging cuando algo se queda cargando
 
 Ver `docs/debugging.md` → "App se queda en splash".
+
+---
+
+## 13. Cambiar permisos por estado de venta
+
+Cada vez que sumes/quites un estado del workflow de `Sale` o cambies
+quién puede tocar qué, hay cuatro lugares en sincronía:
+
+1. **`Sale.SaleState`** (`lib/features/sales/domain/sale.dart`) — el
+   enum. Si agregás un estado nuevo, sumalo y actualizá `isWorkflowFinal`
+   si corresponde.
+2. **`firestore.rules` → `match /sales/{sid}`** — el guard rail server-
+   side. Mirá los helpers `isSales()/isCajero()/isAdmin()` y los checks
+   sobre `state` y `editableUntil`. Las rules son la última línea de
+   defensa: aunque el cliente permita una acción, si la rule la rechaza
+   el doc no se modifica.
+3. **`CashierRepository`** (`lib/features/cashier/data/`) — todas las
+   transiciones `state → state` viven acá en `runTransaction`. Cualquier
+   chequeo en cliente sobre "qué estado puedo dejar" va en estos
+   métodos (no en la UI), para que admin y cajero compartan la misma
+   guarda.
+4. **`SaleDetailScreen._canEdit`** y **`SaleFormScreen`** — controlan
+   qué campos mostrar y permitir editar según rol + `state` + ventana de
+   24 h. Estos son chequeos puramente cosméticos: la verdad la dicen
+   rules + repo.
+
+Después actualizá `docs/data-model.md` (tabla de `sales/{id}`) y dejá
+una entrada en `CHANGELOG.md` describiendo el cambio de permisos.
+
+---
+
+## 14. Agregar un tipo nuevo de notificación
+
+Las notifs in-app son auto-contenidas: cliente escribe, cliente lee.
+Para sumar un evento nuevo (ej. "abono recibido" si decidimos avisar a
+sales cuando cajero registra un pago):
+
+1. **Modelo** — agregá un `case` al enum `NotificationType` en
+   `lib/shared/models/app_notification.dart`. Definí su `icon` y
+   `accentFor(scheme)` (usá íconos canónicos del font — ver CLAUDE.md
+   regla 6).
+2. **Emit** — en el repo que produce el evento, llamá
+   `notificationsRepository.emitInTxn` **adentro de la misma
+   `runTransaction`** del cambio:
+   ```dart
+   _notifications.emitInTxn(
+     txn,
+     type: NotificationType.miTipoNuevo,
+     title: 'Algo pasó',
+     body: '${sale.consecutive} — detalle',
+     saleId: saleId,
+     actorUid: actor.uid,
+     actorName: actor.fullName,
+     targetUids: [...],     // o
+     targetRoles: const [AppRole.foo],
+   );
+   ```
+   Importante: el emit debe ir **después** de todos los `txn.get(...)`
+   del runTransaction — Firestore exige todos los reads antes de cualquier
+   write y `emitInTxn` hace `txn.set`.
+3. **UI (opcional)** — `NotificationsSheet._summaryTitle` y
+   `_NotificationGroupTile._summaryBody` cubren el caso genérico. Si tu
+   tipo necesita un texto agrupado especial (ej. "3 abonos recibidos"),
+   sumá un branch al switch. Si no, no toques nada — el fallback cae a
+   "$n notificaciones".
+4. **Decidir target** — `targetUids` para personas concretas (ej. el
+   creador de la venta) y `targetRoles` para todos los que ejerzan un
+   rol (ej. cajero/admin para avisar a caja). Combinables.
+5. **Reglas Firestore** — no hace falta tocar nada si el tipo respeta
+   los campos estándar (`createdBy == request.auth.uid` + uids/roles
+   válidos). Solo si introducís un schema distinto.
+6. **Anti-spam** — pensá si el evento es realmente accionable o solo
+   ruido. La regla actual: registerPayment / takeRequest / returnToSales
+   / updates menores NO emiten notif. Mantener la lista corta.
+
+`CHANGELOG.md` entry: "Agregado — notificación de X cuando Y".

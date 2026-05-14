@@ -6,6 +6,7 @@ import '../../../core/utils/clock.dart';
 import '../../../core/utils/dates.dart';
 import '../../../shared/widgets/empty_state.dart';
 import '../../../shared/widgets/error_view.dart';
+import '../../../shared/widgets/notifications_bell.dart';
 import '../../../shared/widgets/skeleton.dart';
 import '../../../shared/widgets/theme_mode_toggle.dart';
 import '../../auth/data/auth_repository.dart';
@@ -35,6 +36,7 @@ class _HoursHomeScreenState extends ConsumerState<HoursHomeScreen> {
       appBar: AppBar(
         title: const Text('Control de horas'),
         actions: [
+          const NotificationsBell(),
           const ThemeModeIconButton(),
           IconButton(
             tooltip: 'Cerrar sesión',

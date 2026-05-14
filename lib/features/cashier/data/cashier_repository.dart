@@ -2,8 +2,11 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants/firestore_paths.dart';
-import '../../../core/utils/clock.dart';
 import '../../../core/constants/roles.dart';
+import '../../../core/utils/clock.dart';
+import '../../../core/utils/money.dart';
+import '../../../shared/models/app_notification.dart';
+import '../../../shared/services/notifications_repository.dart';
 import '../../auth/data/auth_repository.dart';
 import '../../auth/domain/app_user.dart';
 import '../../sales/domain/payment.dart';
@@ -15,9 +18,10 @@ import '../../sales/domain/sale.dart';
 /// `runTransaction` para no dejar el doc del padre desincronizado con su
 /// subcolección de payments.
 class CashierRepository {
-  CashierRepository(this._firestore);
+  CashierRepository(this._firestore, this._notifications);
 
   final FirebaseFirestore _firestore;
+  final NotificationsRepository _notifications;
 
   CollectionReference<Map<String, dynamic>> get _col =>
       _firestore.collection(FirestorePaths.sales);
@@ -55,7 +59,8 @@ class CashierRepository {
       final ref = _col.doc(saleId);
       final snap = await txn.get(ref);
       _ensureExists(snap, saleId);
-      final state = SaleState.fromId(snap.data()?['state'] as String?);
+      final data = snap.data()!;
+      final state = SaleState.fromId(data['state'] as String?);
       if (state != SaleState.enProceso) {
         throw StateError(
           'Esta solicitud no está en proceso (estado actual: ${state.id}).',
@@ -69,6 +74,16 @@ class CashierRepository {
         'processedAt': now,
         'updatedAt': now,
       });
+      _notifications.emitInTxn(
+        txn,
+        type: NotificationType.saleProcessed,
+        title: 'Solicitud procesada',
+        body: _saleHeadline(data),
+        saleId: saleId,
+        actorUid: actor.uid,
+        actorName: actor.fullName,
+        targetUids: [data['createdBy'] as String],
+      );
     });
   }
 
@@ -115,7 +130,8 @@ class CashierRepository {
       final ref = _col.doc(saleId);
       final snap = await txn.get(ref);
       _ensureExists(snap, saleId);
-      final state = SaleState.fromId(snap.data()?['state'] as String?);
+      final data = snap.data()!;
+      final state = SaleState.fromId(data['state'] as String?);
       if (state == SaleState.procesada || state == SaleState.cancelada) {
         throw StateError(
           'Esta solicitud ya está en un estado final '
@@ -131,6 +147,16 @@ class CashierRepository {
         'cancelReason': trimmed,
         'updatedAt': now,
       });
+      _notifications.emitInTxn(
+        txn,
+        type: NotificationType.saleCanceled,
+        title: 'Solicitud cancelada',
+        body: _saleHeadline(data, reason: trimmed),
+        saleId: saleId,
+        actorUid: actor.uid,
+        actorName: actor.fullName,
+        targetUids: [data['createdBy'] as String],
+      );
     });
   }
 
@@ -293,6 +319,21 @@ class CashierRepository {
         'lossReason': reason.trim(),
         'updatedAt': Timestamp.fromDate(AppClock.toInstant(now)),
       });
+      // Solo admin recibe la notif — sales no necesita enterarse y se
+      // evita ruido cuando es una venta vieja que ya entregó material.
+      _notifications.emitInTxn(
+        txn,
+        type: NotificationType.saleMarkedLoss,
+        title: 'Saldo marcado como pérdida',
+        body:
+            '${data['consecutive']} — ${data['providerName']}, '
+            '${formatCop(currentOutstanding)} '
+            '(${reason.trim()})',
+        saleId: saleId,
+        actorUid: actor.uid,
+        actorName: actor.fullName,
+        targetRoles: const [AppRole.admin],
+      );
     });
   }
 
@@ -321,10 +362,25 @@ class CashierRepository {
   }
 
   Timestamp _now() => Timestamp.fromDate(AppClock.toInstant(AppClock.now()));
+
+  /// Cuerpo estándar de notifs sobre una venta. `data` es el map crudo
+  /// de Firestore — leemos los campos por nombre para no tener que
+  /// deserializar el `Sale` completo dentro del runTransaction.
+  String _saleHeadline(Map<String, dynamic> data, {String? reason}) {
+    final consecutive = data['consecutive'] as String? ?? '';
+    final provider = data['providerName'] as String? ?? '';
+    final total = (data['totalValue'] as num?) ?? 0;
+    final base = '$consecutive — $provider, ${formatCop(total)}';
+    if (reason == null || reason.isEmpty) return base;
+    return '$base ($reason)';
+  }
 }
 
 final cashierRepositoryProvider = Provider<CashierRepository>((ref) {
-  return CashierRepository(FirebaseFirestore.instance);
+  return CashierRepository(
+    FirebaseFirestore.instance,
+    ref.watch(notificationsRepositoryProvider),
+  );
 });
 
 /// Argumento para `salesByStatesProvider`: wrapper con `==`/`hashCode`

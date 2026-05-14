@@ -174,6 +174,56 @@ Paleta en `app_colors.dart` (verdes corporativos + grises 100 % neutros).
 
 El modo se persiste en SharedPreferences (`themeModeProvider`).
 
+## Notificaciones in-app
+
+El bell del AppBar + bottom sheet con la lista de notifs. **No** usamos
+FCM/APNs por ahora (push del SO requiere setup de Mac + service workers
++ certificados iOS) ni Cloud Functions (la app no tiene backend custom).
+
+**Arquitectura:**
+
+- Colección plana `notifications/{id}` (ver `docs/data-model.md`).
+- Cliente escribe la notif **en la misma `runTransaction`** que produce
+  el evento. Lo hace `NotificationsRepository.emitInTxn`, que solo hace
+  `txn.set` (sin reads) para no romper la regla de Firestore "todos los
+  reads antes que los writes".
+- Cliente lee via dos queries paralelas (`targetUids` / `targetRoles`)
+  porque Firestore no permite OR. El merge + dedup + recorte a 30 días
+  vive en `_merge` del repo.
+
+**Triggers actuales** (ver tabla en `docs/workflows.md` → "Agregar un
+tipo nuevo de notificación"):
+
+| Evento                       | Target                       |
+|------------------------------|------------------------------|
+| sales crea solicitud         | roles cajero + admin         |
+| cajero procesa               | uid del sales que la creó    |
+| cajero cancela               | uid del sales que la creó    |
+| cajero marca pérdida         | rol admin                    |
+
+**Anti-ruido:** registerPayment, takeRequest, returnToSales, updates
+menores NO disparan notif. Si en el futuro se justifica avisar un abono,
+se suma un tipo nuevo (no se reutiliza `saleProcessed`).
+
+**UI:**
+
+- `NotificationsBell` (en `lib/shared/widgets/`) vive en
+  `AppBar.actions` de cada home por rol, y dentro del rail/drawer del
+  AdminShell.
+- `NotificationsSheet` se abre como `showModalBottomSheet` con
+  `isScrollControlled: true` (DraggableScrollableSheet adentro). Filtro
+  "Todas / No leídas" y botón "Marcar todas" arriba.
+- **Agrupación visual:** consecutivas del mismo `type` dentro de 1h se
+  unen en un grupo expandible (cada notif persiste por separado en
+  backend). Esto se computa en `_groupNotifications` del sheet.
+- Tap en item → `markAsRead` + navegación al recurso (path según rol:
+  cajero/admin van a `/cashier/:id`, el resto a `/sales/:id`).
+
+**Cuándo evaluar mover a push del SO:** si el usuario necesita avisos
+con la app cerrada o en background. Hoy no es el caso — los avisos son
+útiles solo durante la sesión activa de trabajo, y el bell con badge
+cubre el 100% de ese flujo.
+
 ## Auditor: filtro genérico
 
 `AppUser.auditFilter: AuditFilter?` con `field` + `value`. El campo

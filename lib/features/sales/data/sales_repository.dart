@@ -2,7 +2,11 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants/firestore_paths.dart';
+import '../../../core/constants/roles.dart';
 import '../../../core/utils/clock.dart';
+import '../../../core/utils/money.dart';
+import '../../../shared/models/app_notification.dart';
+import '../../../shared/services/notifications_repository.dart';
 import '../../auth/data/auth_repository.dart';
 import '../domain/sale.dart';
 
@@ -12,9 +16,10 @@ import '../domain/sale.dart';
 /// atómica de Firestore, lo que garantiza que dos ventas creadas al mismo
 /// tiempo nunca obtengan el mismo número.
 class SalesRepository {
-  SalesRepository(this._firestore);
+  SalesRepository(this._firestore, this._notifications);
 
   final FirebaseFirestore _firestore;
+  final NotificationsRepository _notifications;
 
   CollectionReference<Map<String, dynamic>> get _col =>
       _firestore.collection(FirestorePaths.sales);
@@ -104,6 +109,23 @@ class SalesRepository {
 
       txn.set(_counterRef, {'value': next}, SetOptions(merge: true));
       txn.set(docRef, sale.toMap());
+
+      // Cuando es una solicitud nueva (state=generada), avisar a caja +
+      // admin para que la procesen. El flujo legacy (state=procesada) no
+      // requiere intervención y por eso no emite notif.
+      if (isRequest) {
+        _notifications.emitInTxn(
+          txn,
+          type: NotificationType.saleCreated,
+          title: 'Nueva solicitud',
+          body:
+              '${sale.consecutive} — $providerName, ${formatCop(totalValue)}',
+          saleId: sale.id,
+          actorUid: createdBy,
+          actorName: createdByName,
+          targetRoles: const [AppRole.cajero, AppRole.admin],
+        );
+      }
       return sale;
     });
   }
@@ -229,7 +251,10 @@ class SalesRepository {
 }
 
 final salesRepositoryProvider = Provider<SalesRepository>((ref) {
-  return SalesRepository(FirebaseFirestore.instance);
+  return SalesRepository(
+    FirebaseFirestore.instance,
+    ref.watch(notificationsRepositoryProvider),
+  );
 });
 
 class SalesDateRange {

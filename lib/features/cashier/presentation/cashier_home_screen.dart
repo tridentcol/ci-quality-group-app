@@ -8,6 +8,7 @@ import '../../../core/utils/dates.dart';
 import '../../../core/utils/money.dart';
 import '../../../shared/widgets/empty_state.dart';
 import '../../../shared/widgets/error_view.dart';
+import '../../../shared/widgets/notifications_bell.dart';
 import '../../../shared/widgets/skeleton.dart';
 import '../../../shared/widgets/theme_mode_toggle.dart';
 import '../../auth/data/auth_repository.dart';
@@ -92,6 +93,7 @@ class _CashierHomeScreenState extends ConsumerState<CashierHomeScreen> {
               : null,
           title: const Text('Caja'),
           actions: [
+            const NotificationsBell(),
             const ThemeModeIconButton(),
             IconButton(
               tooltip: 'Cerrar sesión',
