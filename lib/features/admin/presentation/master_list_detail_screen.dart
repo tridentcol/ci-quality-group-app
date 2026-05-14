@@ -233,7 +233,7 @@ class _MasterListDetailScreenState
           'items duplicados se eliminan del catálogo.\n\n'
           'Esta acción no se puede deshacer.',
       confirmLabel: 'Fusionar',
-      icon: Icons.compress,
+      icon: Icons.checklist_outlined,
     );
     if (!ok || !mounted) return;
 
@@ -316,7 +316,7 @@ class _MasterListDetailScreenState
                   ),
                   IconButton(
                     tooltip: 'Detectar y fusionar duplicados',
-                    icon: const Icon(Icons.compress),
+                    icon: const Icon(Icons.checklist_outlined),
                     onPressed: () => context
                         .push('/admin/master-lists/$_listId/duplicates'),
                   ),
@@ -587,7 +587,7 @@ class _ManualMergeBar extends StatelessWidget {
                         height: 16,
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
-                    : const Icon(Icons.compress),
+                    : const Icon(Icons.checklist_outlined),
                 label: const Text('Fusionar'),
               ),
             ],
