@@ -238,7 +238,7 @@ class _ActionsBar extends ConsumerWidget {
             FilledButton.icon(
               onPressed: () => _takeRequest(context, ref, profile),
               icon: const Icon(Icons.play_arrow_outlined),
-              label: const Text('Tomar (procesar yo)'),
+              label: const Text('Iniciar proceso'),
             ),
           )
           ..add(const SizedBox(height: 10))
@@ -246,7 +246,7 @@ class _ActionsBar extends ConsumerWidget {
             OutlinedButton.icon(
               onPressed: () => _cancel(context, ref, profile),
               icon: const Icon(Icons.close),
-              label: const Text('Cancelar solicitud'),
+              label: const Text('Cancelar'),
             ),
           );
       case SaleState.enProceso:
@@ -255,7 +255,7 @@ class _ActionsBar extends ConsumerWidget {
             FilledButton.icon(
               onPressed: () => _process(context, ref, profile),
               icon: const Icon(Icons.check_circle_outline),
-              label: const Text('Confirmar como procesada'),
+              label: const Text('Procesar'),
             ),
           )
           ..add(const SizedBox(height: 10))
@@ -263,7 +263,7 @@ class _ActionsBar extends ConsumerWidget {
             OutlinedButton.icon(
               onPressed: () => _returnToSales(context, ref, profile),
               icon: const Icon(Icons.undo_outlined),
-              label: const Text('Devolver a sales'),
+              label: const Text('Devolver'),
             ),
           )
           ..add(const SizedBox(height: 10))
@@ -271,7 +271,7 @@ class _ActionsBar extends ConsumerWidget {
             OutlinedButton.icon(
               onPressed: () => _cancel(context, ref, profile),
               icon: const Icon(Icons.close),
-              label: const Text('Cancelar solicitud'),
+              label: const Text('Cancelar'),
             ),
           );
       case SaleState.procesada:
@@ -280,7 +280,7 @@ class _ActionsBar extends ConsumerWidget {
           FilledButton.tonalIcon(
             onPressed: () => _openPayments(context),
             icon: const Icon(Icons.payments_outlined),
-            label: const Text('Ver pagos y saldo'),
+            label: const Text('Ver pagos'),
           ),
         );
     }
@@ -301,7 +301,7 @@ class _ActionsBar extends ConsumerWidget {
           .takeRequest(saleId: sale.id, actor: actor);
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('${sale.consecutive} tomada.')),
+          SnackBar(content: Text('${sale.consecutive} en proceso.')),
         );
       }
     } catch (e) {
@@ -320,7 +320,7 @@ class _ActionsBar extends ConsumerWidget {
           .processRequest(saleId: sale.id, actor: actor);
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('${sale.consecutive} marcada como procesada.')),
+          SnackBar(content: Text('${sale.consecutive} procesada.')),
         );
       }
     } catch (e) {
@@ -335,7 +335,7 @@ class _ActionsBar extends ConsumerWidget {
   ) async {
     final reason = await _askReason(
       context,
-      title: 'Devolver a sales',
+      title: 'Devolver solicitud',
       hint: 'Motivo (opcional)',
       confirmLabel: 'Devolver',
       requireText: false,
@@ -350,7 +350,7 @@ class _ActionsBar extends ConsumerWidget {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('${sale.consecutive} devuelta a sales.'),
+            content: Text('${sale.consecutive} devuelta.'),
           ),
         );
       }
@@ -368,7 +368,7 @@ class _ActionsBar extends ConsumerWidget {
       context,
       title: 'Cancelar solicitud',
       hint: 'Motivo de la cancelación',
-      confirmLabel: 'Cancelar solicitud',
+      confirmLabel: 'Confirmar',
       requireText: true,
       destructive: true,
     );

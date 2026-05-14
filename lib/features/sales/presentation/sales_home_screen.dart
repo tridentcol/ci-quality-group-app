@@ -187,8 +187,8 @@ class _PendingHeader extends StatelessWidget {
           Expanded(
             child: Text(
               count == 1
-                  ? 'Tenés 1 solicitud pendiente de procesar en caja.'
-                  : 'Tenés $count solicitudes pendientes de procesar en caja.',
+                  ? '1 solicitud pendiente en caja.'
+                  : '$count solicitudes pendientes en caja.',
               style: theme.textTheme.bodyMedium,
             ),
           ),

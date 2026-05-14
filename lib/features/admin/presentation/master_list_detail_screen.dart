@@ -228,9 +228,9 @@ class _MasterListDetailScreenState
     final ok = await showConfirmDialog(
       context,
       title: 'Fusionar manualmente',
-      message: 'Vas a unir $dupNames en "${canonical.value}".\n\n'
-          'Las ventas que usaban esos nombres se van a actualizar al '
-          'canónico y los items duplicados se eliminan del catálogo.\n\n'
+      message: 'Unir $dupNames en "${canonical.value}". '
+          'Las ventas que usaban esos nombres pasarán al canónico y los '
+          'items duplicados se eliminan del catálogo.\n\n'
           'Esta acción no se puede deshacer.',
       confirmLabel: 'Fusionar',
       icon: Icons.call_merge,
@@ -671,7 +671,7 @@ class _PickCanonicalDialogState extends State<_PickCanonicalDialog> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return AlertDialog(
-      title: const Text('Elegí el nombre canónico'),
+      title: const Text('Elegir nombre canónico'),
       content: SizedBox(
         width: 320,
         child: Column(
@@ -679,8 +679,8 @@ class _PickCanonicalDialogState extends State<_PickCanonicalDialog> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Es el nombre que se queda. Los demás se borran del catálogo '
-              'y todas las ventas que los usaban van a apuntar acá.',
+              'Es el nombre que se conserva. Los demás se borran del '
+              'catálogo y las ventas que los usaban quedan apuntando a este.',
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
               ),

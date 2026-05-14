@@ -105,7 +105,7 @@ class _Body extends ConsumerWidget {
             OutlinedButton.icon(
               onPressed: () => _confirmMarkAsLoss(context, ref, sale, profile),
               icon: const Icon(Icons.report_gmailerrorred_outlined),
-              label: const Text('Marcar saldo como pérdida'),
+              label: const Text('Marcar pérdida'),
               style: OutlinedButton.styleFrom(
                 foregroundColor: Theme.of(context).colorScheme.error,
                 side: BorderSide(
@@ -514,9 +514,8 @@ class _LossWarning extends StatelessWidget {
           const SizedBox(width: 10),
           Expanded(
             child: Text(
-              'Esta venta ya fue marcada como pérdida. Podés seguir '
-              'registrando abonos, pero el estado financiero seguirá '
-              'como "Pérdida".',
+              'Esta venta está marcada como pérdida. Los abonos siguientes '
+              'no cambian su estado financiero.',
               style: theme.textTheme.bodySmall,
             ),
           ),
@@ -770,7 +769,7 @@ class _RegisterPaymentSheetState extends ConsumerState<_RegisterPaymentSheet> {
           Text(
             outstanding > 0
                 ? 'Saldo pendiente: ${formatCop(outstanding)}'
-                : 'No queda saldo pendiente, pero podés registrar un abono igual.',
+                : 'Sin saldo pendiente.',
             style: theme.textTheme.bodySmall?.copyWith(
               color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
             ),

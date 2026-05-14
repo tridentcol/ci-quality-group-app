@@ -92,9 +92,8 @@ class _NotificationsSheetState extends ConsumerState<NotificationsSheet> {
                           ? 'Sin notificaciones nuevas'
                           : 'Sin notificaciones',
                       message: _onlyUnread
-                          ? 'Cuando alguien actúe sobre tus solicitudes vas '
-                              'a ver el aviso acá.'
-                          : 'Los avisos de las últimas 4 semanas aparecen acá.',
+                          ? 'Los avisos sobre tus solicitudes aparecen aquí.'
+                          : 'Se muestran los últimos 30 días.',
                     );
                   }
                   final groups = _groupNotifications(visible);

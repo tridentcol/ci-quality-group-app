@@ -347,7 +347,7 @@ class _PendingTab extends StatelessWidget {
       return const EmptyState(
         icon: Icons.inbox_outlined,
         title: 'Sin solicitudes pendientes',
-        message: 'Cuando sales registre una venta nueva, va a aparecer acá.',
+        message: 'Las solicitudes nuevas aparecen aquí.',
       );
     }
     return ListView.separated(
@@ -429,8 +429,8 @@ class _DebtsTab extends StatelessWidget {
         icon: Icons.payments_outlined,
         title: onlyOverdue ? 'Sin deudas vencidas' : 'Sin deudas activas',
         message: onlyOverdue
-            ? 'Ningún cliente con plazo vencido en este momento.'
-            : 'Cuando una venta procesada quede con saldo va a aparecer acá.',
+            ? 'Ningún cliente con plazo vencido.'
+            : 'Las ventas con saldo pendiente aparecen aquí.',
       );
     }
 
@@ -477,8 +477,8 @@ class _ClosedTab extends StatelessWidget {
     if (sales.isEmpty) {
       return const EmptyState(
         icon: Icons.task_alt_outlined,
-        title: 'Aún sin solicitudes cerradas',
-        message: 'Las ventas pagadas o canceladas sin abonos van acá.',
+        title: 'Sin solicitudes cerradas',
+        message: 'Las ventas pagadas o canceladas aparecen aquí.',
       );
     }
     return ListView.separated(
@@ -525,7 +525,7 @@ class _OverdueBanner extends StatelessWidget {
           const SizedBox(width: 10),
           Expanded(
             child: Text(
-              'Tenés $count deuda${count == 1 ? '' : 's'} con plazo vencido.',
+              '$count deuda${count == 1 ? '' : 's'} con plazo vencido.',
               style: theme.textTheme.bodyMedium,
             ),
           ),

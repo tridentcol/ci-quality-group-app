@@ -463,13 +463,10 @@ class _StateHeader extends StatelessWidget {
   }
 
   String _captionFor(SaleState state) => switch (state) {
-        SaleState.generada =>
-          'Esperando que caja la tome. Mientras tanto podés editarla.',
-        SaleState.enProceso =>
-          'Caja la está revisando. No la podés editar hasta que la procesen '
-              'o te la devuelvan.',
-        SaleState.procesada => 'Caja confirmó. Podés entregar el material.',
-        SaleState.cancelada => 'Esta solicitud fue cancelada.',
+        SaleState.generada => 'En espera de caja.',
+        SaleState.enProceso => 'En revisión por caja.',
+        SaleState.procesada => 'Confirmada. Lista para entregar.',
+        SaleState.cancelada => 'Solicitud cancelada.',
       };
 }
 

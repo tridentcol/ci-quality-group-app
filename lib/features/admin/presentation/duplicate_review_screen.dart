@@ -124,7 +124,7 @@ class _DuplicateReviewScreenState extends ConsumerState<DuplicateReviewScreen> {
       context,
       title: 'Aplicar fusión',
       message:
-          'Vas a fusionar $_totalItemsToDelete duplicado'
+          'Se van a fusionar $_totalItemsToDelete duplicado'
           '${_totalItemsToDelete == 1 ? '' : 's'} en '
           '$_activeClusterCount grupo'
           '${_activeClusterCount == 1 ? '' : 's'}.\n\n'
