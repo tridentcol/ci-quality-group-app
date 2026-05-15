@@ -7,6 +7,18 @@ versionado [SemVer](https://semver.org/spec/v2.0.0.html). El número entre `+`
 es el `versionCode` de Android — cada release se sube en uno para que los
 celulares acepten la actualización sobre la versión anterior.
 
+## [1.2.0+9] — 2026-05-14
+
+### Corregido
+- **KPI cards apretados en Android.** El widget `KpiRow` decidía entre
+  modo Row (3 cards estirados) y modo Wrap (2 cards/fila) con un
+  umbral de 380 dp. Eso solo capturaba el iPhone SE — Android moderno
+  (Pixel 5 = 393, Pixel 6 = 411, Galaxy S = 412+ dp) caía en Row y los
+  3 cards "Cobrado / Procesadas / Ticket prom." quedaban apretados.
+  La simulación de teléfono en Chrome DevTools (iPhone SE @ 375) se
+  veía bien, pero el APK no. Umbral nuevo: 600 dp (breakpoint
+  "compact" de Material), así cualquier teléfono en vertical usa Wrap.
+
 ## [1.2.0+8] — 2026-05-14
 
 ### Agregado
