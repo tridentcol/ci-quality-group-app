@@ -7,6 +7,23 @@ versionado [SemVer](https://semver.org/spec/v2.0.0.html). El número entre `+`
 es el `versionCode` de Android — cada release se sube en uno para que los
 celulares acepten la actualización sobre la versión anterior.
 
+## [1.2.1+11] — 2026-05-14
+
+### Cambiado
+- **KPI cards en mobile: tiles horizontales apilados.** En pantallas
+  `< 600 dp` (cualquier teléfono en vertical, sea APK o web mobile)
+  cada `KpiCard` se renderea como tile horizontal — icono en un
+  cuadrado tintado a la izquierda, label + subtítulo en columna al
+  medio, valor a la derecha — y los tiles se apilan verticalmente con
+  separación de 8 dp. En tablets y desktop (`≥ 600 dp`) el layout
+  vertical en grid de N columnas (Row con `IntrinsicHeight`) sigue
+  igual. La razón del cambio: como cada tile mobile tiene todo el
+  ancho del scroll para el valor, el `FittedBox` rara vez tiene que
+  escalarlo abajo, así que la fuente del valor se ve uniforme entre
+  todas las tarjetas (antes "Cobrado: $1.234.567" salía más chico que
+  "Procesadas: 3" por ser más largo). La decisión se inyecta vía
+  `_CompactKpiScope` interno — los call-sites no cambian.
+
 ## [1.2.0+10] — 2026-05-14
 
 ### Corregido
