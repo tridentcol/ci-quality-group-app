@@ -7,6 +7,52 @@ versionado [SemVer](https://semver.org/spec/v2.0.0.html). El número entre `+`
 es el `versionCode` de Android — cada release se sube en uno para que los
 celulares acepten la actualización sobre la versión anterior.
 
+## [1.2.0+8] — 2026-05-14
+
+### Agregado
+- **Notificación: solicitud devuelta a sales** (`saleReturnedToSales`).
+  Cierra el único loop colaborativo bidireccional del workflow: cuando
+  cajero devuelve una solicitud `enProceso → generada` para corrección,
+  el creador (sales) recibe notif con la razón. Tap navega al form de
+  edición de la venta. Sin esto la solicitud reaparecía en la lista de
+  sales sin pista de por qué cajero la rechazó.
+- **Notificación: abono anulado** (`paymentVoided`). Cuando admin
+  ejecuta `voidPayment`, el cajero que registró el abono recibe la
+  notif con el monto y la razón. Evita el bug clásico de re-registrar
+  el mismo pago creyendo que se perdió. Tap navega al ledger de pagos
+  de la venta para que vea el estado actualizado.
+- **`PayersBreakdownScreen`** (`/admin/metrics/payers`). Pantalla
+  detallada con KPIs (# personas distintas, top quien recibe, total
+  recibido), distribución completa con barras + % del total y filtro
+  de rango propio. Misma estructura que `MaterialsBreakdownScreen` y
+  `ClientsBreakdownScreen` para que el patrón sea predecible.
+- **Campo `byPayer` en `SalesMetrics`** (mapa completo). `topPayers`
+  ahora se deriva de acá; el detalle nuevo consume el mapa entero.
+
+### Cambiado
+- **Form de venta unificado para sales + admin.** Hasta esta versión
+  admin tenía un branch propio en `SaleFormScreen` que pedía
+  `paymentMethod`, monto efectivo/transferencia, destino y `payerName`
+  para crear ventas `state=procesada` directamente. Eso rompía el
+  workflow: las ventas de admin no pasaban por caja, no aparecían en
+  el tab "Pendientes" y no se notificaban. Ahora cualquier rol
+  (sales o admin) crea solicitudes `state=generada` con solo los
+  datos comerciales — cajero las procesa y registra los abonos. Se
+  removió el `_PaymentSection`, el modo Mixto y la sección de pago
+  del form (código muerto en el archivo, queda para una pasada de
+  limpieza posterior).
+- **"Top quien recibe" → "Por quién recibe"** en el dashboard. Card
+  ahora tappable con chevron, igual que "Por material" y "Clientes".
+  Tap navega a la pantalla de detalle nueva.
+- **Alineación del dashboard de métricas.** Espaciado consistente
+  entre módulos: cuando una sección no se renderea (ej. línea de
+  cobrado por día con menos de 2 días, breakdown por material vacío),
+  no queda un gap fantasma. Antes el `SizedBox(height: 16)` previo
+  vivía afuera del `if`, dejando aire entre módulos sin razón.
+
+### Routing nuevo
+- `/admin/metrics/payers` → `PayersBreakdownScreen`.
+
 ## [1.1.2+7] — 2026-05-14
 
 ### Corregido

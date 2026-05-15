@@ -99,19 +99,34 @@ class CashierRepository {
       final ref = _col.doc(saleId);
       final snap = await txn.get(ref);
       _ensureExists(snap, saleId);
-      final state = SaleState.fromId(snap.data()?['state'] as String?);
+      final data = snap.data()!;
+      final state = SaleState.fromId(data['state'] as String?);
       if (state != SaleState.enProceso) {
         throw StateError(
           'Solo se puede devolver una solicitud en proceso '
           '(estado actual: ${state.id}).',
         );
       }
+      final trimmedReason = reason?.trim();
       txn.update(ref, {
         'state': SaleState.generada.id,
         'updatedAt': _now(),
-        if (reason != null && reason.trim().isNotEmpty)
-          'returnReason': reason.trim(),
+        if (trimmedReason != null && trimmedReason.isNotEmpty)
+          'returnReason': trimmedReason,
       });
+      // El creador (sales) necesita enterarse — si no, la solicitud
+      // reaparece en su lista sin pista de por qué cajero la rechazó.
+      // Este es el único loop colaborativo bidireccional del workflow.
+      _notifications.emitInTxn(
+        txn,
+        type: NotificationType.saleReturnedToSales,
+        title: 'Solicitud devuelta',
+        body: _saleHeadline(data, reason: trimmedReason),
+        saleId: saleId,
+        actorUid: actor.uid,
+        actorName: actor.fullName,
+        targetUids: [data['createdBy'] as String],
+      );
     });
   }
 
@@ -255,7 +270,9 @@ class CashierRepository {
       if (!paymentSnap.exists) {
         throw StateError('El abono ya no existe.');
       }
-      final amountVoided = paymentSnap.data()!['amount'] as num;
+      final paymentData = paymentSnap.data()!;
+      final amountVoided = paymentData['amount'] as num;
+      final paymentRegisteredBy = paymentData['registeredBy'] as String?;
       final data = saleSnap.data()!;
       final totalValue = data['totalValue'] as num;
       final currentPaid = (data['paidAmount'] as num?) ?? 0;
@@ -275,6 +292,26 @@ class CashierRepository {
         'financialStatus': newStatus.id,
         'updatedAt': _now(),
       });
+      // Avisamos al cajero que registró el abono. Sin esto, ve que el
+      // balance cambió "de la nada" y puede registrarlo de nuevo creyendo
+      // que se perdió la operación. Si el admin anuló un pago propio
+      // (mismo uid) la notif queda redundante pero inocua — el filtro
+      // se vería en cliente y no vale la pena complicar la regla.
+      if (paymentRegisteredBy != null && paymentRegisteredBy.isNotEmpty) {
+        _notifications.emitInTxn(
+          txn,
+          type: NotificationType.paymentVoided,
+          title: 'Abono anulado',
+          body:
+              '${data['consecutive']} — ${data['providerName']}, '
+              'abono de ${formatCop(amountVoided)} '
+              'anulado por ${actor.fullName}: ${reason.trim()}',
+          saleId: saleId,
+          actorUid: actor.uid,
+          actorName: actor.fullName,
+          targetUids: [paymentRegisteredBy],
+        );
+      }
     });
   }
 

@@ -230,8 +230,8 @@ class _SalesSection extends StatelessWidget {
             color: AppColors.danger,
           ),
         ],),
-        const SizedBox(height: 16),
-        if (metrics.dailyTotals.length >= 2)
+        if (metrics.dailyTotals.length >= 2) ...[
+          const SizedBox(height: 16),
           Card(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
@@ -248,6 +248,7 @@ class _SalesSection extends StatelessWidget {
               ),
             ),
           ),
+        ],
         const SizedBox(height: 16),
         // Resumen de clientes (nuevos vs recurrentes). Tap → pantalla
         // detallada con KPIs, lista, filtros.
@@ -257,57 +258,101 @@ class _SalesSection extends StatelessWidget {
           title: 'Por método de pago',
           data: metrics.byMethod,
         ),
-        const SizedBox(height: 16),
-        if (metrics.byMaterial.isNotEmpty)
+        if (metrics.byMaterial.isNotEmpty) ...[
+          const SizedBox(height: 16),
           _MaterialsSummaryCard(metrics: metrics),
+        ],
         if (metrics.topPayers.isNotEmpty) ...[
           const SizedBox(height: 16),
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Top quien recibe', style: theme.textTheme.titleMedium),
-                  const SizedBox(height: 12),
-                  ...metrics.topPayers.asMap().entries.map(
-                        (e) => Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 4),
-                          child: Row(
-                            children: [
-                              CircleAvatar(
-                                radius: 12,
-                                backgroundColor: theme.colorScheme.primary
-                                    .withValues(alpha: 0.15),
-                                child: Text(
-                                  '${e.key + 1}',
-                                  style: TextStyle(
-                                    color: theme.colorScheme.primary,
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: Text(e.value.name),
-                              ),
-                              Text(
-                                formatCop(e.value.amount),
-                                style: theme.textTheme.bodyMedium?.copyWith(
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                ],
-              ),
-            ),
-          ),
+          _PayersSummaryCard(topPayers: metrics.topPayers),
         ],
       ],
+    );
+  }
+}
+
+/// Card resumen del top quienes reciben. Tap → pantalla con el detalle
+/// completo, KPIs y filtro de rango propio. Mantiene la misma estética
+/// que `_MaterialsSummaryCard` y `_ClientsSummaryCard` (chevron + tap)
+/// para que el dashboard se vea uniforme.
+class _PayersSummaryCard extends StatelessWidget {
+  const _PayersSummaryCard({required this.topPayers});
+
+  final List<({String name, num amount})> topPayers;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: () => context.push('/admin/metrics/payers'),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Por quién recibe',
+                      style: theme.textTheme.titleMedium,
+                    ),
+                  ),
+                  Icon(
+                    Icons.chevron_right,
+                    color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              ...topPayers.asMap().entries.map(
+                    (e) => Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      child: Row(
+                        children: [
+                          CircleAvatar(
+                            radius: 12,
+                            backgroundColor: theme.colorScheme.primary
+                                .withValues(alpha: 0.15),
+                            child: Text(
+                              '${e.key + 1}',
+                              style: TextStyle(
+                                color: theme.colorScheme.primary,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              e.value.name,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          Text(
+                            formatCop(e.value.amount),
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+              const SizedBox(height: 4),
+              Text(
+                'Toca para ver el detalle completo.',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

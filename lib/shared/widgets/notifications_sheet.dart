@@ -156,18 +156,28 @@ class _NotificationsSheetState extends ConsumerState<NotificationsSheet> {
     }
     Navigator.of(context).pop();
     // Cada rol abre la venta en su pantalla:
-    //   sales / auditor → detalle público.
-    //   cajero / admin → la vista de pagos (admin también accede al
-    //     detail desde ahí), porque cuando una notif es de proceso /
-    //     cancelación / pérdida lo más útil es ver el ledger.
+    //   sales / auditor → detalle público (excepto cuando una solicitud
+    //     fue devuelta: sales necesita corregirla, así que va al form).
+    //   cajero → siempre la pantalla de proceso, y a pagos cuando el
+    //     trigger es 'abono anulado' (para ver el ledger actualizado).
+    //   admin → pagos cuando es proceso/cancela/pérdida/abono anulado;
+    //     proceso para los demás.
     final target = switch (role) {
-      AppRole.cajero => '/cashier/$saleId',
+      AppRole.cajero => switch (notif.type) {
+          NotificationType.paymentVoided => '/cashier/$saleId/payments',
+          _ => '/cashier/$saleId',
+        },
       AppRole.admin => switch (notif.type) {
           NotificationType.saleProcessed ||
           NotificationType.saleCanceled ||
-          NotificationType.saleMarkedLoss =>
+          NotificationType.saleMarkedLoss ||
+          NotificationType.paymentVoided =>
             '/cashier/$saleId/payments',
           _ => '/cashier/$saleId',
+        },
+      AppRole.sales => switch (notif.type) {
+          NotificationType.saleReturnedToSales => '/sales/$saleId/edit',
+          _ => '/sales/$saleId',
         },
       _ => '/sales/$saleId',
     };
@@ -360,7 +370,10 @@ class _NotificationGroupTileState extends State<_NotificationGroupTile> {
       NotificationType.saleCreated => '$n solicitudes nuevas',
       NotificationType.saleProcessed => '$n solicitudes procesadas',
       NotificationType.saleCanceled => '$n solicitudes canceladas',
+      NotificationType.saleReturnedToSales =>
+        '$n solicitudes devueltas para corrección',
       NotificationType.saleMarkedLoss => '$n saldos marcados como pérdida',
+      NotificationType.paymentVoided => '$n abonos anulados',
       NotificationType.unknown => '$n notificaciones',
     };
   }

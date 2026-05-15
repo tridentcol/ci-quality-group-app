@@ -236,7 +236,7 @@ y mergea + dedup en memoria, porque Firestore no permite OR en `where`.
 
 | Campo            | Tipo            | Notas                                  |
 |------------------|-----------------|----------------------------------------|
-| `type`           | String enum     | `'sale_created' \| 'sale_processed' \| 'sale_canceled' \| 'sale_marked_loss'`. |
+| `type`           | String enum     | `'sale_created' \| 'sale_processed' \| 'sale_canceled' \| 'sale_returned_to_sales' \| 'sale_marked_loss' \| 'payment_voided'`. |
 | `title`          | String          | Encabezado corto ("Solicitud procesada"). |
 | `body`           | String          | Cuerpo ("CQG-123 — Cliente X, $1.500.000"). |
 | `saleId`         | String?         | Venta asociada. Si está, tap navega al recurso. |

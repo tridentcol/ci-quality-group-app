@@ -22,6 +22,7 @@ class SalesMetrics {
     required this.count,
     required this.byMethod,
     required this.byMaterial,
+    required this.byPayer,
     required this.dailyTotals,
     required this.topPayers,
     required this.pendingCount,
@@ -46,11 +47,16 @@ class SalesMetrics {
   /// Distribución por material (sobre procesadas).
   final Map<String, num> byMaterial;
 
+  /// Distribución completa por payer (nombre → monto cobrado), para la
+  /// pantalla `PayersBreakdownScreen`. `topPayers` deriva de acá.
+  final Map<String, num> byPayer;
+
   /// Lista ordenada (oldest → newest) de pares fecha/total para gráfica de
   /// línea o barras temporales. Suma `paidAmount` de procesadas por día.
   final List<({DateTime day, num total})> dailyTotals;
 
-  /// Top quienes reciben (nombre, monto cobrado).
+  /// Top quienes reciben (nombre, monto cobrado). Slice de los primeros 5
+  /// de `byPayer` ordenados por monto desc — para el card resumen.
   final List<({String name, num amount})> topPayers;
 
   /// Solicitudes pendientes de procesar (`generada` o `en_proceso`) en
@@ -72,6 +78,7 @@ class SalesMetrics {
         count: 0,
         byMethod: {},
         byMaterial: {},
+        byPayer: {},
         dailyTotals: [],
         topPayers: [],
         pendingCount: 0,
@@ -190,6 +197,7 @@ class SalesMetrics {
       count: procesadasCount,
       byMethod: byMethod,
       byMaterial: byMaterial,
+      byPayer: byPayer,
       dailyTotals: dailyTotals,
       topPayers: topPayers.take(5).toList(),
       pendingCount: pendingCount,

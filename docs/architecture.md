@@ -194,16 +194,18 @@ FCM/APNs por ahora (push del SO requiere setup de Mac + service workers
 **Triggers actuales** (ver tabla en `docs/workflows.md` → "Agregar un
 tipo nuevo de notificación"):
 
-| Evento                       | Target                       |
-|------------------------------|------------------------------|
-| sales crea solicitud         | roles cajero + admin         |
-| cajero procesa               | uid del sales que la creó    |
-| cajero cancela               | uid del sales que la creó    |
-| cajero marca pérdida         | rol admin                    |
+| Evento                       | Target                            |
+|------------------------------|-----------------------------------|
+| sales/admin crea solicitud   | roles cajero + admin              |
+| cajero procesa               | uid del sales que la creó         |
+| cajero cancela               | uid del sales que la creó         |
+| cajero devuelve a sales      | uid del sales que la creó         |
+| cajero marca pérdida         | rol admin                         |
+| admin anula abono            | uid del cajero que lo registró    |
 
-**Anti-ruido:** registerPayment, takeRequest, returnToSales, updates
-menores NO disparan notif. Si en el futuro se justifica avisar un abono,
-se suma un tipo nuevo (no se reutiliza `saleProcessed`).
+**Anti-ruido:** registerPayment, takeRequest, updates menores NO disparan
+notif. Si en el futuro se justifica avisar un abono individual, se suma
+un tipo nuevo (no se reutiliza `saleProcessed`).
 
 **UI:**
 

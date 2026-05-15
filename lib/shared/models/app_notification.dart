@@ -14,7 +14,9 @@ enum NotificationType {
   saleCreated('sale_created'),
   saleProcessed('sale_processed'),
   saleCanceled('sale_canceled'),
+  saleReturnedToSales('sale_returned_to_sales'),
   saleMarkedLoss('sale_marked_loss'),
+  paymentVoided('payment_voided'),
   unknown('unknown');
 
   const NotificationType(this.id);
@@ -32,7 +34,9 @@ enum NotificationType {
         NotificationType.saleCreated => Icons.receipt_long_outlined,
         NotificationType.saleProcessed => Icons.check_circle_outline,
         NotificationType.saleCanceled => Icons.cancel_outlined,
+        NotificationType.saleReturnedToSales => Icons.undo_outlined,
         NotificationType.saleMarkedLoss => Icons.warning_amber_outlined,
+        NotificationType.paymentVoided => Icons.history_outlined,
         NotificationType.unknown => Icons.notifications_outlined,
       };
 
@@ -43,7 +47,9 @@ enum NotificationType {
         NotificationType.saleProcessed => const Color(0xFF2E7D32),
         NotificationType.saleCanceled =>
           scheme.onSurface.withValues(alpha: 0.55),
+        NotificationType.saleReturnedToSales => const Color(0xFFE6A100),
         NotificationType.saleMarkedLoss => scheme.error,
+        NotificationType.paymentVoided => scheme.error,
         NotificationType.unknown => scheme.primary,
       };
 }
