@@ -80,12 +80,9 @@ class KpiCard extends StatelessWidget {
   }
 }
 
-/// Fila de KPIs responsive. En pantallas de teléfono (<600 dp, el
-/// breakpoint "compact" de Material) apila en 2 columnas con Wrap;
-/// en tablets/desktop usa Row con Expanded para alturas iguales
-/// (IntrinsicHeight). El umbral 600 deja a CUALQUIER teléfono en
-/// vertical en modo Wrap — los 360-420 dp de Android no caben bien
-/// en 3 cards apretados.
+/// Fila de KPIs responsive. En pantallas estrechas (<380px) apila en
+/// 2 columnas con Wrap; en pantallas más anchas usa Row con Expanded
+/// para alturas iguales (IntrinsicHeight).
 class KpiRow extends StatelessWidget {
   const KpiRow({super.key, required this.cards});
 
@@ -95,7 +92,7 @@ class KpiRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final narrow = constraints.maxWidth < 600;
+        final narrow = constraints.maxWidth < 380;
         if (narrow) {
           return Wrap(
             spacing: 10,
