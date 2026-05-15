@@ -7,6 +7,33 @@ versionado [SemVer](https://semver.org/spec/v2.0.0.html). El número entre `+`
 es el `versionCode` de Android — cada release se sube en uno para que los
 celulares acepten la actualización sobre la versión anterior.
 
+## [1.1.1+6] — 2026-05-14
+
+### Corregido
+- **Íconos rotos en web (definitivo).** Hasta esta versión la app servía
+  el font `MaterialIcons` del SDK directamente desde la URL fija
+  `/assets/fonts/MaterialIcons-Regular.otf`. Un deploy temprano (antes de
+  agregar `--no-tree-shake-icons`) sirvió ahí un OTF subseteado, y como
+  Firebase Hosting tenía `Cache-Control: max-age=2592000` (30 días) para
+  fonts, navegadores y CDN siguieron entregando el font incompleto a los
+  usuarios. Tres rondas de reemplazos en Dart (`call_merge`, `compress`,
+  `checklist_outlined`, `notifications_none`, etc.) no podían arreglarlo
+  porque el binario que llegaba al cliente era el viejo. Fix:
+  - Se bundlea el OTF completo (1.6 MB) bajo
+    `assets/fonts/cqg_material_icons.otf` y se declara en
+    `pubspec.yaml` con `family: MaterialIcons`. URL nueva =
+    cache miss garantizado para todos.
+  - `firebase.json` baja el TTL de `*.otf|woff|woff2|ttf` de 30 días a
+    **1 hora con `must-revalidate`**, para que esto no se repita.
+  - Los íconos canónicos que se habían degradado a sus variantes "sin
+    sufijo" vuelven a sus versiones originales: `notifications_outlined`,
+    `hourglass_top_outlined`, `account_balance_wallet_outlined`,
+    `report_gmailerrorred_outlined`, `warning_amber_outlined`,
+    `calculate_outlined`, `timer_outlined`, `lock_open_outlined`,
+    `play_arrow_outlined`, `undo_outlined`, `cancel_outlined`,
+    `notes_outlined`, `event_outlined`, `point_of_sale_outlined`,
+    `call_merge`. Mobile y web ahora se ven idénticos.
+
 ## [1.1.0+5] — 2026-05-13
 
 ### Agregado

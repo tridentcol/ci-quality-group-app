@@ -1,7 +1,7 @@
 name: ci_quality_group
 description: "App interna de CI Quality Group: control de ventas y horas laboradas."
 publish_to: "none"
-version: 1.1.0+5
+version: 1.1.1+6
 
 environment:
   sdk: ">=3.4.0 <4.0.0"
@@ -63,6 +63,18 @@ flutter:
   assets:
     - assets/images/
     - assets/seed/
+
+  # MaterialIcons override: bundleamos el OTF completo bajo otra ruta para
+  # forzar cache-bust en navegadores que tenían un font vieja subseteada
+  # cacheado del primer deploy. Declarar `family: MaterialIcons` aquí
+  # sobreescribe el font del SDK, así que la clase `Icons` resuelve contra
+  # este archivo. Si en una actualización futura aparece un icono que
+  # falta, reemplazá `cqg_material_icons.otf` por una versión más reciente
+  # de https://github.com/google/material-design-icons (font/MaterialIcons-Regular.otf).
+  fonts:
+    - family: MaterialIcons
+      fonts:
+        - asset: assets/fonts/cqg_material_icons.otf
 
   # La tipografía Inter se descarga en runtime vía google_fonts, así no se
   # necesita guardar los .ttf en el repo. Si en el futuro quieres bundlearlos

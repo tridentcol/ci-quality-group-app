@@ -104,7 +104,7 @@ class _Body extends ConsumerWidget {
             const SizedBox(height: 20),
             OutlinedButton.icon(
               onPressed: () => _confirmMarkAsLoss(context, ref, sale, profile),
-              icon: const Icon(Icons.error_outline),
+              icon: const Icon(Icons.report_gmailerrorred_outlined),
               label: const Text('Marcar pérdida'),
               style: OutlinedButton.styleFrom(
                 foregroundColor: Theme.of(context).colorScheme.error,
@@ -226,7 +226,7 @@ class _HeaderCard extends ConsumerWidget {
             Row(
               children: [
                 Icon(
-                  Icons.event,
+                  Icons.event_outlined,
                   size: 18,
                   color: isOverdue
                       ? theme.colorScheme.error
@@ -510,7 +510,7 @@ class _LossWarning extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Icon(Icons.error_outline, color: error),
+          Icon(Icons.report_gmailerrorred_outlined, color: error),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
@@ -942,7 +942,7 @@ class _OverpayBanner extends StatelessWidget {
       ),
       child: Row(
         children: [
-          const Icon(Icons.warning, color: amber, size: 20),
+          const Icon(Icons.warning_amber_outlined, color: amber, size: 20),
           const SizedBox(width: 8),
           Expanded(
             child: Text(

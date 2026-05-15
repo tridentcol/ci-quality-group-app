@@ -50,21 +50,17 @@ Firestore + reglas de seguridad.
    (`if (dart.library.html)`). `dio`, `open_filex` rompen el bundle web.
 5. **No habilites `persistenceEnabled` de Firestore en web** —
    IndexedDB falla en incógnito y deja la app trabada en el splash.
-6. **Font de íconos en web incompleto** — Flutter web incluye un subconjunto
-   antiguo de MaterialIcons. Íconos confirmados ROTOS en web (no usar):
-   `merge_type`, `merge`, `call_merge`, `compress`, `point_of_sale_outlined`,
-   `notifications_outlined`, `hourglass_top_outlined`,
-   `account_balance_wallet_outlined`, `report_gmailerrorred_outlined`,
-   `warning_amber_outlined`, `calculate_outlined`, `timer_outlined`,
-   `lock_open_outlined`, `play_arrow_outlined`, `undo_outlined`,
-   `notes_outlined`, `cancel_outlined`, `event_outlined`.
-   Íconos confirmados OK: `payments_outlined`, `schedule_outlined`,
-   `engineering_outlined`, `checklist_outlined`, `receipt_long_outlined`,
-   `check_circle_outline`, `error_outline`, `warning`, `timer`, `undo`,
-   `play_arrow`, `notes`, `cancel`, `lock_open`, `functions`,
-   `hourglass_empty`, `account_balance_outlined`, `notifications_none`,
-   `event`. Regla práctica: preferí variantes sin sufijo `_outlined` para
-   iconos poco comunes; la version con sufijo puede no estar en el font.
+6. **Font de íconos bundleado como asset** — `assets/fonts/cqg_material_icons.otf`
+   (copia del OTF completo del SDK Flutter, ~1.6 MB) declarado en
+   `pubspec.yaml` con `family: MaterialIcons`. Esto **override** el font
+   del SDK y garantiza que el mismo glifo aparezca en Android, iOS y Web.
+   Si en algún build un icono renderea como caja vacía (tofu), NO es
+   problema del font — revisá:
+   (a) cache del navegador / CDN (hard refresh + Clear site data),
+   (b) que el deploy haya re-incluido el OTF en `build/web/assets/fonts/`,
+   (c) que el TTL en `firebase.json` para `*.otf` siga en 1 h con
+   `must-revalidate` (la línea está en la sección de headers). Cualquier
+   icono de `Icons.*` está disponible.
 7. **Comentarios**: solo escribí cuando el WHY no es obvio. Ver
    `docs/conventions.md`. No documentes lo que el código ya dice.
 8. **Trailing commas obligatorias** (lint configurado). Bloques de varias

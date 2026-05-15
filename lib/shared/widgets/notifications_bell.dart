@@ -22,7 +22,7 @@ class NotificationsBell extends ConsumerWidget {
       children: [
         IconButton(
           tooltip: tooltip,
-          icon: const Icon(Icons.notifications_none),
+          icon: const Icon(Icons.notifications_outlined),
           onPressed: () => _open(context),
         ),
         if (count > 0)

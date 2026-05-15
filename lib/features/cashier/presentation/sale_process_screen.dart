@@ -145,7 +145,7 @@ class _StatusCard extends StatelessWidget {
             if (sale.canceledAt != null) ...[
               const Divider(height: 24),
               _Line(
-                icon: Icons.cancel,
+                icon: Icons.cancel_outlined,
                 text: 'Cancelada por ${sale.canceledByName ?? '—'} · '
                     '${formatDateTime(sale.canceledAt!)}',
               ),
@@ -153,7 +153,7 @@ class _StatusCard extends StatelessWidget {
                   sale.cancelReason!.isNotEmpty) ...[
                 const SizedBox(height: 4),
                 _Line(
-                  icon: Icons.notes,
+                  icon: Icons.notes_outlined,
                   text: 'Motivo: ${sale.cancelReason}',
                 ),
               ],
@@ -161,7 +161,7 @@ class _StatusCard extends StatelessWidget {
             if (sale.markedAsLossAt != null) ...[
               const Divider(height: 24),
               _Line(
-                icon: Icons.error_outline,
+                icon: Icons.report_gmailerrorred_outlined,
                 text: 'Saldo marcado como pérdida por '
                     '${sale.markedAsLossByName ?? '—'} · '
                     '${formatDateTime(sale.markedAsLossAt!)}',
@@ -169,7 +169,7 @@ class _StatusCard extends StatelessWidget {
               if (sale.lossReason != null && sale.lossReason!.isNotEmpty) ...[
                 const SizedBox(height: 4),
                 _Line(
-                  icon: Icons.notes,
+                  icon: Icons.notes_outlined,
                   text: 'Motivo: ${sale.lossReason}',
                 ),
               ],
@@ -237,7 +237,7 @@ class _ActionsBar extends ConsumerWidget {
           ..add(
             FilledButton.icon(
               onPressed: () => _takeRequest(context, ref, profile),
-              icon: const Icon(Icons.play_arrow),
+              icon: const Icon(Icons.play_arrow_outlined),
               label: const Text('Iniciar proceso'),
             ),
           )
@@ -262,7 +262,7 @@ class _ActionsBar extends ConsumerWidget {
           ..add(
             OutlinedButton.icon(
               onPressed: () => _returnToSales(context, ref, profile),
-              icon: const Icon(Icons.undo),
+              icon: const Icon(Icons.undo_outlined),
               label: const Text('Devolver'),
             ),
           )

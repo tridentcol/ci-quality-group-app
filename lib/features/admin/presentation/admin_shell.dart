@@ -46,7 +46,7 @@ class AdminShell extends ConsumerWidget {
     // back del AppBar de la pantalla de caja.
     _AdminNavItem(
       label: 'Caja',
-      icon: Icons.payments_outlined,
+      icon: Icons.point_of_sale_outlined,
       route: '/cashier',
     ),
     _AdminNavItem(

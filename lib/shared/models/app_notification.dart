@@ -28,14 +28,12 @@ enum NotificationType {
     return NotificationType.unknown;
   }
 
-  /// Ícono asociado al tipo. Solo usamos íconos canónicos del font para
-  /// no caer en el agujero del tree-shake de web (ver CLAUDE.md regla 6).
   IconData get icon => switch (this) {
         NotificationType.saleCreated => Icons.receipt_long_outlined,
         NotificationType.saleProcessed => Icons.check_circle_outline,
-        NotificationType.saleCanceled => Icons.cancel,
-        NotificationType.saleMarkedLoss => Icons.warning,
-        NotificationType.unknown => Icons.notifications_none,
+        NotificationType.saleCanceled => Icons.cancel_outlined,
+        NotificationType.saleMarkedLoss => Icons.warning_amber_outlined,
+        NotificationType.unknown => Icons.notifications_outlined,
       };
 
   /// Color "acento" del item en la lista. Usa la paleta de la app para
