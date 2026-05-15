@@ -1,7 +1,7 @@
 name: ci_quality_group
 description: "App interna de CI Quality Group: control de ventas y horas laboradas."
 publish_to: "none"
-version: 1.1.1+6
+version: 1.1.2+7
 
 environment:
   sdk: ">=3.4.0 <4.0.0"
@@ -58,19 +58,25 @@ dev_dependencies:
   flutter_native_splash: ^2.4.0
 
 flutter:
-  uses-material-design: true
+  # `uses-material-design: false` para que Flutter NO auto-inyecte el font
+  # MaterialIcons del SDK en FontManifest.json. Si dejamos true Y declaramos
+  # nuestro propio MaterialIcons abajo, el manifest termina con dos entries
+  # para la misma familia, lo que en Flutter Web hace que sólo cargue uno
+  # (el del SDK, que es la versión vieja cacheada). El font que bundleamos
+  # abajo es completo, así que esto NO rompe nada de Material — la clase
+  # Icons resuelve contra nuestro font y todos los widgets siguen normales.
+  uses-material-design: false
 
   assets:
     - assets/images/
     - assets/seed/
 
-  # MaterialIcons override: bundleamos el OTF completo bajo otra ruta para
-  # forzar cache-bust en navegadores que tenían un font vieja subseteada
-  # cacheado del primer deploy. Declarar `family: MaterialIcons` aquí
-  # sobreescribe el font del SDK, así que la clase `Icons` resuelve contra
-  # este archivo. Si en una actualización futura aparece un icono que
-  # falta, reemplazá `cqg_material_icons.otf` por una versión más reciente
-  # de https://github.com/google/material-design-icons (font/MaterialIcons-Regular.otf).
+  # MaterialIcons bundleado: la única fuente de íconos. URL nueva
+  # (cache-bust automático) y sin conflicto con la del SDK porque la
+  # desactivamos arriba. Si en una actualización futura aparece un icono
+  # que falta, reemplazá `cqg_material_icons.otf` por una versión más
+  # reciente de https://github.com/google/material-design-icons
+  # (font/MaterialIcons-Regular.otf).
   fonts:
     - family: MaterialIcons
       fonts:

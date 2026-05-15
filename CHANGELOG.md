@@ -7,6 +7,21 @@ versionado [SemVer](https://semver.org/spec/v2.0.0.html). El número entre `+`
 es el `versionCode` de Android — cada release se sube en uno para que los
 celulares acepten la actualización sobre la versión anterior.
 
+## [1.1.2+7] — 2026-05-14
+
+### Corregido
+- **Íconos web (segundo intento).** El deploy de 1.1.1+6 todavía no
+  mostraba íconos. Causa: declarar `family: MaterialIcons` en
+  `pubspec.yaml` con `uses-material-design: true` deja DOS entries para
+  la misma familia en `FontManifest.json` (la auto-inyectada del SDK
+  más la nuestra). Flutter Web no las combina como fallback chain en
+  release — sólo carga la primera (la del SDK, atrapada en cache vieja
+  e incompleta). Fix: `uses-material-design: false` en pubspec. Ahora
+  el manifest tiene **una sola** entry de `MaterialIcons`, apuntando a
+  `assets/fonts/cqg_material_icons.otf`. El font del SDK ni siquiera se
+  bundlea en `build/web/`. No afecta widgets de Material — sólo evita
+  la auto-inclusión del font.
+
 ## [1.1.1+6] — 2026-05-14
 
 ### Corregido
