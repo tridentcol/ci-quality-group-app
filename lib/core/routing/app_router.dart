@@ -20,7 +20,6 @@ import '../../features/admin/presentation/work_schedule_settings_screen.dart';
 import '../../features/auth/data/auth_repository.dart';
 import '../../features/auth/data/users_repository.dart';
 import '../../features/auth/presentation/login_screen.dart';
-import '../../features/form_builder/presentation/form_builder_screen.dart';
 import '../../features/hours/presentation/hours_admin_screen.dart';
 import '../../features/hours/presentation/hours_home_screen.dart';
 import '../../features/hours/presentation/manual_hours_entry_screen.dart';
@@ -187,10 +186,6 @@ final routerProvider = Provider<GoRouter>((ref) {
               GoRoute(
                 path: 'settings/schedule',
                 builder: (_, __) => const WorkScheduleSettingsScreen(),
-              ),
-              GoRoute(
-                path: 'form-builder',
-                builder: (_, __) => const FormBuilderScreen(module: 'sales'),
               ),
               GoRoute(
                 path: 'users',

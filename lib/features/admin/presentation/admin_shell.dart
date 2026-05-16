@@ -74,11 +74,6 @@ class AdminShell extends ConsumerWidget {
       icon: Icons.tune_outlined,
       route: '/admin/settings/schedule',
     ),
-    _AdminNavItem(
-      label: 'Constructor',
-      icon: Icons.dynamic_form_outlined,
-      route: '/admin/form-builder',
-    ),
   ];
 
   /// Índice del item activo en `_navItems` según el `location`. Usa el

@@ -22,9 +22,6 @@ class FirestorePaths {
   static const masterLists = 'master_lists';
   static String masterListItems(String listId) => '$masterLists/$listId/items';
 
-  // Esquema dinámico del formulario de ventas (versión actual + historial).
-  static const formSchemas = 'form_schemas';
-
   // Contadores atómicos (consecutivo de ventas).
   static const counters = 'counters';
   static const salesCounter = 'sales_consecutive';

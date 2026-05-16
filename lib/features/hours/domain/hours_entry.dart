@@ -24,7 +24,6 @@ class HoursEntry {
     required this.createdAt,
     this.updatedAt,
     this.editableUntil,
-    this.customFields = const {},
   });
 
   final String id;
@@ -55,8 +54,6 @@ class HoursEntry {
   /// Ventana de 24 h durante la cual el encargado puede editar luego de cerrar.
   final DateTime? editableUntil;
 
-  final Map<String, dynamic> customFields;
-
   bool get isOpen => closedAt == null;
 
   Map<String, dynamic> toMap() => {
@@ -81,7 +78,6 @@ class HoursEntry {
         'editableUntil': editableUntil == null
             ? null
             : Timestamp.fromDate(AppClock.toInstant(editableUntil!)),
-        'customFields': customFields,
       };
 
   factory HoursEntry.fromSnapshot(DocumentSnapshot<Map<String, dynamic>> snap) {
@@ -112,8 +108,6 @@ class HoursEntry {
       editableUntil: data['editableUntil'] == null
           ? null
           : AppClock.fromInstant((data['editableUntil'] as Timestamp).toDate()),
-      customFields:
-          Map<String, dynamic>.from(data['customFields'] as Map? ?? const {}),
     );
   }
 }
