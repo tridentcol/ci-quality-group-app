@@ -462,7 +462,11 @@ class _DonutCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final entries = data.entries.toList()
+    // Filtramos entries con valor <= 0: fl_chart renderiza secciones de
+    // valor 0 como un pixel invisible que ensucia la dona y le miente
+    // al ojo. Si un método quedó en cero, sale del visual; el empty
+    // state ya cubre el caso de "ninguno".
+    final entries = data.entries.where((e) => e.value > 0).toList()
       ..sort((a, b) => b.value.compareTo(a.value));
     final total = entries.fold<num>(0, (a, b) => a + b.value);
     final colors = AppColors.chartPaletteFor(theme.brightness);
@@ -475,71 +479,134 @@ class _DonutCard extends StatelessWidget {
           children: [
             Text(title, style: theme.textTheme.titleMedium),
             const SizedBox(height: 12),
-            Row(
-              children: [
-                SizedBox(
-                  width: 110,
-                  height: 110,
-                  child: PieChart(
-                    PieChartData(
-                      centerSpaceRadius: 32,
-                      sectionsSpace: 2,
-                      sections: [
+            if (entries.isEmpty || total == 0)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                child: Text(
+                  'Sin abonos en el rango.',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                  ),
+                ),
+              )
+            else
+              Row(
+                children: [
+                  SizedBox(
+                    width: 110,
+                    height: 110,
+                    child: PieChart(
+                      PieChartData(
+                        centerSpaceRadius: 32,
+                        sectionsSpace: 2,
+                        sections: [
+                          for (var i = 0; i < entries.length; i++)
+                            PieChartSectionData(
+                              value: entries[i].value.toDouble(),
+                              color: colors[i % colors.length],
+                              radius: 22,
+                              showTitle: false,
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
                         for (var i = 0; i < entries.length; i++)
-                          PieChartSectionData(
-                            value: entries[i].value.toDouble(),
-                            color: colors[i % colors.length],
-                            radius: 22,
-                            showTitle: false,
+                          Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 4),
+                            child: _DonutLegendRow(
+                              color: colors[i % colors.length],
+                              label: entries[i].key,
+                              amount: entries[i].value,
+                              percent: total == 0
+                                  ? 0
+                                  : (entries[i].value / total * 100),
+                            ),
                           ),
                       ],
                     ),
                   ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      for (var i = 0; i < entries.length; i++)
-                        Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 3),
-                          child: Row(
-                            children: [
-                              Container(
-                                width: 10,
-                                height: 10,
-                                decoration: BoxDecoration(
-                                  color: colors[i % colors.length],
-                                  borderRadius: BorderRadius.circular(2),
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  entries[i].key,
-                                  style: theme.textTheme.bodySmall,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                              Text(
-                                '${(entries[i].value / total * 100).toStringAsFixed(0)}%',
-                                style: theme.textTheme.bodySmall?.copyWith(
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
+                ],
+              ),
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Fila de leyenda del donut: cuadrado de color + etiqueta arriba, el
+/// monto en moneda como dato primario y el porcentaje como hint
+/// secundario debajo. Diseñado para que la cifra en pesos sea lo que
+/// el ojo del admin captura primero (lo que efectivamente entró en
+/// efectivo / transferencia en el rango).
+class _DonutLegendRow extends StatelessWidget {
+  const _DonutLegendRow({
+    required this.color,
+    required this.label,
+    required this.amount,
+    required this.percent,
+  });
+
+  final Color color;
+  final String label;
+  final num amount;
+  final double percent;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Container(
+          width: 10,
+          height: 10,
+          margin: const EdgeInsets.only(top: 6),
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.circular(2),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 2),
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  formatCop(amount),
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              Text(
+                '${percent.toStringAsFixed(0)}%',
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: theme.colorScheme.onSurface.withValues(alpha: 0.55),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

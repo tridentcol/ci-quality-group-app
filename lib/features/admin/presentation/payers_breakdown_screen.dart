@@ -65,10 +65,12 @@ class _PayersBreakdownScreenState extends ConsumerState<PayersBreakdownScreen> {
               loading: () => const Center(child: CircularProgressIndicator()),
               error: (e, _) => AppErrorView(error: e),
               data: (m) {
-                // Filtramos nombres vacíos: las solicitudes nuevas
-                // (flujo Fase 6+) no traen payerName todavía, ese campo lo
-                // setea cajero al registrar cada abono. Si nadie lo seteó,
-                // no tiene sentido mostrarlo como una fila en blanco.
+                // Defensa contra payers vacíos. `metrics.compute` ya los
+                // filtra en la fuente (las solicitudes nuevas sin abonos
+                // dejan `payerName` vacío en la venta y solo aportan al
+                // breakdown vía la subcolección de abonos), pero
+                // mantenemos el filtro acá por si una venta legacy
+                // quedó con cadena vacía o whitespace.
                 final filtered = Map<String, num>.fromEntries(
                   m.byPayer.entries.where((e) => e.key.trim().isNotEmpty),
                 );

@@ -9,6 +9,7 @@ import '../../../shared/models/app_notification.dart';
 import '../../../shared/services/notifications_repository.dart';
 import '../../auth/data/auth_repository.dart';
 import '../../auth/domain/app_user.dart';
+import '../../sales/data/sales_repository.dart';
 import '../../sales/domain/payment.dart';
 import '../../sales/domain/sale.dart';
 
@@ -211,7 +212,11 @@ class CashierRepository {
       final currentPaid = (data['paidAmount'] as num?) ?? 0;
       final currentLoss = (data['lossAmount'] as num?) ?? 0;
       final newPaid = currentPaid + amount;
-      final newOutstanding = totalValue - newPaid - currentLoss;
+      final newOutstanding = Sale.computeOutstandingBalance(
+        totalValue: totalValue,
+        paidAmount: newPaid,
+        lossAmount: currentLoss,
+      );
       // Regla "lost absorbe": si ya hay lossAmount > 0, el status sigue
       // siendo lost aunque después se cobre.
       final newStatus = Sale.computeFinancialStatus(
@@ -279,7 +284,11 @@ class CashierRepository {
       final currentLoss = (data['lossAmount'] as num?) ?? 0;
       final newPaidRaw = currentPaid - amountVoided;
       final newPaid = newPaidRaw < 0 ? 0 : newPaidRaw;
-      final newOutstanding = totalValue - newPaid - currentLoss;
+      final newOutstanding = Sale.computeOutstandingBalance(
+        totalValue: totalValue,
+        paidAmount: newPaid,
+        lossAmount: currentLoss,
+      );
       final newStatus = Sale.computeFinancialStatus(
         totalValue: totalValue,
         paidAmount: newPaid,
@@ -474,4 +483,44 @@ final paymentsBySaleProvider = StreamProvider.autoDispose
       .orderBy('registeredAt', descending: true)
       .snapshots()
       .map((snap) => snap.docs.map(SalePayment.fromSnapshot).toList());
+});
+
+/// Fila de abono enriquecida con el `saleId` de la venta a la que
+/// pertenece. Necesaria al consumir resultados de un collection group
+/// query — `SalePayment` por sí solo no carga el id del padre, así que
+/// lo capturamos desde `doc.reference.parent.parent`.
+class PaymentWithSaleId {
+  const PaymentWithSaleId({required this.payment, required this.saleId});
+  final SalePayment payment;
+  final String saleId;
+}
+
+/// Lista reactiva de TODOS los abonos registrados en un rango de fechas
+/// (collection group query sobre `payments`). Lo usa el dashboard del
+/// admin para construir el breakdown por método de pago / por payer
+/// real: el flujo nuevo deja `Sale.paymentMethod` y `Sale.payerName`
+/// vacíos porque esos datos viven en cada `SalePayment`.
+///
+/// Requiere el índice `collectionGroup: payments` sobre `registeredAt`
+/// (ver `firestore.indexes.json`).
+final paymentsByRangeProvider = StreamProvider.family
+    .autoDispose<List<PaymentWithSaleId>, SalesDateRange>((ref, range) {
+  ref.watch(authStateProvider);
+  final start = Timestamp.fromDate(AppClock.toInstant(range.start));
+  final end = Timestamp.fromDate(AppClock.toInstant(range.end));
+  return FirebaseFirestore.instance
+      .collectionGroup('payments')
+      .where('registeredAt', isGreaterThanOrEqualTo: start)
+      .where('registeredAt', isLessThanOrEqualTo: end)
+      .snapshots()
+      .map(
+        (snap) => snap.docs
+            .map(
+              (doc) => PaymentWithSaleId(
+                payment: SalePayment.fromSnapshot(doc),
+                saleId: doc.reference.parent.parent!.id,
+              ),
+            )
+            .toList(),
+      );
 });

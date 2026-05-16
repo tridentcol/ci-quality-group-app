@@ -74,8 +74,22 @@ class HoursRepository {
     return entry;
   }
 
-  /// Actualiza la entrada o salida de un registro. Si [closedAt] está
-  /// presente, recalcula el desglose y arranca la ventana de 24 h.
+  /// Actualiza la entrada o salida de un registro.
+  ///
+  /// Cualquier cambio que modifique `checkIn` o `checkOut` (con ambos
+  /// definidos) recomputa el `breakdown` con el `schedule` actual — sin
+  /// esto, editar solo `checkIn` dejaba el desglose stale hasta el
+  /// próximo recálculo (mismo patrón que el bug original de items[] en
+  /// sales).
+  ///
+  /// Si [closedAt] está presente, además se cierra el día y se arranca
+  /// la ventana de 24 h (solo en el primer cierre; reaperturas y
+  /// re-cierres no la reinician).
+  ///
+  /// Corre dentro de `runTransaction` para evitar race conditions
+  /// cuando dos sesiones cierran el mismo día casi simultáneo (sin
+  /// esto, el segundo cierre podría sobrescribir `editableUntil` del
+  /// primero y romper la invariante).
   Future<void> updateEntry(
     String id, {
     DateTime? checkIn,
@@ -84,40 +98,45 @@ class HoursRepository {
     String? note,
     required WorkSchedule schedule,
   }) async {
-    final snap = await _col.doc(id).get();
-    if (!snap.exists) throw StateError('Registro no encontrado.');
-    final entry = HoursEntry.fromSnapshot(snap);
+    await _firestore.runTransaction((txn) async {
+      final ref = _col.doc(id);
+      final snap = await txn.get(ref);
+      if (!snap.exists) throw StateError('Registro no encontrado.');
+      final entry = HoursEntry.fromSnapshot(snap);
 
-    final newCheckIn = checkIn ?? entry.checkIn;
-    final newCheckOut = checkOut ?? entry.checkOut;
+      final newCheckIn = checkIn ?? entry.checkIn;
+      final newCheckOut = checkOut ?? entry.checkOut;
 
-    final patch = <String, dynamic>{
-      'checkIn': Timestamp.fromDate(AppClock.toInstant(newCheckIn)),
-      if (newCheckOut != null)
-        'checkOut': Timestamp.fromDate(AppClock.toInstant(newCheckOut)),
-      if (note != null) 'note': note,
-      'updatedAt': Timestamp.fromDate(AppClock.toInstant(AppClock.now())),
-    };
+      final patch = <String, dynamic>{
+        'checkIn': Timestamp.fromDate(AppClock.toInstant(newCheckIn)),
+        if (newCheckOut != null)
+          'checkOut': Timestamp.fromDate(AppClock.toInstant(newCheckOut)),
+        if (note != null) 'note': note,
+        'updatedAt': Timestamp.fromDate(AppClock.toInstant(AppClock.now())),
+      };
 
-    if (closedAt != null) {
-      patch['closedAt'] = Timestamp.fromDate(AppClock.toInstant(closedAt));
-      // La ventana de 24 h se inicia SOLO en el primer cierre del registro.
-      // Reaperturas y re-cierres no la reinician — la idea es que sea una
-      // ventana fija a partir del primer envío.
-      if (entry.editableUntil == null) {
-        patch['editableUntil'] = Timestamp.fromDate(
-          AppClock.toInstant(closedAt.add(const Duration(hours: 24))),
-        );
+      if (closedAt != null) {
+        patch['closedAt'] = Timestamp.fromDate(AppClock.toInstant(closedAt));
+        // La ventana de 24 h se inicia SOLO en el primer cierre del
+        // registro. Reaperturas y re-cierres no la reinician.
+        if (entry.editableUntil == null) {
+          patch['editableUntil'] = Timestamp.fromDate(
+            AppClock.toInstant(closedAt.add(const Duration(hours: 24))),
+          );
+        }
       }
-    }
 
-    if (newCheckOut != null) {
-      final calc = HoursCalculator(schedule: schedule);
-      final breakdown = calc.calculate(newCheckIn, newCheckOut);
-      patch['breakdown'] = breakdown.toMinutesMap();
-    }
+      // Recomputamos el breakdown siempre que tengamos ambos extremos
+      // del día (post-patch). No importa si el cambio fue `checkIn`,
+      // `checkOut` o `closedAt` — lo que pesa es el rango efectivo.
+      if (newCheckOut != null) {
+        final calc = HoursCalculator(schedule: schedule);
+        final breakdown = calc.calculate(newCheckIn, newCheckOut);
+        patch['breakdown'] = breakdown.toMinutesMap();
+      }
 
-    await _col.doc(id).update(patch);
+      txn.update(ref, patch);
+    });
   }
 
   /// Cierra el día con la salida indicada, calcula el desglose y arranca la

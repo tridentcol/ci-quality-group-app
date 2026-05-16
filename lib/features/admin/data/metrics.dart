@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../cashier/data/cashier_repository.dart';
 import '../../hours/data/hours_repository.dart';
 import '../../hours/domain/hours_categories.dart';
 import '../../hours/domain/hours_entry.dart';
@@ -89,8 +90,18 @@ class SalesMetrics {
         lossTotal: 0,
       );
 
+  /// Computa el resumen de ventas para el rango dado.
+  ///
+  /// `payments` lleva todos los `SalePayment` registrados en el rango
+  /// (collection group query). De ahí salen `byMethod` y la parte
+  /// nueva-flujo de `byPayer` — porque en el flujo nuevo el método de
+  /// pago y el payer real se deciden por abono, no por venta. Para las
+  /// ventas legacy (`paymentMethod` seteado a 'Efectivo'/'Transferencia'/
+  /// 'Mixto' en el doc padre, sin entradas en la subcolección), caemos
+  /// al fallback proporcional `cashPortion`/`transferPortion`.
   factory SalesMetrics.compute(
     List<Sale> sales, {
+    required List<PaymentWithSaleId> payments,
     required DateTime rangeStart,
     required DateTime rangeEnd,
   }) {
@@ -112,6 +123,59 @@ class SalesMetrics {
     int lossCount = 0;
     num lossTotal = 0;
 
+    // Set de saleIds cubiertos por la subcolección de payments en este
+    // rango. Sirve para distinguir "venta nueva-flujo" (tiene payments
+    // → byMethod/byPayer salen de ahí) de "venta legacy" (no tiene
+    // payments en la subcolección → fallback con cashPortion).
+    final saleIdsWithPayments = <String>{
+      for (final p in payments) p.saleId,
+    };
+
+    // -------- Aggregaciones desde los payments (flujo nuevo) --------
+    //
+    // El método de pago real está en cada `SalePayment.paymentMethod` +
+    // `cashAmount`/`transferAmount`. Y el payer real está en
+    // `SalePayment.payerName` (el `Sale.payerName` queda vacío para
+    // ventas creadas con el flujo nuevo). Iteramos los payments y
+    // sumamos. Incluimos abonos de ventas canceladas para mantener
+    // consistencia con `total` (que también suma el `paidAmount` de
+    // canceladas) — la plata efectivamente entró aunque después la
+    // solicitud se haya cancelado; si no se devolvió, sigue contando.
+    final salesById = {for (final s in sales) s.id: s};
+    for (final pr in payments) {
+      final sale = salesById[pr.saleId];
+      if (sale == null) continue; // pago fuera del set de ventas filtradas
+      final p = pr.payment;
+      final cash = p.cashAmount ??
+          (p.paymentMethod.toLowerCase() == 'efectivo' ? p.amount : 0);
+      final transfer = p.transferAmount ??
+          (p.paymentMethod.toLowerCase() == 'transferencia' ? p.amount : 0);
+      if (cash > 0) {
+        byMethod.update(
+          'Efectivo',
+          (v) => v + cash,
+          ifAbsent: () => cash,
+        );
+      }
+      if (transfer > 0) {
+        byMethod.update(
+          'Transferencia',
+          (v) => v + transfer,
+          ifAbsent: () => transfer,
+        );
+      }
+      final payer = p.payerName?.trim();
+      if (payer != null && payer.isNotEmpty) {
+        byPayer.update(
+          payer,
+          (v) => v + p.amount,
+          ifAbsent: () => p.amount,
+        );
+      }
+    }
+
+    // -------- Aggregaciones por venta (flujo legacy + KPIs) --------
+
     for (final s in sales) {
       total += s.paidAmount;
 
@@ -130,46 +194,65 @@ class SalesMetrics {
         receivableTotal += s.outstandingBalance;
       }
 
+      // Fallback legacy byMethod/byPayer: aplica para ventas con
+      // `paymentMethod` legacy seteado en el doc Y SIN entradas en la
+      // subcolección de payments. Vive ANTES del filtro por `procesada`
+      // para que el `paidAmount` de una venta legacy cancelada (que
+      // sigue sumando a `total`) también se refleje en byMethod — sin
+      // esto, `total` y la suma del donut quedaban desincronizados.
+      if (!saleIdsWithPayments.contains(s.id) &&
+          s.paymentMethod.isNotEmpty &&
+          s.paidAmount > 0) {
+        final ratio = s.totalValue == 0 ? 0 : s.paidAmount / s.totalValue;
+        final cashShare = s.cashPortion * ratio;
+        final transferShare = s.transferPortion * ratio;
+        if (cashShare > 0) {
+          byMethod.update(
+            'Efectivo',
+            (v) => v + cashShare,
+            ifAbsent: () => cashShare,
+          );
+        }
+        if (transferShare > 0) {
+          byMethod.update(
+            'Transferencia',
+            (v) => v + transferShare,
+            ifAbsent: () => transferShare,
+          );
+        }
+        // Payer legacy: viene en `Sale.payerName`. Para el flujo nuevo
+        // el payer queda vacío en la venta — esos casos los cubrimos al
+        // iterar payments. Saltamos los vacíos para no inflar la lista
+        // con un "(sin payer)" engañoso al tope.
+        final legacyPayer = s.payerName.trim();
+        if (legacyPayer.isNotEmpty) {
+          byPayer.update(
+            legacyPayer,
+            (v) => v + s.paidAmount,
+            ifAbsent: () => s.paidAmount,
+          );
+        }
+      }
+
       if (s.state != SaleState.procesada) continue;
       procesadasCount++;
 
-      // El desglose Efectivo/Transferencia usa el método de pago
-      // registrado en la venta (legacy admin) o queda en cero para
-      // ventas del flujo nuevo donde el método se decide en cada
-      // abono — esas no aportan al chart de método (limitación
-      // documentada; si más adelante hace falta precisión, hay que
-      // agregar collectionGroup query a payments).
-      final ratio = s.totalValue == 0 ? 0 : s.paidAmount / s.totalValue;
-      final cashShare = s.cashPortion * ratio;
-      final transferShare = s.transferPortion * ratio;
-      if (cashShare > 0) {
-        byMethod.update(
-          'Efectivo',
-          (v) => v + cashShare,
-          ifAbsent: () => cashShare,
-        );
+      // Por material: iteramos `items` y prorrateamos el paidAmount al
+      // peso financiero de cada item dentro del total. Así una venta con
+      // CHATARRA $300k + LAMINA $700k cobra parcialmente $500k → cada
+      // material recibe su parte proporcional ($150k / $350k).
+      if (s.items.isNotEmpty && s.totalValue > 0) {
+        for (final item in s.items) {
+          final share = item.totalValue / s.totalValue;
+          final amount = s.paidAmount * share;
+          if (amount <= 0) continue;
+          byMaterial.update(
+            item.displayLabel,
+            (v) => v + amount,
+            ifAbsent: () => amount,
+          );
+        }
       }
-      if (transferShare > 0) {
-        byMethod.update(
-          'Transferencia',
-          (v) => v + transferShare,
-          ifAbsent: () => transferShare,
-        );
-      }
-
-      final mat = s.materialVariant != null
-          ? '${s.material} · ${s.materialVariant}'
-          : s.material;
-      byMaterial.update(
-        mat,
-        (v) => v + s.paidAmount,
-        ifAbsent: () => s.paidAmount,
-      );
-      byPayer.update(
-        s.payerName,
-        (v) => v + s.paidAmount,
-        ifAbsent: () => s.paidAmount,
-      );
       final dayKey = _ordinal(s.date);
       byDay.update(
         dayKey,
@@ -474,17 +557,37 @@ final clientMetricsProvider = Provider.family
       ),);
 });
 
-/// Métricas de ventas memoizadas. Riverpod las recalcula solo cuando
-/// `salesByRangeProvider` emite una lista nueva, no en cada `build()`
-/// de la pantalla.
+/// Métricas de ventas memoizadas. Combina las ventas y los abonos del
+/// rango: las ventas dan los KPIs y el breakdown por material, y los
+/// abonos (collectionGroup query) dan el desglose real por método de
+/// pago y por payer en el flujo nuevo. Riverpod las recalcula solo
+/// cuando alguna de las dos listas emite, no en cada `build()`.
+///
+/// Degradación graceful: las ventas son el dato crítico — si fallan, el
+/// dashboard no puede mostrar nada y propagamos el error. Los abonos en
+/// cambio son una capa adicional que enriquece el desglose por método
+/// de pago en el flujo nuevo; si el query falla (índice todavía
+/// construyéndose, rules sin desplegar, sin conexión) o aún carga,
+/// computamos con lista vacía. El donut cae al fallback proporcional
+/// de las ventas legacy y muestra "Sin abonos en el rango" para el
+/// flujo nuevo — pero el resto del dashboard sigue funcional.
 final salesMetricsProvider = Provider.family
     .autoDispose<AsyncValue<SalesMetrics>, SalesDateRange>((ref, range) {
   final sales = ref.watch(salesByRangeProvider(range));
-  return sales.whenData((list) => SalesMetrics.compute(
-        list,
-        rangeStart: range.start,
-        rangeEnd: range.end,
-      ),);
+  if (sales.isLoading) return const AsyncValue.loading();
+  if (sales.hasError) {
+    return AsyncValue.error(sales.error!, sales.stackTrace!);
+  }
+  final payments = ref.watch(paymentsByRangeProvider(range));
+  final paymentsList = payments.valueOrNull ?? const <PaymentWithSaleId>[];
+  return AsyncValue.data(
+    SalesMetrics.compute(
+      sales.value ?? const [],
+      payments: paymentsList,
+      rangeStart: range.start,
+      rangeEnd: range.end,
+    ),
+  );
 });
 
 /// Métricas de horas memoizadas (igual que las de ventas).
