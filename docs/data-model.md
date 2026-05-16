@@ -48,12 +48,13 @@ Reglas:
 | `documentType`         | String     | `'Cédula'` o `'NIT'`.                   |
 | `documentNumber`       | String     |                                        |
 | `providerName`         | String     | Cliente. De `providers` (puede ser libre). |
-| `material`             | String     | De `materials`.                        |
-| `materialVariant`      | String?    | De `lamina_brands` filtrado por material parent. Solo si el material tiene subtipos. |
-| `unit`                 | String     | De `units`. Default `Kilogramos`.      |
-| `quantity`             | num        |                                        |
-| `unitPrice`            | num        |                                        |
-| `totalValue`           | num        | `quantity * unitPrice`. Recalculado en server side al update. |
+| `items`                | List<Map>  | Items de material de la venta. Cada item: `{material, materialVariant?, unit, quantity, unitPrice}`. Siempre tiene al menos uno. |
+| `material`             | String     | Mirror de `items[0].material`. Conservado para queries indexadas (auditor) y retro-compat. |
+| `materialVariant`      | String?    | Mirror de `items[0].materialVariant`.  |
+| `unit`                 | String     | Mirror de `items[0].unit`.             |
+| `quantity`             | num        | Mirror de `items[0].quantity`.         |
+| `unitPrice`            | num        | Mirror de `items[0].unitPrice`.        |
+| `totalValue`           | num        | Suma de `quantity * unitPrice` de todos los items. Recalculado al update. |
 | `paymentMethod`        | String     | `'Efectivo' \| 'Transferencia' \| 'Mixto'`. Derivado de los montos. |
 | `cashAmount`           | num?       | Monto en efectivo. Null si la venta es vieja o 100% transferencia. |
 | `transferAmount`       | num?       | Monto por transferencia. Null si 100% efectivo o vieja. |
@@ -63,8 +64,8 @@ Reglas:
 | `createdByName`        | String     | Nombre cacheado para mostrar.          |
 | `createdAt`            | Timestamp  |                                        |
 | `updatedAt`            | Timestamp? |                                        |
-| `editableUntil`        | Timestamp? | 24h después de createdAt. Después solo admin edita. |
-| `customFields`         | Map        | Campos extra definidos por el admin en form builder. |
+| `editableUntil`        | Timestamp? | Se fija al crear (`createdAt + 24 h`) y NUNCA se reasigna en `updateSale`. Es la única ventana de edición para sales: dentro de las 24 h puede modificar campos del formulario sin importar el `state`. Después solo admin edita. |
+| `customFields`         | Map        | _Deprecado._ Campo legacy del extinto constructor de formularios. No se lee ni se escribe desde el cliente; queda en docs históricos por compatibilidad. |
 | `state`                | String enum | `'generada' \| 'en_proceso' \| 'procesada' \| 'cancelada'`. Workflow informativo para sales (¿puedo entregar?). Lo controla cajero. Default legacy: `procesada`. |
 | `paidAmount`           | num        | Suma de abonos confirmados (denormalizado de la subcolección `payments`). |
 | `lossAmount`           | num        | Saldo castigado contablemente. Absorbe el `financialStatus` a `lost`. |
@@ -83,6 +84,12 @@ Reglas:
 El modelo `Sale` los expone como `cashPortion` / `transferPortion` con
 fallback inferido de `paymentMethod`.
 
+**Items legacy:** ventas viejas tampoco tienen `items[]`. `Sale.fromSnapshot`
+las interpreta como una venta con un único item construido desde los
+campos `material`/`materialVariant`/`unit`/`quantity`/`unitPrice` top-level.
+No hay script de migración — el fallback in-place alcanza, y al editar
+desde el form se escriben los items[] junto con el mirror del primero.
+
 Las ventas viejas tampoco tienen `state` ni los campos financieros
 nuevos. `Sale.fromSnapshot` las interpreta como `state: procesada`,
 `paidAmount: totalValue`, `outstandingBalance: 0`, `financialStatus: paid`.
@@ -92,7 +99,8 @@ Reglas:
 - Lee: `admin`, `sales`, `cajero`, `auditor`.
 - Crea: `admin`, `sales`.
 - Actualiza: `admin`, `cajero`. Sales solo puede editar sus propias
-  ventas mientras sigan en `generada` y dentro de la ventana de 24 h.
+  ventas mientras esté dentro de la ventana fija de 24 h desde
+  `createdAt` (el state ya no influye).
 - Borra: solo `admin`.
 
 #### `sales/{id}/payments/{paymentId}`
@@ -119,6 +127,14 @@ Reglas:
 - Lee/crea: `admin`, `cajero`. Create exige `amount > 0`.
 - Update: nadie (corregir un abono se hace borrando y registrando uno nuevo).
 - Borra: solo `admin` (anula el pago y recalcula los agregados).
+- Collection group: el dashboard de admin hace `collectionGroup('payments')`
+  con un `where('registeredAt', ...)` para agregar el desglose por
+  método de pago real. Firestore necesita dos cosas extra para que
+  funcione: una regla con wildcard
+  `match /{path=**}/payments/{pid} { allow read: ... }` y un índice
+  single-field con scope `COLLECTION_GROUP` sobre `registeredAt`
+  (declarado via `fieldOverrides` en `firestore.indexes.json`, no
+  via `indexes[]` — la CLI rechaza single-field indexes ahí).
 
 ### `hours_entries/{id}`
 
@@ -201,19 +217,6 @@ listas afectan ventas históricas cuando el admin renombra un item.
 | `transfer_destinations` | `transferDestination`  |
 
 `worker_roles` no está acá porque afecta `workers`, no `sales`.
-
-### `form_schemas/{module}`
-
-`FormSchema` — esquema dinámico de un módulo. Actualmente solo `'sales'`.
-
-| Campo      | Tipo                | Notas                                  |
-|------------|---------------------|----------------------------------------|
-| `module`   | String              | `'sales'`.                             |
-| `version`  | int                 | Se incrementa cada update.             |
-| `fields`   | List<Map>           | Lista de `FieldDefinition` serializados. |
-| `updatedAt`| Timestamp           |                                        |
-
-Reglas: lee cualquiera autenticado, escribe solo admin.
 
 ### `counters/sales_consecutive`
 

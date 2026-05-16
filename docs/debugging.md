@@ -41,6 +41,37 @@ y lo arreglás, sumalo acá para que la próxima vez sea más rápido.
 
 ---
 
+## Síntoma: panel de métricas tira "La operación no se puede completar en el estado actual"
+
+Es la traducción amigable del error Firestore `failed-precondition`.
+Pasa cuando el dashboard del admin corre la collection group query de
+abonos (`collectionGroup('payments').where('registeredAt', ...)`) pero
+falta una de dos cosas:
+
+1. **Índice COLLECTION_GROUP no deployado o aún construyéndose.** El
+   índice se declara en `firestore.indexes.json` via `fieldOverrides`
+   (no via `indexes[]` — Firebase rechaza single-field indexes ahí
+   con "this index is not necessary, configure using single field
+   index controls"). Verificá:
+   - Firebase Console → Firestore → Indexes → tab **"Exemptions"** (NO
+     "Composite"). Buscá `payments` / `registeredAt`.
+   - Tiene que aparecer "Collection group scope: Ascending: Enabled".
+   - Si está en "Building", esperá 1–5 min antes de probar.
+   - Si no aparece, deploy: `firebase deploy --only firestore:indexes`.
+2. **Regla wildcard de payments no deployada.** La regla específica
+   `match /sales/{sid}/payments/{pid}` NO cubre collection group
+   queries — Firestore exige una regla adicional con el wildcard
+   `match /{path=**}/payments/{pid}`. Deploy:
+   `firebase deploy --only firestore:rules`.
+
+Con el fix de degradación graceful (`salesMetricsProvider`), el
+dashboard sigue funcional aunque ambos fallen — solo el donut "Por
+método de pago" queda incompleto. Si ves el dashboard vacío en
+TODOS los KPIs, no es este síntoma: es otra cosa (rules del rol,
+sesión, índice de `sales` faltante).
+
+---
+
 ## Síntoma: ícono no aparece en web release
 
 Tree-shaking de iconos en `flutter build web --release` se come iconos

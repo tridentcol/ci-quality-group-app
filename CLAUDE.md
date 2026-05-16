@@ -12,14 +12,16 @@ trabajar en este repo. Si algo no está acá pero deberías saberlo,
 empresa colombiana. Dos flujos principales:
 
 1. **Control de ventas** de chatarra/lámina con consecutivo automático
-   `CQG-XXX`, formulario dinámico y export a Excel.
+   `CQG-XXX`, formulario fijo que admite múltiples materiales por venta,
+   workflow de caja (generada → enProceso → procesada), abonos parciales
+   y export a Excel.
 2. **Control de horas laboradas** con cálculo legal automático (extra
    diurna/nocturna, dominical, festivos colombianos) y export mensual.
 
 Plus un **panel admin** completo con métricas, listas maestras editables,
-constructor de formularios, gestión de usuarios y herramienta de fusión
-de duplicados. Más un **rol auditor** para socios/inversores que solo
-ven el subset de datos que les corresponde.
+gestión de usuarios y herramienta de fusión de duplicados. Más un **rol
+auditor** para socios/inversores que solo ven el subset de datos que les
+corresponde.
 
 ---
 
@@ -107,10 +109,10 @@ ci-quality-group/
 │   │   ├── auth/              # login + AppUser + AuthRepository
 │   │   ├── admin/             # panel admin, métricas, listas maestras, usuarios
 │   │   ├── auditor/           # dashboard del rol auditor
-│   │   ├── sales/             # ventas (formulario + lista + detalle)
+│   │   ├── sales/             # ventas (formulario + lista + detalle, multi-material)
+│   │   ├── cashier/           # caja (procesar solicitudes, abonos, pérdidas)
 │   │   ├── hours/             # control de horas + motor de cálculo
-│   │   ├── workers/           # CRUD de trabajadores
-│   │   └── form_builder/      # constructor de formularios + renderer dinámico
+│   │   └── workers/           # CRUD de trabajadores
 │   └── shared/                # widgets y services reutilizables entre features
 │       ├── widgets/           # AppLogo, MasterListField, HeroBanner, ...
 │       └── services/          # xlsx_export_service + conditional imports web/io
@@ -233,6 +235,11 @@ Detalles completos en `docs/data-model.md` y `firestore.rules`.
 
 - **In-app updater** — se removió en 1.0.2. Distribución de APK es manual.
 - **App Check / reCAPTCHA** — se removió, daba más problemas que valor.
+- **Constructor de formularios (form_builder)** — se removió en 1.3.0.
+  El formulario de venta es estático; cualquier campo nuevo se suma a
+  mano siguiendo `docs/workflows.md` → "Agregar un campo nuevo al
+  modelo Sale". Tampoco existen `customFields` ni `form_schemas/` en
+  Firestore activos.
 - **Cloud Functions** — no hay backend custom. Si necesitás trabajo
   server-side, hablalo con el usuario antes.
 - **Notificaciones push** — no implementado.

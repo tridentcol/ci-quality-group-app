@@ -7,6 +7,129 @@ versionado [SemVer](https://semver.org/spec/v2.0.0.html). El número entre `+`
 es el `versionCode` de Android — cada release se sube en uno para que los
 celulares acepten la actualización sobre la versión anterior.
 
+## [1.3.0+13] — 2026-05-15
+
+### Agregado
+- **Múltiples materiales por venta.** El formulario de venta soporta
+  uno o varios items de material por solicitud. El primer material es
+  obligatorio; los adicionales se agregan con el botón "Agregar otro
+  material" y se pueden quitar individualmente. Cada item lleva su
+  propia cantidad, valor unitario, unidad y subtotal. El total de la
+  venta es la suma de los subtotales. Las ventas históricas (1 solo
+  material) se siguen viendo igual; el cambio aplica al ingresar la
+  segunda referencia. Toda la app (detalle de venta, card de lista,
+  caja, exportación Excel, métricas "Por material") refleja el
+  desglose: en métricas, una venta con $300k de CHATARRA + $700k de
+  LAMINA cobra parcialmente y aporta proporcionalmente a cada bucket.
+- **Métrica "Por método de pago" desde abonos reales.** El donut del
+  dashboard del admin ahora suma los `cashAmount`/`transferAmount` de
+  cada `SalePayment` registrado en el rango (collection group query),
+  no del campo legacy de la venta. Esto captura correctamente las
+  ventas del flujo nuevo donde el método se decide al registrar cada
+  abono. Para ventas legacy (admin viejo con `paymentMethod` en la
+  venta y sin abonos en la subcolección) se mantiene el fallback
+  proporcional. La leyenda muestra ahora el monto en pesos como dato
+  primario y el porcentaje como hint pequeño debajo. Requiere índice
+  `collectionGroup: payments` sobre `registeredAt`.
+
+### Corregido
+- **Payer vacío en "Por quién recibe".** Cuando se procesaba una venta
+  del flujo nuevo sin registrar ningún abono (entrega contra acuerdo
+  de palabra), su `payerName == ''` se sumaba como una fila en blanco
+  al tope del breakdown. Ahora el agregado ignora payers vacíos en la
+  fuente (`SalesMetrics.compute`) y el payer real del flujo nuevo se
+  toma de cada `SalePayment.payerName`.
+- **`Sale.fromSnapshot` resiliente a docs viejos.** El cast directo
+  `data['totalValue'] as num` y los campos legacy de material/unit/
+  quantity/unitPrice podían crashear la app entera al toparse con un
+  doc histórico parcialmente migrado. Ahora todos esos reads usan
+  null-coalescing y `totalValue` se deriva de los items[] si el campo
+  no está en el doc.
+- **Consistencia `total` vs `byMethod` en ventas canceladas.** El KPI
+  "Cobrado" siempre sumó `paidAmount` de canceladas (la plata entró);
+  pero el donut "Por método de pago" las saltaba, dejando ambos
+  números desalineados. El fallback legacy ahora corre antes del
+  filtro por `procesada` y los abonos de canceladas también
+  contribuyen al donut.
+- **Validación client-side de ventana 24 h al guardar.** Si la ventana
+  expiraba entre que sales abría el form y guardaba, Firestore
+  rebotaba con `permission-denied` opaco. Ahora antes de llamar a
+  `updateSale` el form valida `editableUntil` contra el reloj actual y
+  muestra "La ventana de edición de 24 h ya expiró. Solo el admin
+  puede modificar esta venta."
+- **`_DonutCard` filtra secciones de valor 0.** `fl_chart` renderea
+  secciones con `value: 0` como un pixel invisible que ensucia la
+  dona; ahora filtramos esas entradas antes del render.
+- **Bounds guard en `_removeItem`.** Protección defensiva contra
+  doble-tap o rebuilds concurrentes al quitar un item del formulario.
+- **`updateSale` recomputa agregados financieros al cambiar `items`.**
+  Bug: al editar una venta procesada (ej. agregar otro material), el
+  `totalValue` se actualizaba pero `outstandingBalance` y
+  `financialStatus` quedaban stale hasta que se registrara el siguiente
+  abono. La consecuencia visible: el "Saldo" en la pantalla de pagos
+  seguía mostrando el valor viejo. Ahora `updateSale` corre dentro de
+  una transacción cuando recibe `items`: lee `paidAmount`/`lossAmount`
+  del doc actual, recomputa el saldo y el status, y persiste todo
+  junto. Mismo patrón que ya usaba `registerPayment` en
+  `CashierRepository`.
+- **`deleteSale` borra en cascada los abonos.** Antes, borrar una venta
+  dejaba huérfanos los docs de `sales/{id}/payments/{paymentId}` en
+  Firestore — el `collectionGroup('payments')` del dashboard los seguía
+  viendo como data fantasma y `doc.reference.parent.parent` podía
+  retornar null. Ahora un `WriteBatch` borra primero la subcolección y
+  después el padre.
+- **`hours_repository.updateEntry` siempre recompute `breakdown`.** Mismo
+  patrón del bug de items[] en sales: editar solo `checkIn` (sin pasar
+  `checkOut`) dejaba el desglose stale aunque el rango efectivo
+  cambiara. Ahora se recompute siempre que tengamos ambos extremos del
+  día. Además, todo el método corre en `runTransaction` para evitar
+  race conditions cuando dos sesiones cierran el mismo día casi
+  simultáneo (la invariante "editableUntil se fija en el primer
+  cierre" estaba expuesta sin ello).
+- **Propagación de renames a workers y a la subcolección de payments.**
+  La tabla `_saleFieldByListId` solo sabía propagar a `sales` —
+  renombrar un item de `worker_roles` no tocaba `workers.role` (quedaba
+  huérfano del catálogo), y renombrar `transfer_destinations`/
+  `payment_methods`/`payers` no propagaba a los abonos registrados
+  (subcolección `sales/{saleId}/payments`). Refactor: nueva tabla
+  `_propagationByListId` con primary + secondaries por listId, y un
+  helper `propagateValueChange` compartido por `renameItem` y
+  `applyMerges`. `findClusters` y `syncCatalogFromSales` ahora también
+  funcionan para `worker_roles` (cuenta refs en `workers`, no en
+  `sales`).
+- **`outstandingBalance` clampeado a `>= 0` en sobrepagos.** Si un abono
+  empuja `paidAmount > totalValue`, el saldo se mostraba como número
+  negativo confuso. Nuevo helper `Sale.computeOutstandingBalance` que
+  clampea a 0 y se usa consistentemente en `registerPayment`,
+  `voidPayment`, `updateSale` y el fallback de `Sale.fromSnapshot`. El
+  crédito a favor del cliente (caso raro) queda implícito: la diferencia
+  `paidAmount - totalValue` se calcula en UI si se necesita.
+
+### Cambiado
+- **Ventana de edición de venta: 24 h fijas y única.** La ventana se
+  fija al crear (`createdAt + 24 h`) y JAMÁS se reasigna al editar.
+  Además, ya no se requiere que la solicitud siga en estado
+  `generada` para que sales la edite: mientras esté dentro de las
+  24 h y haya sido creada por el mismo user, puede tocar los campos
+  del formulario sin importar si caja ya la tomó (excepto los campos
+  financieros, que siguen siendo del dominio cajero). El mensaje en
+  el detalle ahora dice "Editable hasta {hora} (24 h desde el
+  registro, no se reinicia al editar)".
+
+### Eliminado
+- **Constructor de formularios.** Se removió la feature completa de
+  `form_builder` (módulo `/admin/form-builder`, entrada del menú
+  lateral, colección `form_schemas` en Firestore, motor de fórmulas
+  y renderer dinámico). El formulario de ventas ahora es estático
+  con la estructura canónica de la app (fecha, documento, cliente,
+  materiales, valores). Esto reduce significativamente la
+  complejidad — la feature aportaba más riesgo de romper la app que
+  valor real, y el flujo unificado de caja ya cubre las necesidades
+  reales del producto. El campo `customFields` se preserva en
+  Firestore para ventas viejas que lo tengan, pero ya no se lee ni
+  se escribe desde el cliente. La regla `match /form_schemas` se
+  removió de `firestore.rules`.
+
 ## [1.2.1+11] — 2026-05-14
 
 ### Cambiado

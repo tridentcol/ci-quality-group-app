@@ -158,15 +158,15 @@ lib/
 │   ├── auth/                          # login, AuthRepository, AppUser
 │   ├── admin/                         # panel admin, listas maestras
 │   ├── workers/                       # gestión de trabajadores
-│   ├── sales/                         # formato de ventas
-│   ├── hours/                         # control de horas
-│   │   └── domain/
-│   │       ├── colombian_holidays.dart    # motor de festivos
-│   │       ├── hours_calculator.dart      # motor de cálculo legal
-│   │       ├── hours_categories.dart
-│   │       ├── work_schedule.dart
-│   │       └── hours_entry.dart
-│   └── form_builder/                  # esquemas dinámicos para ventas
+│   ├── sales/                         # ventas (multi-material por venta)
+│   ├── cashier/                       # caja (procesar / abonos / pérdidas)
+│   └── hours/                         # control de horas
+│       └── domain/
+│           ├── colombian_holidays.dart    # motor de festivos
+│           ├── hours_calculator.dart      # motor de cálculo legal
+│           ├── hours_categories.dart
+│           ├── work_schedule.dart
+│           └── hours_entry.dart
 └── shared/                            # widgets reutilizables
 test/
 ├── colombian_holidays_test.dart       # tests del calendario
@@ -196,7 +196,6 @@ sales/{id}                          -> Sale (consecutivo, fecha, material, ...)
 hours_entries/{id}                  -> HoursEntry (workerId, checkIn, checkOut, breakdown)
 master_lists/{id}                   -> MasterList (providers, payers, materials, ...)
 master_lists/{id}/items/{itemId}    -> MasterListItem (value, parent, active)
-form_schemas/{id}                   -> FormSchema (módulo, versión, fields[])
 counters/sales_consecutive          -> { value: <int> }  // contador atómico
 settings/work_schedule              -> WorkSchedule (jornadas + almuerzo)
 ```

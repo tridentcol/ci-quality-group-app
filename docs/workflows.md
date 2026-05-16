@@ -9,13 +9,9 @@ sumalo después de hacerlo.
 ## 1. Agregar un campo nuevo al modelo `Sale`
 
 Caso: el admin quiere capturar un dato adicional en cada venta (ej.
-"orden de compra del cliente").
-
-**Si es solo opcional para algunas ventas:** considerá usar custom
-fields del form builder en lugar de agregarlo al modelo core. El admin
-los agrega/quita desde `/admin/form-builder` sin tocar código.
-
-**Si es un campo core (siempre presente):**
+"orden de compra del cliente"). El formulario de ventas ya no tiene
+constructor dinámico: cualquier campo nuevo es core y se suma al
+layout estático.
 
 1. **`lib/features/sales/domain/sale.dart`**:
    - Agregalo al constructor con `required` o como nullable.
@@ -23,29 +19,28 @@ los agrega/quita desde `/admin/form-builder` sin tocar código.
    - Sumalo a `toMap()`.
    - Sumalo a `fromSnapshot()` con el cast correcto. Para ventas viejas
      que no lo tienen, definí default sensato (`?? defaultValue`).
+   - Si es un campo de un item (no de la venta), agregalo a `SaleItem`
+     en su lugar y replicá los pasos en la sección de items.
 2. **`lib/features/sales/data/sales_repository.dart`**:
    - Agregalo a la signatura de `createSale(...)`.
    - Agregalo a `updateSale(...)`. Si es nullable y querés permitir
      "limpiar", sumá un flag `clearXxx: bool = false` (patrón de
      `clearCashAmount` etc.).
    - Pasalo al `Sale(...)` que se construye en `createSale`.
-3. **`lib/features/form_builder/domain/form_schema.dart`**:
-   - Sumalo al default schema con un `FieldDefinition(id: 'xxx', label: 'Xxx', coreField: true, ...)`.
-4. **`lib/features/sales/presentation/sale_form_screen.dart`**:
+3. **`lib/features/sales/presentation/sale_form_screen.dart`**:
    - Sumá state field (`String? _xxx`).
    - Init desde `editingSale` en `initState`.
+   - Sumá el widget al `build` (`TextFormField`, dropdown,
+     `MasterListField`, etc.).
    - Recoge en `_submit` y pasalo al `createSale`/`updateSale`.
-   - Agregá un `case 'xxx':` en `_buildCoreField` que devuelva el widget
-     correspondiente (`TextFormField`, `DropdownButtonFormField`,
-     `MasterListField` si es de una lista maestra, etc.).
-5. **`lib/features/sales/presentation/sale_detail_screen.dart`**:
+4. **`lib/features/sales/presentation/sale_detail_screen.dart`**:
    - Sumá un `_Row(label: ..., value: ...)` en el card principal donde
      corresponda.
-6. **`lib/shared/services/xlsx_export_service.dart`**:
+5. **`lib/shared/services/xlsx_export_service.dart`**:
    - Sumá la columna al header + width + valor en la fila.
-7. **`docs/data-model.md`**:
+6. **`docs/data-model.md`**:
    - Documentá el campo en la tabla de `sales/{id}`.
-8. **Validar:**
+7. **Validar:**
    - `flutter analyze`
    - Correr en emulador / chrome
    - Crear una venta nueva y editarla.
@@ -315,19 +310,22 @@ quién puede tocar qué, hay cuatro lugares en sincronía:
    enum. Si agregás un estado nuevo, sumalo y actualizá `isWorkflowFinal`
    si corresponde.
 2. **`firestore.rules` → `match /sales/{sid}`** — el guard rail server-
-   side. Mirá los helpers `isSales()/isCajero()/isAdmin()` y los checks
-   sobre `state` y `editableUntil`. Las rules son la última línea de
-   defensa: aunque el cliente permita una acción, si la rule la rechaza
-   el doc no se modifica.
+   side. Mirá los helpers `isSales()/isCajero()/isAdmin()` y el check
+   sobre `editableUntil` (la regla actual NO mira `state` para sales —
+   el único gate de tiempo es la ventana fija de 24 h desde
+   `createdAt`). Las rules son la última línea de defensa: aunque el
+   cliente permita una acción, si la rule la rechaza el doc no se
+   modifica.
 3. **`CashierRepository`** (`lib/features/cashier/data/`) — todas las
    transiciones `state → state` viven acá en `runTransaction`. Cualquier
    chequeo en cliente sobre "qué estado puedo dejar" va en estos
    métodos (no en la UI), para que admin y cajero compartan la misma
    guarda.
 4. **`SaleDetailScreen._canEdit`** y **`SaleFormScreen`** — controlan
-   qué campos mostrar y permitir editar según rol + `state` + ventana de
-   24 h. Estos son chequeos puramente cosméticos: la verdad la dicen
-   rules + repo.
+   qué campos mostrar y permitir editar. Hoy el único gate de tiempo
+   para sales es la ventana de 24 h desde `createdAt` (no se reinicia
+   al editar, no depende del `state`). Estos chequeos son puramente
+   cosméticos: la verdad la dicen rules + repo.
 
 Después actualizá `docs/data-model.md` (tabla de `sales/{id}`) y dejá
 una entrada en `CHANGELOG.md` describiendo el cambio de permisos.

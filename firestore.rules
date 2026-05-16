@@ -73,8 +73,10 @@ service cloud.firestore {
     //
     // - Admin: control total.
     // - Sales: crea solicitudes; solo puede editar las suyas mientras
-    //   sigan en `generada` y estén dentro de la ventana de 24 h. No
-    //   puede tocar campos financieros ni el state.
+    //   estén dentro de la ventana fija de 24 h desde `createdAt`. La
+    //   ventana NO se reinicia al editar (editableUntil se fija al crear
+    //   y nunca se reasigna). No puede tocar campos financieros ni el
+    //   state — eso lo bloquea el cliente.
     // - Cajero: actualiza el workflow (state) y agregados de pago
     //   (paidAmount, lossAmount, etc.). No puede borrar.
     // Las validaciones detalladas de "qué campo puede tocar qué rol"
@@ -87,7 +89,6 @@ service cloud.firestore {
         || isCajero()
         || (isSales()
             && resource.data.createdBy == request.auth.uid
-            && resource.data.get('state', 'procesada') == 'generada'
             && resource.data.get('editableUntil', request.time) > request.time);
       allow delete: if isAdmin();
 
@@ -103,6 +104,17 @@ service cloud.firestore {
         allow update: if false;
         allow delete: if isAdmin();
       }
+    }
+
+    // ---------- Payments — collection group ----------
+    // Permiso explícito para `collectionGroup('payments')`. El admin
+    // dashboard lo usa para agregar el desglose por método de pago real
+    // sobre todas las subcolecciones a la vez (Firestore exige una
+    // regla con wildcard `{path=**}` además del match específico). El
+    // match anterior cubre las operaciones puntuales (lectura por
+    // venta, create, delete); este cubre la query agregada.
+    match /{path=**}/payments/{pid} {
+      allow read: if isAdmin() || isCajero();
     }
 
     // ---------- Hours entries ----------
@@ -143,14 +155,6 @@ service cloud.firestore {
     // Lectura para todos los autenticados (el calculador de horas y
     // varias pantallas leen la jornada). Escritura solo admin.
     match /settings/{sid} {
-      allow read: if isSignedIn();
-      allow write: if isAdmin();
-    }
-
-    // ---------- Form schemas (constructor de formularios) ----------
-    // Lectura para todos los autenticados (el renderer del form de
-    // ventas necesita el schema). Escritura solo admin.
-    match /form_schemas/{module} {
       allow read: if isSignedIn();
       allow write: if isAdmin();
     }

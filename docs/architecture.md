@@ -115,26 +115,33 @@ no sabe en qué plataforma corre.
 **Nunca** importes directo `dart:io` desde un archivo compartido —
 romperá el bundle web aunque uses `kIsWeb` para gatear.
 
-## Form Builder dinámico
+## Formulario de ventas
 
-`lib/features/form_builder/` permite al admin definir qué campos
-aparecen en el formulario de ventas, en qué orden, requeridos o no,
-visibles a qué roles, etc. Se persiste en `form_schemas/{module}`.
+`sale_form_screen.dart` lleva la creación/edición de una venta con la
+estructura canónica de la app (fecha, documento, cliente, uno o más
+items de material, totales). Es un layout estático — no hay un
+constructor dinámico que pueda romperlo.
 
-- **`FormSchema`** — lista de `FieldDefinition` con `id`, `label`,
-  `coreField`, `required`, `visibleToRoles`, `masterListId`, etc.
-- **Core fields** — los del modelo `Sale` (date, documentType,
-  providerName, material, etc.). Tienen widgets específicos en
-  `sale_form_screen.dart > _buildCoreField`. No se pueden agregar/quitar
-  desde el constructor; solo se puede ocultarlos por rol.
-- **Custom fields** — el admin puede agregarlos. Se renderean con
-  `buildDynamicField()` de `dynamic_form_renderer.dart`. Su valor se
-  guarda en `Sale.customFields: Map<String, dynamic>`.
+**Items de material** — el formulario soporta uno o varios items por
+venta. El primer item es obligatorio; los adicionales se agregan con
+el botón "Agregar otro material" y se pueden quitar uno a uno.
+Internamente, cada item es un `_ItemFormState` con sus propios
+controllers (cantidad, precio) más las selecciones reactivas de
+material/variante/unidad. Al submit, se mapean a `SaleItem` y se pasan
+al repo via `items: [...]`.
 
-Si agregás un campo core nuevo al modelo Sale, también hay que:
-1. Agregarlo al `FormSchema` default en `form_schema.dart`.
-2. Agregar un `case` en `_buildCoreField` con el widget.
-3. Actualizar `_renderSchemaFields` si necesita visibilidad condicional.
+**Mirror del primer item** — `SalesRepository.createSale` / `updateSale`
+escribe `items[0]` también a los campos top-level (`material`,
+`materialVariant`, `unit`, `quantity`, `unitPrice`) para que las
+queries indexadas (auditor filtrado por material/variant) sigan
+funcionando. El `totalValue` siempre se recalcula como suma de los
+subtotales de items.
+
+Si agregás un campo core nuevo al modelo Sale:
+1. Sumalo al constructor de `Sale` y a `toMap` / `fromSnapshot`.
+2. Sumá el widget al layout de `sale_form_screen.dart` y a la
+   pantalla de detalle (`sale_detail_screen.dart`).
+3. Si el campo va a la card o al export xlsx, actualizalos también.
 
 Ver `docs/workflows.md` → "Agregar un campo core a Sale".
 
