@@ -98,26 +98,36 @@ class XlsxExportService {
 
     final sorted = [...sales]..sort((a, b) => a.date.compareTo(b.date));
     for (final s in sorted) {
-      sheet.appendRow(<CellValue>[
-        TextCellValue(s.consecutive),
-        TextCellValue(dateFmt.format(s.date)),
-        TextCellValue(s.documentType),
-        TextCellValue(s.documentNumber),
-        TextCellValue(s.providerName),
-        TextCellValue(s.material),
-        TextCellValue(s.materialVariant ?? ''),
-        TextCellValue(s.unit),
-        DoubleCellValue(s.quantity.toDouble()),
-        DoubleCellValue(s.unitPrice.toDouble()),
-        DoubleCellValue(s.totalValue.toDouble()),
-        TextCellValue(s.paymentMethod),
-        DoubleCellValue(s.cashPortion.toDouble()),
-        DoubleCellValue(s.transferPortion.toDouble()),
-        TextCellValue(s.transferDestination ?? ''),
-        TextCellValue(s.payerName),
-        TextCellValue(s.createdByName),
-        TextCellValue(dateTimeFmt.format(s.createdAt)),
-      ]);
+      // Una venta con N items se despliega como N filas que comparten el
+      // consecutivo + datos generales. Los montos de pago aparecen solo
+      // en la primera fila para no duplicarlos contablemente; las filas
+      // siguientes los dejan en blanco. `Valor total` también se imprime
+      // únicamente en la primera fila por la misma razón — las demás
+      // sólo aportan su subtotal del item.
+      for (var idx = 0; idx < s.items.length; idx++) {
+        final i = s.items[idx];
+        final isFirst = idx == 0;
+        sheet.appendRow(<CellValue>[
+          TextCellValue(s.consecutive),
+          TextCellValue(dateFmt.format(s.date)),
+          TextCellValue(s.documentType),
+          TextCellValue(s.documentNumber),
+          TextCellValue(s.providerName),
+          TextCellValue(i.material),
+          TextCellValue(i.materialVariant ?? ''),
+          TextCellValue(i.unit),
+          DoubleCellValue(i.quantity.toDouble()),
+          DoubleCellValue(i.unitPrice.toDouble()),
+          DoubleCellValue(i.totalValue.toDouble()),
+          TextCellValue(isFirst ? s.paymentMethod : ''),
+          DoubleCellValue(isFirst ? s.cashPortion.toDouble() : 0),
+          DoubleCellValue(isFirst ? s.transferPortion.toDouble() : 0),
+          TextCellValue(isFirst ? (s.transferDestination ?? '') : ''),
+          TextCellValue(isFirst ? s.payerName : ''),
+          TextCellValue(isFirst ? s.createdByName : ''),
+          TextCellValue(isFirst ? dateTimeFmt.format(s.createdAt) : ''),
+        ]);
+      }
     }
 
     _stylizeHeader(sheet, columns: headers.length);

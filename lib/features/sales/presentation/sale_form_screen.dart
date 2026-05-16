@@ -1,4 +1,3 @@
-import 'package:collection/collection.dart' show IterableExtension;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -13,34 +12,22 @@ import '../../../shared/widgets/duplicate_check.dart';
 import '../../../shared/widgets/error_view.dart';
 import '../../../shared/widgets/loading_button.dart';
 import '../../../shared/widgets/master_list_field.dart';
+import '../../../shared/widgets/section_label.dart';
 import '../../../shared/widgets/theme_mode_toggle.dart';
 import '../../admin/data/master_lists_repository.dart';
 import '../../auth/data/auth_repository.dart';
-import '../../form_builder/data/form_schema_repository.dart';
-import '../../form_builder/domain/form_schema.dart';
-import '../../form_builder/presentation/dynamic_form_renderer.dart';
 import '../data/sales_repository.dart';
 import '../domain/sale.dart';
 
 const _defaultUnit = 'Kilogramos';
 
-/// Modo de pago. Lo escogemos al renderizar el formulario y derivamos
-/// `paymentMethod` (string que se persiste) de aquí al guardar.
-enum _PaymentMode {
-  /// 100% en efectivo. paymentMethod = 'Efectivo'.
-  cash,
-
-  /// 100% por transferencia (Bancolombia, Nequi, etc.).
-  /// paymentMethod = 'Transferencia'.
-  transfer,
-
-  /// Una parte en efectivo y otra por transferencia.
-  /// paymentMethod = 'Mixto'.
-  mixed,
-}
-
 /// Pantalla para crear una nueva venta o editar una existente (si está
-/// dentro de la ventana de 24 h o el usuario es admin).
+/// dentro de la ventana fija de 24 h desde `createdAt` o el usuario es
+/// admin).
+///
+/// El formulario soporta uno o varios materiales por venta. El primer
+/// material es obligatorio; los adicionales se agregan con el botón
+/// "Agregar otro material" y se pueden quitar.
 class SaleFormScreen extends ConsumerStatefulWidget {
   const SaleFormScreen({super.key, this.editingSale});
 
@@ -53,30 +40,18 @@ class SaleFormScreen extends ConsumerStatefulWidget {
 class _SaleFormScreenState extends ConsumerState<SaleFormScreen> {
   final _formKey = GlobalKey<FormState>();
   final _docNumberCtrl = TextEditingController();
-  final _quantityCtrl = TextEditingController();
-  final _unitPriceCtrl = TextEditingController();
-  // Inputs solo para el modo de pago Mixto. En Efectivo/Transferencia
-  // se calcula automáticamente (todo o nada al respectivo bucket).
-  final _cashAmountCtrl = TextEditingController();
-  final _transferAmountCtrl = TextEditingController();
 
   DateTime _date = AppClock.now();
   String _documentType = 'Cédula';
   String? _provider;
-  String? _material;
-  String? _materialVariant;
-  String _unit = _defaultUnit;
-  _PaymentMode _paymentMode = _PaymentMode.cash;
-  String? _transferDestination;
-  String? _payer;
+
+  /// Cada item del formulario lleva sus propios controllers + selección
+  /// reactiva de material/variante/unidad. La lista nunca queda vacía:
+  /// arrancamos siempre con un item.
+  late List<_ItemFormState> _items;
 
   bool _saving = false;
   String? _formError;
-
-  /// Controller para los campos custom (no-core) definidos por el admin
-  /// en el constructor de formularios. Va separado del estado de los
-  /// campos core para no mezclar lógica.
-  late final DynamicFormController _customFieldsController;
 
   bool get _isEdit => widget.editingSale != null;
 
@@ -89,61 +64,23 @@ class _SaleFormScreenState extends ConsumerState<SaleFormScreen> {
       _documentType = s.documentType;
       _docNumberCtrl.text = s.documentNumber;
       _provider = s.providerName;
-      _material = s.material;
-      _materialVariant = s.materialVariant;
-      _unit = s.unit;
-      _quantityCtrl.text = s.quantity.toString();
-      _unitPriceCtrl.text = s.unitPrice.toString();
-      // Reconstruimos el modo de pago a partir de los campos guardados.
-      // Ventas viejas (sin cashAmount/transferAmount) caen al método
-      // string ('Efectivo' o 'Transferencia') y prellenamos el destino
-      // si la venta era transferencia con destino conocido.
-      _paymentMode = _inferPaymentMode(s);
-      _transferDestination = s.transferDestination;
-      if (_paymentMode == _PaymentMode.mixed) {
-        _cashAmountCtrl.text = (s.cashAmount ?? 0).toString();
-        _transferAmountCtrl.text = (s.transferAmount ?? 0).toString();
-      }
-      _payer = s.payerName;
+      _items = s.items.map(_ItemFormState.fromSaleItem).toList();
+    } else {
+      _items = [_ItemFormState.empty()];
     }
-    _customFieldsController =
-        DynamicFormController(initial: s?.customFields ?? {});
-    // Antes hacíamos `addListener(_recompute)` que disparaba setState global
-    // en cada tecla y rebuildeaba 12+ widgets. Ahora _TotalCard escucha
-    // directamente los controllers vía ListenableBuilder.
   }
 
   @override
   void dispose() {
     _docNumberCtrl.dispose();
-    _quantityCtrl.dispose();
-    _unitPriceCtrl.dispose();
-    _cashAmountCtrl.dispose();
-    _transferAmountCtrl.dispose();
-    _customFieldsController.dispose();
+    for (final i in _items) {
+      i.dispose();
+    }
     super.dispose();
   }
 
   void _setError(String msg) {
     setState(() => _formError = msg);
-  }
-
-  /// Mapea una venta existente (que puede tener el modelo viejo o el
-  /// nuevo) al modo de pago actual del form. Prioridad:
-  ///   1. Si tiene cashAmount Y transferAmount con ambos > 0 → mixed
-  ///   2. Si paymentMethod == 'Mixto' (compat por si se guardó sin
-  ///      desglose) → mixed
-  ///   3. Si paymentMethod == 'Transferencia' → transfer
-  ///   4. Cualquier otra cosa (Efectivo) → cash
-  _PaymentMode _inferPaymentMode(Sale s) {
-    final cash = s.cashAmount ?? 0;
-    final transfer = s.transferAmount ?? 0;
-    if (cash > 0 && transfer > 0) return _PaymentMode.mixed;
-    if (s.paymentMethod.toLowerCase() == 'mixto') return _PaymentMode.mixed;
-    if (s.paymentMethod.toLowerCase() == 'transferencia') {
-      return _PaymentMode.transfer;
-    }
-    return _PaymentMode.cash;
   }
 
   Future<void> _pickDate() async {
@@ -159,45 +96,72 @@ class _SaleFormScreenState extends ConsumerState<SaleFormScreen> {
     if (picked != null) setState(() => _date = picked);
   }
 
+  void _addItem() {
+    setState(() => _items.add(_ItemFormState.empty()));
+  }
+
+  void _removeItem(int index) {
+    // Bounds guard contra taps duplicados o rebuilds concurrentes:
+    // si por algún motivo el index ya no está, no hacemos nada en lugar
+    // de tirar RangeError.
+    if (index < 0 || index >= _items.length) return;
+    setState(() {
+      final removed = _items.removeAt(index);
+      removed.dispose();
+    });
+  }
+
   Future<void> _submit() async {
     setState(() => _formError = null);
     if (!_formKey.currentState!.validate()) return;
 
-    // Anti-duplicados (última línea de defensa antes de escribir la
-    // venta): si "Cliente" o "Quién recibe" se parecen sospechosamente
-    // a alguien existente y el field no logró auto-snap, abrimos un
-    // modal para que el usuario confirme cuál usar. Si cancela, no
-    // guardamos.
-    final schema = ref.read(formSchemaProvider('sales')).valueOrNull;
-    final providerListId = schema?.fields
-            .firstWhereOrNull((f) => f.id == 'providerName')
-            ?.masterListId ??
-        'providers';
-    final payerListId = schema?.fields
-            .firstWhereOrNull((f) => f.id == 'payerName')
-            ?.masterListId ??
-        'payers';
+    // Si está editando una venta existente, verificar que la ventana de
+    // 24 h no haya expirado mientras tenía el form abierto. Sin este
+    // chequeo client-side, Firestore rebota el update con
+    // `permission-denied` opaco; el user ve "no tienes permisos" en
+    // lugar de "la ventana expiró".
+    final editing = widget.editingSale;
+    if (editing != null) {
+      final profile = ref.read(currentProfileProvider).valueOrNull;
+      final until = editing.editableUntil;
+      // Admin pasa por encima de la ventana. Sales depende de ella.
+      if (profile != null &&
+          profile.role != AppRole.admin &&
+          until != null &&
+          !AppClock.now().isBefore(until)) {
+        _setError(
+          'La ventana de edición de 24 h ya expiró. Solo el admin puede modificar esta venta.',
+        );
+        return;
+      }
+    }
 
-    final candidates = <DuplicateCandidate>[
-      if (_provider != null && _provider!.isNotEmpty)
+    // Validaciones de items que el FormField no cubre: que todos tengan
+    // material seleccionado.
+    for (var i = 0; i < _items.length; i++) {
+      if (_items[i].material == null || _items[i].material!.trim().isEmpty) {
+        _setError(
+          _items.length == 1
+              ? 'Selecciona el material.'
+              : 'Selecciona el material del item ${i + 1}.',
+        );
+        return;
+      }
+    }
+
+    // Anti-duplicados: si el "Cliente" se parece sospechosamente a uno
+    // existente, abrimos el modal para confirmar. Cancelar aborta.
+    if (_provider != null && _provider!.isNotEmpty) {
+      final resolved = await confirmFreeTextValues(context, ref, [
         DuplicateCandidate(
           label: 'Cliente',
           value: _provider!,
-          listId: providerListId,
+          listId: 'providers',
         ),
-      if (_payer != null && _payer!.isNotEmpty)
-        DuplicateCandidate(
-          label: 'Quién recibe',
-          value: _payer!,
-          listId: payerListId,
-        ),
-    ];
-    if (candidates.isNotEmpty) {
-      final resolved = await confirmFreeTextValues(context, ref, candidates);
+      ]);
       if (!mounted) return;
-      if (resolved == null) return; // usuario canceló el modal
+      if (resolved == null) return;
       _provider = resolved['Cliente'] ?? _provider;
-      _payer = resolved['Quién recibe'] ?? _payer;
     }
 
     final profile = ref.read(currentProfileProvider).valueOrNull;
@@ -206,54 +170,24 @@ class _SaleFormScreenState extends ConsumerState<SaleFormScreen> {
       return;
     }
 
-    final quantity = num.parse(_quantityCtrl.text.replaceAll(',', '.'));
-    final unitPrice = num.parse(_unitPriceCtrl.text.replaceAll(',', '.'));
+    final saleItems = _items.map((s) => s.toSaleItem()).toList();
 
     // Toda venta nueva entra al flujo de caja: arranca en `generada`,
     // sin método de pago, sin destino de transferencia, sin payerName.
-    // Cajero define esos campos al registrar cada abono. Aplica para
-    // sales y para admin (admin debe seguir el mismo workflow para que
-    // los KPIs y la caja se mantengan consistentes).
-    const String paymentMethodValue = '';
+    // Cajero define esos campos al registrar cada abono.
+    const paymentMethodValue = '';
     const createState = SaleState.generada;
 
     setState(() => _saving = true);
     try {
-
-      // Solo persistimos los customFields que siguen vigentes en el
-      // schema actual. Si el admin eliminó un campo del constructor,
-      // los valores huérfanos del controller se descartan al guardar
-      // (no se arrastran indefinidamente en cada edición).
-      final schema = ref.read(formSchemaProvider('sales')).valueOrNull;
-      final allowedIds = schema?.fields
-              .where((f) => !f.coreField)
-              .map((f) => f.id)
-              .toSet() ??
-          const <String>{};
-      final customFields = <String, dynamic>{};
-      _customFieldsController.values.forEach((k, v) {
-        if (!allowedIds.contains(k)) return;
-        if (v == null) return;
-        if (v is String && v.isEmpty) return;
-        customFields[k] = v;
-      });
-
       if (_isEdit) {
-        // Editando una solicitud propia mientras siga `generada` y
-        // dentro de la ventana de 24h. No tocamos campos financieros —
-        // cajero los registra después al procesar.
         await ref.read(salesRepositoryProvider).updateSale(
               widget.editingSale!.id,
               date: _date,
               documentType: _documentType,
               documentNumber: _docNumberCtrl.text.trim(),
               providerName: _provider!,
-              material: _material!,
-              materialVariant: _materialVariant,
-              unit: _unit,
-              quantity: quantity,
-              unitPrice: unitPrice,
-              customFields: customFields,
+              items: saleItems,
             );
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -267,16 +201,11 @@ class _SaleFormScreenState extends ConsumerState<SaleFormScreen> {
               documentType: _documentType,
               documentNumber: _docNumberCtrl.text.trim(),
               providerName: _provider!,
-              material: _material!,
-              materialVariant: _materialVariant,
-              unit: _unit,
-              quantity: quantity,
-              unitPrice: unitPrice,
+              items: saleItems,
               paymentMethod: paymentMethodValue,
               payerName: '',
               createdBy: profile.uid,
               createdByName: profile.fullName,
-              customFields: customFields,
               state: createState,
             );
         if (mounted) {
@@ -296,248 +225,357 @@ class _SaleFormScreenState extends ConsumerState<SaleFormScreen> {
   @override
   Widget build(BuildContext context) {
     final keyboardInset = MediaQuery.viewInsetsOf(context).bottom;
-    final schemaAsync = ref.watch(formSchemaProvider('sales'));
-    final role = ref.watch(currentProfileProvider.select(
-      (a) => a.valueOrNull?.role,
-    ),);
     return Scaffold(
       appBar: AppBar(
         title: Text(_isEdit ? 'Editar venta' : 'Nueva venta'),
         actions: const [ThemeModeIconButton()],
       ),
-      body: schemaAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => AppErrorView(error: e),
-        data: (schema) => AbsorbPointer(
-          absorbing: _saving,
-          child: Form(
-            key: _formKey,
-            autovalidateMode: AutovalidateMode.onUserInteraction,
-            child: ListView(
-              padding: EdgeInsets.fromLTRB(16, 16, 16, 96 + keyboardInset),
-              children: [
-                if (_isEdit) ...[
-                  _ConsecutiveBadge(
-                      consecutive: widget.editingSale!.consecutive,),
-                  const SizedBox(height: 16),
-                ],
-                ..._renderSchemaFields(schema, role),
-                if (_formError != null) ...[
-                  const SizedBox(height: 16),
-                  FormErrorBanner(message: _formError!),
-                ],
-                const SizedBox(height: 24),
-                LoadingButton(
-                  onPressed: _submit,
-                  loading: _saving,
-                  label: _isEdit ? 'Guardar cambios' : 'Registrar venta',
+      body: AbsorbPointer(
+        absorbing: _saving,
+        child: Form(
+          key: _formKey,
+          autovalidateMode: AutovalidateMode.onUserInteraction,
+          child: ListView(
+            padding: EdgeInsets.fromLTRB(16, 16, 16, 96 + keyboardInset),
+            children: [
+              if (_isEdit) ...[
+                _ConsecutiveBadge(
+                  consecutive: widget.editingSale!.consecutive,
                 ),
+                const SizedBox(height: 16),
               ],
-            ),
+              const SectionLabel('Datos generales'),
+              const SizedBox(height: 8),
+              _DateField(value: _date, onTap: _pickDate),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                initialValue: _documentType,
+                decoration: const InputDecoration(labelText: 'Tipo de documento'),
+                items: const [
+                  DropdownMenuItem(value: 'Cédula', child: Text('Cédula')),
+                  DropdownMenuItem(value: 'NIT', child: Text('NIT')),
+                ],
+                onChanged: (v) {
+                  if (v == null) return;
+                  setState(() => _documentType = v);
+                },
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _docNumberCtrl,
+                keyboardType: TextInputType.text,
+                decoration: const InputDecoration(
+                  labelText: 'Número de documento',
+                ),
+                validator: (v) => (v == null || v.trim().isEmpty)
+                    ? 'Este campo es obligatorio.'
+                    : null,
+              ),
+              const SizedBox(height: 12),
+              MasterListField(
+                listId: 'providers',
+                label: 'Nombre del cliente',
+                initialValue: _provider,
+                required: true,
+                onChanged: (v) => setState(() => _provider = v),
+                helperText:
+                    'Si no existe, escríbelo y queda como sugerencia.',
+              ),
+              const SizedBox(height: 24),
+              ..._buildItemSections(),
+              const SizedBox(height: 12),
+              OutlinedButton.icon(
+                onPressed: _addItem,
+                icon: const Icon(Icons.add_circle_outline),
+                label: const Text('Agregar otro material'),
+              ),
+              const SizedBox(height: 16),
+              _TotalCard(items: _items),
+              if (_formError != null) ...[
+                const SizedBox(height: 16),
+                FormErrorBanner(message: _formError!),
+              ],
+              const SizedBox(height: 24),
+              LoadingButton(
+                onPressed: _submit,
+                loading: _saving,
+                label: _isEdit ? 'Guardar cambios' : 'Registrar venta',
+              ),
+            ],
           ),
         ),
       ),
     );
   }
 
-  /// Renderiza los campos del formulario en el orden que el admin definió
-  /// en el Constructor de formularios. Los campos `coreField` tienen
-  /// widgets específicos con su lógica (controllers, validators,
-  /// condicionales como Tipo de lámina ↔ Material LAMINA). Los campos
-  /// no-core se delegan a `buildDynamicField` del renderer dinámico.
-  List<Widget> _renderSchemaFields(FormSchema schema, AppRole? role) {
+  List<Widget> _buildItemSections() {
     final widgets = <Widget>[];
-    for (final f in schema.fields) {
-      // Visibilidad por rol según el schema. Si el campo no está marcado
-      // como visible para el rol activo, lo omitimos por completo.
-      if (role != null && !f.visibleToRoles.contains(role.id)) continue;
-
-      // paymentMethod y payerName pertenecen al dominio de caja
-      // (paymentMethod = método; payerName = quién recibió la plata).
-      // Cajero los completa al registrar cada abono — los ocultamos
-      // siempre acá, no importa el rol, para mantener un único flujo.
-      if (f.id == 'paymentMethod' || f.id == 'payerName') {
-        continue;
-      }
-
-      Widget? w;
-      if (f.coreField) {
-        w = _buildCoreField(f);
-      } else {
-        w = buildDynamicField(
-          field: f,
-          controller: _customFieldsController,
-          role: role,
-        );
-      }
-      if (w == null) continue;
-
-      if (widgets.isNotEmpty) widgets.add(const SizedBox(height: 12));
-      widgets.add(w);
+    for (var i = 0; i < _items.length; i++) {
+      if (widgets.isNotEmpty) widgets.add(const SizedBox(height: 20));
+      widgets.add(
+        _ItemSection(
+          index: i,
+          total: _items.length,
+          state: _items[i],
+          onRemove: _items.length > 1 ? () => _removeItem(i) : null,
+          onChanged: () => setState(() {}),
+        ),
+      );
     }
     return widgets;
   }
+}
 
-  /// Mapea cada `id` de campo core al widget que lleva su lógica
-  /// específica. Devuelve `null` si el campo está oculto por una
-  /// condición (ej. Tipo de lámina solo aplica si Material == LAMINA).
-  Widget? _buildCoreField(FieldDefinition f) {
-    switch (f.id) {
-      case 'date':
-        return _DateField(value: _date, onTap: _pickDate);
-      case 'documentType':
-        return DropdownButtonFormField<String>(
-          initialValue: _documentType,
-          decoration: InputDecoration(labelText: f.label),
-          items: const [
-            DropdownMenuItem(value: 'Cédula', child: Text('Cédula')),
-            DropdownMenuItem(value: 'NIT', child: Text('NIT')),
-          ],
-          onChanged: (v) {
-            if (v == null) return;
-            setState(() => _documentType = v);
-          },
-        );
-      case 'documentNumber':
-        return TextFormField(
-          controller: _docNumberCtrl,
-          keyboardType: TextInputType.text,
-          decoration: InputDecoration(labelText: f.label),
-          validator: (v) => (f.required && (v == null || v.trim().isEmpty))
-              ? 'Este campo es obligatorio.'
-              : null,
-        );
-      case 'providerName':
-        return MasterListField(
-          listId: f.masterListId ?? 'providers',
-          label: f.label,
-          initialValue: _provider,
-          required: f.required,
-          onChanged: (v) => setState(() => _provider = v),
-          helperText:
-              f.helperText ?? 'Si no existe, escríbelo y queda como sugerencia.',
-        );
-      case 'material':
-        return MasterListField(
-          listId: f.masterListId ?? 'materials',
-          label: f.label,
-          initialValue: _material,
-          required: f.required,
-          // Al cambiar de material, reseteamos el subtipo: cada material
-          // tiene sus propios subtipos y los del anterior pueden no
-          // aplicar. Si vuelven al mismo material el usuario reescoge.
-          onChanged: (v) => setState(() {
-            _material = v;
-            _materialVariant = null;
-          }),
-        );
-      case 'materialVariant':
-        // Genérico: el campo aparece para CUALQUIER material que tenga
-        // subtipos registrados en el catálogo (no solo LAMINA). Si el
-        // material seleccionado no tiene subtipos, ocultamos el campo
-        // (return null) para no ensuciar el form.
-        final mat = _material;
-        if (mat == null || mat.isEmpty) return null;
-        final variantListId = f.masterListId ?? 'lamina_brands';
-        final variantsAsync = ref.watch(
-          masterListItemsProvider(
-            MasterListItemsQuery(listId: variantListId, parent: mat),
+/// Estado mutable de un item del formulario. Empaqueta los controllers y
+/// las selecciones para que la lista sea fácil de agregar/quitar sin
+/// dejar controllers huérfanos.
+class _ItemFormState {
+  _ItemFormState({
+    this.material,
+    this.materialVariant,
+    this.unit = _defaultUnit,
+    String? quantityText,
+    String? unitPriceText,
+  })  : quantityCtrl = TextEditingController(text: quantityText ?? ''),
+        unitPriceCtrl = TextEditingController(text: unitPriceText ?? '');
+
+  factory _ItemFormState.empty() => _ItemFormState();
+
+  factory _ItemFormState.fromSaleItem(SaleItem i) => _ItemFormState(
+        material: i.material,
+        materialVariant: i.materialVariant,
+        unit: i.unit,
+        quantityText: i.quantity.toString(),
+        unitPriceText: i.unitPrice.toString(),
+      );
+
+  String? material;
+  String? materialVariant;
+  String unit;
+  final TextEditingController quantityCtrl;
+  final TextEditingController unitPriceCtrl;
+
+  num get quantity =>
+      num.tryParse(quantityCtrl.text.replaceAll(',', '.')) ?? 0;
+
+  num get unitPrice =>
+      num.tryParse(unitPriceCtrl.text.replaceAll(',', '.')) ?? 0;
+
+  num get totalValue => quantity * unitPrice;
+
+  SaleItem toSaleItem() => SaleItem(
+        material: material!,
+        materialVariant: materialVariant,
+        unit: unit,
+        quantity: quantity,
+        unitPrice: unitPrice,
+      );
+
+  void dispose() {
+    quantityCtrl.dispose();
+    unitPriceCtrl.dispose();
+  }
+}
+
+/// Bloque visual de un item del formulario. Recibe el `_ItemFormState`
+/// y delega los cambios al padre vía callbacks.
+class _ItemSection extends ConsumerWidget {
+  const _ItemSection({
+    required this.index,
+    required this.total,
+    required this.state,
+    required this.onChanged,
+    this.onRemove,
+  });
+
+  final int index;
+  final int total;
+  final _ItemFormState state;
+  final VoidCallback onChanged;
+  final VoidCallback? onRemove;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final showHeader = total > 1;
+    return Container(
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: theme.colorScheme.outline.withValues(alpha: 0.2),
+        ),
+      ),
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (showHeader)
+            Row(
+              children: [
+                Icon(Icons.inventory_2_outlined,
+                    size: 18, color: theme.colorScheme.primary,),
+                const SizedBox(width: 6),
+                Text(
+                  'Material ${index + 1}',
+                  style: theme.textTheme.labelLarge?.copyWith(
+                    color: theme.colorScheme.primary,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const Spacer(),
+                if (onRemove != null)
+                  IconButton(
+                    tooltip: 'Quitar',
+                    icon: const Icon(Icons.delete_outline),
+                    color: theme.colorScheme.error,
+                    onPressed: onRemove,
+                  ),
+              ],
+            )
+          else
+            const SectionLabel('Material'),
+          const SizedBox(height: 8),
+          MasterListField(
+            listId: 'materials',
+            label: 'Material',
+            initialValue: state.material,
+            required: true,
+            onChanged: (v) {
+              // Al cambiar de material, reseteamos el subtipo: cada
+              // material tiene sus propios subtipos y los del anterior
+              // pueden no aplicar.
+              state.material = v;
+              state.materialVariant = null;
+              onChanged();
+            },
           ),
-        );
-        // Mientras carga la primera vez NO mostramos el campo (evita
-        // un parpadeo). Una vez con data: mostramos solo si hay >= 1.
-        final variants = variantsAsync.valueOrNull;
-        if (variants == null || variants.isEmpty) return null;
-        return MasterListField(
-          listId: variantListId,
-          parent: mat,
-          label: f.label,
-          initialValue: _materialVariant,
-          onChanged: (v) => setState(() => _materialVariant = v),
-        );
-      case 'unit':
-        return MasterListField(
-          listId: f.masterListId ?? 'units',
-          label: f.label,
-          initialValue: _unit,
-          required: f.required,
-          allowSuggestions: false,
-          onChanged: (v) => setState(() => _unit = v ?? _defaultUnit),
-        );
-      case 'quantity':
-        return TextFormField(
-          controller: _quantityCtrl,
-          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          inputFormatters: [
-            FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
-          ],
-          decoration: InputDecoration(
-            labelText: f.label,
-            helperText: f.helperText ?? _unit,
+          const SizedBox(height: 12),
+          // Subtipo: aparece solo si el material seleccionado tiene
+          // variantes registradas. Mientras carga la lista no se renderiza
+          // para evitar parpadeo.
+          if (state.material != null && state.material!.isNotEmpty)
+            _VariantField(
+              parentMaterial: state.material!,
+              value: state.materialVariant,
+              onChanged: (v) {
+                state.materialVariant = v;
+                onChanged();
+              },
+            ),
+          MasterListField(
+            listId: 'units',
+            label: 'Unidad de medida',
+            initialValue: state.unit,
+            required: true,
+            allowSuggestions: false,
+            onChanged: (v) {
+              state.unit = v ?? _defaultUnit;
+              onChanged();
+            },
           ),
-          validator: _validatePositiveNumber,
-        );
-      case 'unitPrice':
-        return TextFormField(
-          controller: _unitPriceCtrl,
-          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          inputFormatters: [
-            FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
-          ],
-          decoration: InputDecoration(
-            labelText: f.label,
-            prefixText: r'$ ',
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: TextFormField(
+                  controller: state.quantityCtrl,
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
+                  inputFormatters: [
+                    FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
+                  ],
+                  decoration: InputDecoration(
+                    labelText: 'Cantidad',
+                    helperText: state.unit,
+                  ),
+                  validator: _validatePositiveNumber,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: TextFormField(
+                  controller: state.unitPriceCtrl,
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
+                  inputFormatters: [
+                    FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
+                  ],
+                  decoration: const InputDecoration(
+                    labelText: 'Valor unitario',
+                    prefixText: r'$ ',
+                  ),
+                  validator: _validatePositiveNumber,
+                ),
+              ),
+            ],
           ),
-          validator: _validatePositiveNumber,
-        );
-      case 'totalValue':
-        return _TotalCard(
-          label: f.label,
-          quantityCtrl: _quantityCtrl,
-          unitPriceCtrl: _unitPriceCtrl,
-        );
-      case 'paymentMethod':
-        return _PaymentSection(
-          label: f.label,
-          mode: _paymentMode,
-          transferDestination: _transferDestination,
-          cashAmountCtrl: _cashAmountCtrl,
-          transferAmountCtrl: _transferAmountCtrl,
-          quantityCtrl: _quantityCtrl,
-          unitPriceCtrl: _unitPriceCtrl,
-          onModeChanged: (v) {
-            setState(() {
-              _paymentMode = v;
-              // Al cambiar a Solo efectivo limpiamos los campos de
-              // transferencia. Al cambiar a Solo transferencia
-              // limpiamos los inputs de mixto. En Mixto dejamos
-              // todo lo que el usuario ya tipeó.
-              if (v == _PaymentMode.cash) {
-                _transferDestination = null;
-                _cashAmountCtrl.clear();
-                _transferAmountCtrl.clear();
-              } else if (v == _PaymentMode.transfer) {
-                _cashAmountCtrl.clear();
-                _transferAmountCtrl.clear();
-              }
-            });
-          },
-          onDestinationChanged: (v) =>
-              setState(() => _transferDestination = v),
-        );
-      case 'payerName':
-        return MasterListField(
-          listId: f.masterListId ?? 'payers',
-          label: f.label,
-          initialValue: _payer,
-          required: f.required,
-          onChanged: (v) => setState(() => _payer = v),
-          helperText:
-              f.helperText ?? 'Si no existe, escríbelo y queda como sugerencia.',
-        );
-      default:
-        return null;
+          const SizedBox(height: 8),
+          // Subtotal del item, reactivo a los controllers.
+          ListenableBuilder(
+            listenable:
+                Listenable.merge([state.quantityCtrl, state.unitPriceCtrl]),
+            builder: (_, __) {
+              final q = num.tryParse(
+                  state.quantityCtrl.text.replaceAll(',', '.'),);
+              final p = num.tryParse(
+                  state.unitPriceCtrl.text.replaceAll(',', '.'),);
+              final subtotal = (q != null && p != null) ? q * p : null;
+              return Align(
+                alignment: Alignment.centerRight,
+                child: Text(
+                  subtotal == null
+                      ? 'Subtotal: pendiente'
+                      : 'Subtotal: ${formatCop(subtotal)}',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Widget que muestra la lista de variantes para el material padre. Se
+/// extrajo para encapsular el ref.watch del provider de subtipos y que
+/// el rebuild quede acotado a este sub-arbol.
+class _VariantField extends ConsumerWidget {
+  const _VariantField({
+    required this.parentMaterial,
+    required this.value,
+    required this.onChanged,
+  });
+
+  final String parentMaterial;
+  final String? value;
+  final ValueChanged<String?> onChanged;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final variantsAsync = ref.watch(
+      masterListItemsProvider(
+        MasterListItemsQuery(listId: 'lamina_brands', parent: parentMaterial),
+      ),
+    );
+    final variants = variantsAsync.valueOrNull;
+    if (variants == null || variants.isEmpty) {
+      return const SizedBox.shrink();
     }
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: MasterListField(
+        listId: 'lamina_brands',
+        parent: parentMaterial,
+        label: 'Tipo de material',
+        initialValue: value,
+        onChanged: onChanged,
+      ),
+    );
   }
 }
 
@@ -569,33 +607,37 @@ class _DateField extends StatelessWidget {
   }
 }
 
-/// Card del total. Escucha ambos controllers vía ListenableBuilder, así
-/// solo este widget rebuildea cuando cambia el texto, no toda la pantalla.
+/// Card que muestra el total de la venta. Escucha los controllers de
+/// TODOS los items vía ListenableBuilder para recomputar sin disparar
+/// rebuild del Scaffold entero.
 class _TotalCard extends StatelessWidget {
-  const _TotalCard({
-    required this.label,
-    required this.quantityCtrl,
-    required this.unitPriceCtrl,
-  });
+  const _TotalCard({required this.items});
 
-  final String label;
-  final TextEditingController quantityCtrl;
-  final TextEditingController unitPriceCtrl;
-
-  num? _compute() {
-    final q = num.tryParse(quantityCtrl.text.replaceAll(',', '.'));
-    final p = num.tryParse(unitPriceCtrl.text.replaceAll(',', '.'));
-    if (q == null || p == null) return null;
-    return q * p;
-  }
+  final List<_ItemFormState> items;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final controllers = <Listenable>[];
+    for (final i in items) {
+      controllers
+        ..add(i.quantityCtrl)
+        ..add(i.unitPriceCtrl);
+    }
     return ListenableBuilder(
-      listenable: Listenable.merge([quantityCtrl, unitPriceCtrl]),
+      listenable: Listenable.merge(controllers),
       builder: (context, _) {
-        final total = _compute();
+        num total = 0;
+        var allFilled = true;
+        for (final i in items) {
+          final q = num.tryParse(i.quantityCtrl.text.replaceAll(',', '.'));
+          final p = num.tryParse(i.unitPriceCtrl.text.replaceAll(',', '.'));
+          if (q == null || p == null) {
+            allFilled = false;
+            continue;
+          }
+          total += q * p;
+        }
         return Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
@@ -614,7 +656,7 @@ class _TotalCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      label,
+                      'Valor total',
                       style: theme.textTheme.labelLarge?.copyWith(
                         color: theme.colorScheme.primary,
                       ),
@@ -624,7 +666,9 @@ class _TotalCard extends StatelessWidget {
                       fit: BoxFit.scaleDown,
                       alignment: Alignment.centerLeft,
                       child: Text(
-                        total == null ? 'Pendiente' : formatCop(total),
+                        !allFilled && total == 0
+                            ? 'Pendiente'
+                            : formatCop(total),
                         style: theme.textTheme.headlineSmall,
                       ),
                     ),
@@ -670,215 +714,3 @@ class _ConsecutiveBadge extends StatelessWidget {
   }
 }
 
-/// Sección de pago — reemplaza el simple dropdown de método de pago
-/// con un selector de modo (Efectivo / Transferencia / Mixto), sus
-/// inputs específicos según el modo elegido, y el dropdown de destino
-/// de transferencia (lista maestra `transfer_destinations`) cuando
-/// aplica.
-class _PaymentSection extends StatelessWidget {
-  const _PaymentSection({
-    required this.label,
-    required this.mode,
-    required this.transferDestination,
-    required this.cashAmountCtrl,
-    required this.transferAmountCtrl,
-    required this.quantityCtrl,
-    required this.unitPriceCtrl,
-    required this.onModeChanged,
-    required this.onDestinationChanged,
-  });
-
-  final String label;
-  final _PaymentMode mode;
-  final String? transferDestination;
-  final TextEditingController cashAmountCtrl;
-  final TextEditingController transferAmountCtrl;
-  // Para mostrar el total esperado y la diferencia en modo Mixto.
-  final TextEditingController quantityCtrl;
-  final TextEditingController unitPriceCtrl;
-  final ValueChanged<_PaymentMode> onModeChanged;
-  final ValueChanged<String?> onDestinationChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: theme.textTheme.labelLarge?.copyWith(
-            color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
-          ),
-        ),
-        const SizedBox(height: 8),
-        SizedBox(
-          width: double.infinity,
-          child: SegmentedButton<_PaymentMode>(
-            // Sin íconos: en mobile (~360px de ancho) "Transferencia"
-            // ya consume su porción y agregar un ícono al lado lo
-            // partía. Con solo texto los 3 segments respiran.
-            segments: const [
-              ButtonSegment(
-                value: _PaymentMode.cash,
-                label: Text('Efectivo'),
-              ),
-              ButtonSegment(
-                value: _PaymentMode.transfer,
-                label: Text('Transferencia'),
-              ),
-              ButtonSegment(
-                value: _PaymentMode.mixed,
-                label: Text('Mixto'),
-              ),
-            ],
-            selected: {mode},
-            onSelectionChanged: (s) => onModeChanged(s.first),
-          ),
-        ),
-        if (mode == _PaymentMode.transfer) ...[
-          const SizedBox(height: 12),
-          MasterListField(
-            listId: 'transfer_destinations',
-            label: 'Destino de transferencia',
-            initialValue: transferDestination,
-            required: true,
-            onChanged: onDestinationChanged,
-            helperText: 'Bancolombia, Nequi, Daviplata, etc. Si no existe, '
-                'escríbelo y queda como sugerencia.',
-          ),
-        ],
-        if (mode == _PaymentMode.mixed) ...[
-          const SizedBox(height: 12),
-          _MixedAmountsRow(
-            cashAmountCtrl: cashAmountCtrl,
-            transferAmountCtrl: transferAmountCtrl,
-            quantityCtrl: quantityCtrl,
-            unitPriceCtrl: unitPriceCtrl,
-          ),
-          const SizedBox(height: 12),
-          MasterListField(
-            listId: 'transfer_destinations',
-            label: 'Destino de transferencia',
-            initialValue: transferDestination,
-            required: true,
-            onChanged: onDestinationChanged,
-            helperText: 'Bancolombia, Nequi, Daviplata, etc. Si no existe, '
-                'escríbelo y queda como sugerencia.',
-          ),
-        ],
-      ],
-    );
-  }
-}
-
-/// Inputs de monto en efectivo + monto por transferencia para el modo
-/// Mixto. Muestra debajo el total esperado y la diferencia con un
-/// color que cambia según si la suma cuadra (verde) o no (naranja).
-class _MixedAmountsRow extends StatelessWidget {
-  const _MixedAmountsRow({
-    required this.cashAmountCtrl,
-    required this.transferAmountCtrl,
-    required this.quantityCtrl,
-    required this.unitPriceCtrl,
-  });
-
-  final TextEditingController cashAmountCtrl;
-  final TextEditingController transferAmountCtrl;
-  final TextEditingController quantityCtrl;
-  final TextEditingController unitPriceCtrl;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return ListenableBuilder(
-      listenable: Listenable.merge([
-        cashAmountCtrl,
-        transferAmountCtrl,
-        quantityCtrl,
-        unitPriceCtrl,
-      ]),
-      builder: (context, _) {
-        final q = num.tryParse(quantityCtrl.text.replaceAll(',', '.'));
-        final p = num.tryParse(unitPriceCtrl.text.replaceAll(',', '.'));
-        final total = (q != null && p != null) ? q * p : null;
-        final cash = num.tryParse(cashAmountCtrl.text.replaceAll(',', '.'));
-        final transfer =
-            num.tryParse(transferAmountCtrl.text.replaceAll(',', '.'));
-        num? diff;
-        if (total != null && cash != null && transfer != null) {
-          diff = total - cash - transfer;
-        }
-        final ok = diff != null && diff.abs() <= 1;
-
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: TextFormField(
-                    controller: cashAmountCtrl,
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
-                    ),
-                    inputFormatters: [
-                      FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
-                    ],
-                    decoration: const InputDecoration(
-                      labelText: 'Efectivo',
-                      prefixText: r'$ ',
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: TextFormField(
-                    controller: transferAmountCtrl,
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
-                    ),
-                    inputFormatters: [
-                      FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
-                    ],
-                    decoration: const InputDecoration(
-                      labelText: 'Transferencia',
-                      prefixText: r'$ ',
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 6),
-            // Hint con el total esperado y diferencia. Verde si cuadra,
-            // ámbar si no, gris si todavía no hay total.
-            Builder(builder: (_) {
-              if (total == null) {
-                return Text(
-                  'Ingresa cantidad y valor unitario para validar la suma.',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
-                  ),
-                );
-              }
-              final color = ok
-                  ? theme.colorScheme.primary
-                  : theme.colorScheme.tertiary;
-              final diffText = diff == null
-                  ? ''
-                  : (ok
-                      ? '✓ Suma cuadra'
-                      : (diff > 0
-                          ? '· Falta ${formatCop(diff)}'
-                          : '· Sobra ${formatCop(-diff)}'));
-              return Text(
-                'Total: ${formatCop(total)} $diffText',
-                style: theme.textTheme.bodySmall?.copyWith(color: color),
-              );
-            },),
-          ],
-        );
-      },
-    );
-  }
-}

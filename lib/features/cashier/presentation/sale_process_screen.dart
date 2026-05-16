@@ -59,9 +59,10 @@ class _Body extends ConsumerWidget {
         HeroBanner(
           title: '${sale.consecutive} · ${formatDate(sale.date)}',
           primaryValue: formatCop(sale.totalValue),
-          secondary: '${sale.quantity} ${sale.unit.toLowerCase()} · '
-              '${sale.material}'
-              '${sale.materialVariant != null ? ' · ${sale.materialVariant}' : ''}',
+          secondary: sale.hasMultipleItems
+              ? '${sale.items.length} materiales'
+              : '${sale.quantity} ${sale.unit.toLowerCase()} · '
+                  '${sale.items.first.displayLabel}',
           icon: Icons.tag,
         ),
         const SizedBox(height: 16),
@@ -195,12 +196,8 @@ class _DetailsCard extends StatelessWidget {
             _Row(label: 'Cliente', value: sale.providerName),
             _Row(label: 'Documento', value: '${sale.documentType} · ${sale.documentNumber}'),
             const Divider(height: 24),
-            _Row(label: 'Material', value: sale.material),
-            if (sale.materialVariant != null)
-              _Row(label: 'Tipo', value: sale.materialVariant!),
-            _Row(label: 'Unidad', value: sale.unit),
-            _Row(label: 'Cantidad', value: sale.quantity.toString()),
-            _Row(label: 'Valor unitario', value: formatCop(sale.unitPrice)),
+            _ItemsList(items: sale.items),
+            const SizedBox(height: 4),
             _Row(label: 'Quién recibe', value: sale.payerName),
             const Divider(height: 24),
             _Row(label: 'Solicitada por', value: sale.createdByName),
@@ -456,6 +453,69 @@ Future<String?> _askReason(
       );
     },
   );
+}
+
+/// Lista de items de material para la card de caja. Compacta cuando
+/// hay uno solo, expandida con sub-cards cuando hay varios.
+class _ItemsList extends StatelessWidget {
+  const _ItemsList({required this.items});
+  final List<SaleItem> items;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    if (items.length == 1) {
+      final i = items.first;
+      return Column(
+        children: [
+          _Row(label: 'Material', value: i.material),
+          if (i.materialVariant != null)
+            _Row(label: 'Tipo', value: i.materialVariant!),
+          _Row(label: 'Unidad', value: i.unit),
+          _Row(label: 'Cantidad', value: i.quantity.toString()),
+          _Row(label: 'Valor unitario', value: formatCop(i.unitPrice)),
+        ],
+      );
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Materiales (${items.length})',
+          style: theme.textTheme.titleSmall,
+        ),
+        const SizedBox(height: 8),
+        for (var idx = 0; idx < items.length; idx++) ...[
+          if (idx > 0) const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color:
+                  theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Column(
+              children: [
+                _Row(label: 'Material', value: items[idx].material),
+                if (items[idx].materialVariant != null)
+                  _Row(label: 'Tipo', value: items[idx].materialVariant!),
+                _Row(label: 'Unidad', value: items[idx].unit),
+                _Row(label: 'Cantidad', value: items[idx].quantity.toString()),
+                _Row(
+                  label: 'Valor unitario',
+                  value: formatCop(items[idx].unitPrice),
+                ),
+                _Row(
+                  label: 'Subtotal',
+                  value: formatCop(items[idx].totalValue),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ],
+    );
+  }
 }
 
 class _Row extends StatelessWidget {

@@ -15,9 +15,10 @@ class SaleCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final material = sale.materialVariant != null
-        ? '${sale.material} · ${sale.materialVariant}'
-        : sale.material;
+    final material = sale.hasMultipleItems
+        ? '${sale.items.length} materiales · ${sale.items.first.displayLabel}'
+            ' + ${sale.items.length - 1} más'
+        : sale.items.first.displayLabel;
     return Card(
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
@@ -84,7 +85,7 @@ class SaleCard extends StatelessWidget {
                           ),
                         ),
                         Text(
-                          '${sale.quantity} ${_unitShort(sale.unit)}',
+                          _quantityLabel(sale),
                           style: theme.textTheme.bodyMedium,
                         ),
                       ],
@@ -139,3 +140,18 @@ String _unitShort(String unit) => switch (unit.toLowerCase()) {
       'kilogramos' => 'kg',
       _ => unit,
     };
+
+/// Etiqueta de cantidad para la card. Con un solo material muestra
+/// "100 kg"; con varios suma por unidad → "100 kg + 5 un".
+String _quantityLabel(Sale sale) {
+  if (!sale.hasMultipleItems) {
+    return '${sale.quantity} ${_unitShort(sale.unit)}';
+  }
+  final byUnit = <String, num>{};
+  for (final i in sale.items) {
+    byUnit.update(i.unit, (v) => v + i.quantity, ifAbsent: () => i.quantity);
+  }
+  return byUnit.entries
+      .map((e) => '${e.value} ${_unitShort(e.key)}')
+      .join(' + ');
+}

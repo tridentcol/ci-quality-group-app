@@ -61,12 +61,9 @@ class _SaleDetailBody extends ConsumerWidget {
     if (profile == null) return false;
     if (profile.role == AppRole.admin) return true;
     if (profile.uid != sale.createdBy) return false;
-    // Sales solo edita mientras la solicitud sigue en `generada`. Una
-    // vez que cajero la toma o procesa queda bloqueada para sales,
-    // aunque la ventana de 24 h siga abierta.
-    if (profile.role == AppRole.sales && sale.state != SaleState.generada) {
-      return false;
-    }
+    // Sales puede editar su propia venta durante las primeras 24 h
+    // desde `createdAt` (ventana fija que no se reinicia al editar).
+    // No filtramos por estado workflow — el único gate es el tiempo.
     final until = sale.editableUntil;
     if (until == null) return false;
     return AppClock.now().isBefore(until);
@@ -120,9 +117,11 @@ class _SaleDetailBody extends ConsumerWidget {
         HeroBanner(
           title: '${sale.consecutive} · ${formatDate(sale.date)}',
           primaryValue: formatCop(sale.totalValue),
-          secondary: '${sale.quantity} ${sale.unit.toLowerCase()} · '
-              '${sale.material}'
-              '${sale.materialVariant != null ? ' · ${sale.materialVariant}' : ''}',
+          secondary: sale.hasMultipleItems
+              ? '${sale.items.length} materiales · '
+                  '${_totalQuantityLabel(sale.items)}'
+              : '${sale.quantity} ${sale.unit.toLowerCase()} · '
+                  '${sale.items.first.displayLabel}',
           icon: Icons.tag,
         ),
         const SizedBox(height: 12),
@@ -143,23 +142,9 @@ class _SaleDetailBody extends ConsumerWidget {
                       label: 'Número de documento', value: sale.documentNumber,),
                   _Row(label: 'Cliente', value: sale.providerName),
                   const Divider(height: 24),
-                  _Row(label: 'Material', value: sale.material),
-                  if (sale.materialVariant != null)
-                    _Row(
-                      label: 'Tipo de material',
-                      value: sale.materialVariant!,
-                    ),
-                  _Row(label: 'Unidad', value: sale.unit),
-                  _Row(label: 'Cantidad', value: sale.quantity.toString()),
-                  _Row(
-                      label: 'Valor unitario',
-                      value: formatCop(sale.unitPrice),),
+                  _ItemsBlock(items: sale.items),
+                  const SizedBox(height: 8),
                   _Row(label: 'Valor total', value: formatCop(sale.totalValue)),
-                  if (sale.customFields.isNotEmpty) ...[
-                    const Divider(height: 24),
-                    for (final entry in sale.customFields.entries)
-                      _Row(label: entry.key, value: entry.value.toString()),
-                  ],
                   if (showPaymentInfo) ...[
                     const Divider(height: 24),
                     if (sale.paymentMethod.isNotEmpty)
@@ -186,13 +171,10 @@ class _SaleDetailBody extends ConsumerWidget {
                     Padding(
                       padding: const EdgeInsets.only(top: 8),
                       child: Text(
-                        AppClock.now().isBefore(sale.editableUntil!) &&
-                                sale.state == SaleState.generada
+                        AppClock.now().isBefore(sale.editableUntil!)
                             ? 'Editable hasta ${formatDateTime(sale.editableUntil!)} '
-                                'mientras la solicitud esté en estado generada.'
-                            : sale.state != SaleState.generada
-                                ? 'La solicitud ya no está en estado generada. Solo el admin puede modificar.'
-                                : 'Ya pasó la ventana de edición. Solo el admin puede modificar.',
+                                '(24 h desde el registro, no se reinicia al editar).'
+                            : 'Ya pasó la ventana de edición. Solo el admin puede modificar.',
                         style: theme.textTheme.bodySmall?.copyWith(
                           color: theme.colorScheme.onSurface
                               .withValues(alpha: 0.6),
@@ -523,4 +505,84 @@ class _Row extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Bloque que enumera los materiales de la venta. Compacto cuando hay
+/// uno solo (mismo layout que antes); expandido a card-por-item cuando
+/// hay varios.
+class _ItemsBlock extends StatelessWidget {
+  const _ItemsBlock({required this.items});
+  final List<SaleItem> items;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    if (items.length == 1) {
+      final i = items.first;
+      return Column(
+        children: [
+          _Row(label: 'Material', value: i.material),
+          if (i.materialVariant != null)
+            _Row(label: 'Tipo de material', value: i.materialVariant!),
+          _Row(label: 'Unidad', value: i.unit),
+          _Row(label: 'Cantidad', value: i.quantity.toString()),
+          _Row(label: 'Valor unitario', value: formatCop(i.unitPrice)),
+        ],
+      );
+    }
+    // Más de un material — los listamos como sub-bloques.
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Materiales (${items.length})',
+          style: theme.textTheme.titleSmall,
+        ),
+        const SizedBox(height: 8),
+        for (var idx = 0; idx < items.length; idx++) ...[
+          if (idx > 0) const SizedBox(height: 10),
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color:
+                  theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Column(
+              children: [
+                _Row(label: 'Material', value: items[idx].material),
+                if (items[idx].materialVariant != null)
+                  _Row(
+                    label: 'Tipo de material',
+                    value: items[idx].materialVariant!,
+                  ),
+                _Row(label: 'Unidad', value: items[idx].unit),
+                _Row(label: 'Cantidad', value: items[idx].quantity.toString()),
+                _Row(
+                  label: 'Valor unitario',
+                  value: formatCop(items[idx].unitPrice),
+                ),
+                _Row(
+                  label: 'Subtotal',
+                  value: formatCop(items[idx].totalValue),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+/// Resumen "X kg + Y un" para el banner cuando hay varios items con
+/// posiblemente distintas unidades.
+String _totalQuantityLabel(List<SaleItem> items) {
+  final byUnit = <String, num>{};
+  for (final i in items) {
+    byUnit.update(i.unit, (v) => v + i.quantity, ifAbsent: () => i.quantity);
+  }
+  return byUnit.entries
+      .map((e) => '${e.value} ${e.key.toLowerCase()}')
+      .join(' + ');
 }

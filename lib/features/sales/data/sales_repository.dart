@@ -32,6 +32,10 @@ class SalesRepository {
   /// repositorio se encarga del consecutivo, fechas de auditoría y la
   /// ventana de edición de 24 h.
   ///
+  /// `items` lleva al menos un material. El total se calcula como la
+  /// suma de `quantity * unitPrice` de cada item — para que la venta
+  /// quede consistente aunque el cliente envíe valores parciales.
+  ///
   /// El `state` controla cómo arrancan los agregados financieros:
   ///   - `procesada` (default, flujo legacy admin) → la venta se considera
   ///     pagada al instante: paidAmount = totalValue, financialStatus = paid.
@@ -43,11 +47,7 @@ class SalesRepository {
     required String documentType,
     required String documentNumber,
     required String providerName,
-    required String material,
-    String? materialVariant,
-    required String unit,
-    required num quantity,
-    required num unitPrice,
+    required List<SaleItem> items,
     required String paymentMethod,
     num? cashAmount,
     num? transferAmount,
@@ -55,9 +55,9 @@ class SalesRepository {
     required String payerName,
     required String createdBy,
     required String createdByName,
-    Map<String, dynamic> customFields = const {},
     SaleState state = SaleState.procesada,
   }) async {
+    assert(items.isNotEmpty, 'createSale requiere al menos un item.');
     final now = AppClock.now();
     final docRef = _col.doc();
 
@@ -67,7 +67,8 @@ class SalesRepository {
       final next = current + 1;
       final consecutive = _formatConsecutive(next);
 
-      final totalValue = quantity * unitPrice;
+      final totalValue =
+          items.fold<num>(0, (a, i) => a + i.quantity * i.unitPrice);
       // Para solicitudes nuevas (state=generada) el pago se registra
       // después desde caja. Para el flujo legacy (procesada) la venta
       // se considera cobrada al instante.
@@ -84,11 +85,7 @@ class SalesRepository {
         documentType: documentType,
         documentNumber: documentNumber,
         providerName: providerName,
-        material: material,
-        materialVariant: materialVariant,
-        unit: unit,
-        quantity: quantity,
-        unitPrice: unitPrice,
+        items: items,
         totalValue: totalValue,
         paymentMethod: paymentMethod,
         cashAmount: cashAmount,
@@ -98,8 +95,10 @@ class SalesRepository {
         createdBy: createdBy,
         createdByName: createdByName,
         createdAt: now,
+        // editableUntil queda fijo desde `createdAt`; jamás se reasigna
+        // en `updateSale` (la ventana es estable y le da a sales 24h
+        // ciertas para corregir lo que cargó).
         editableUntil: now.add(const Duration(hours: 24)),
-        customFields: customFields,
         state: state,
         paidAmount: paidAmount,
         lossAmount: 0,
@@ -130,17 +129,25 @@ class SalesRepository {
     });
   }
 
+  /// Actualiza una venta existente. NO toca `editableUntil` — la ventana
+  /// se fija al crear y permanece estable.
+  ///
+  /// Cuando se pasa `items`, se reemplaza completo el array, se
+  /// recalcula `totalValue` y se recomputan los agregados financieros
+  /// denormalizados (`outstandingBalance`, `financialStatus`) dentro
+  /// de una transacción — de lo contrario, una edición que cambia el
+  /// total deja el saldo y el estado financiero stale hasta el próximo
+  /// abono. Los campos mirror del primer item (`material`,
+  /// `materialVariant`, `unit`, `quantity`, `unitPrice`) se
+  /// re-sincronizan para que los queries indexados sigan apuntando al
+  /// principal.
   Future<void> updateSale(
     String id, {
     DateTime? date,
     String? documentType,
     String? documentNumber,
     String? providerName,
-    String? material,
-    String? materialVariant,
-    String? unit,
-    num? quantity,
-    num? unitPrice,
+    List<SaleItem>? items,
     String? paymentMethod,
     // Para los campos de pago dividido pasamos `setNullable*: true`
     // cuando explícitamente queremos limpiar el valor (ej. cambiar
@@ -153,18 +160,12 @@ class SalesRepository {
     String? transferDestination,
     bool clearTransferDestination = false,
     String? payerName,
-    Map<String, dynamic>? customFields,
   }) async {
-    final patch = <String, dynamic>{
+    final basePatch = <String, dynamic>{
       if (date != null) 'date': Timestamp.fromDate(AppClock.toInstant(date)),
       if (documentType != null) 'documentType': documentType,
       if (documentNumber != null) 'documentNumber': documentNumber,
       if (providerName != null) 'providerName': providerName,
-      if (material != null) 'material': material,
-      if (materialVariant != null) 'materialVariant': materialVariant,
-      if (unit != null) 'unit': unit,
-      if (quantity != null) 'quantity': quantity,
-      if (unitPrice != null) 'unitPrice': unitPrice,
       if (paymentMethod != null) 'paymentMethod': paymentMethod,
       if (clearCashAmount) 'cashAmount': null
       else if (cashAmount != null) 'cashAmount': cashAmount,
@@ -174,21 +175,79 @@ class SalesRepository {
       else if (transferDestination != null)
         'transferDestination': transferDestination,
       if (payerName != null) 'payerName': payerName,
-      if (customFields != null) 'customFields': customFields,
       'updatedAt': Timestamp.fromDate(AppClock.toInstant(AppClock.now())),
     };
-    if (quantity != null || unitPrice != null) {
-      // Recalculamos el total cuando cambia cantidad o precio.
-      final snap = await _col.doc(id).get();
-      final data = snap.data()!;
-      final q = (quantity ?? data['quantity'] as num);
-      final p = (unitPrice ?? data['unitPrice'] as num);
-      patch['totalValue'] = q * p;
+
+    // Sin cambio de items: patch directo, no necesita lectura previa.
+    if (items == null) {
+      await _col.doc(id).update(basePatch);
+      return;
     }
-    await _col.doc(id).update(patch);
+
+    assert(items.isNotEmpty, 'updateSale: items no puede quedar vacío.');
+    final first = items.first;
+    final newTotal =
+        items.fold<num>(0, (a, i) => a + i.quantity * i.unitPrice);
+
+    // Con cambio de items: transacción para leer paidAmount/lossAmount
+    // y recomputar agregados atomicamente. Mismo patrón que registerPayment
+    // en CashierRepository — así el saldo y el financialStatus de la
+    // venta quedan consistentes con el nuevo total inmediatamente, sin
+    // tener que esperar a que se registre un nuevo abono.
+    await _firestore.runTransaction((txn) async {
+      final ref = _col.doc(id);
+      final snap = await txn.get(ref);
+      if (!snap.exists) {
+        throw StateError('La venta no existe.');
+      }
+      final data = snap.data()!;
+      final paidAmount = (data['paidAmount'] as num?) ?? 0;
+      final lossAmount = (data['lossAmount'] as num?) ?? 0;
+      final newOutstanding = Sale.computeOutstandingBalance(
+        totalValue: newTotal,
+        paidAmount: paidAmount,
+        lossAmount: lossAmount,
+      );
+      final newStatus = Sale.computeFinancialStatus(
+        totalValue: newTotal,
+        paidAmount: paidAmount,
+        lossAmount: lossAmount,
+      );
+
+      txn.update(ref, {
+        ...basePatch,
+        'items': items.map((i) => i.toMap()).toList(),
+        'material': first.material,
+        'materialVariant': first.materialVariant,
+        'unit': first.unit,
+        'quantity': first.quantity,
+        'unitPrice': first.unitPrice,
+        'totalValue': newTotal,
+        'outstandingBalance': newOutstanding,
+        'financialStatus': newStatus.id,
+      });
+    });
   }
 
-  Future<void> deleteSale(String id) => _col.doc(id).delete();
+  /// Borra la venta + cascade delete de su subcolección `payments`.
+  /// Sin esto los abonos quedan huérfanos en Firestore y aparecen como
+  /// data fantasma en el collectionGroup query del dashboard (también
+  /// pueden romper iteraciones que asuman `doc.reference.parent.parent`
+  /// no nulo). Firestore no hace cascade automático.
+  ///
+  /// Usamos `WriteBatch` (no transaction) porque las transactions no
+  /// admiten queries de subcolección. El batch es atómico hasta 500
+  /// ops — suficiente para cualquier venta real (raramente >5 abonos).
+  Future<void> deleteSale(String id) async {
+    final ref = _col.doc(id);
+    final payments = await ref.collection('payments').get();
+    final batch = _firestore.batch();
+    for (final doc in payments.docs) {
+      batch.delete(doc.reference);
+    }
+    batch.delete(ref);
+    await batch.commit();
+  }
 
   Stream<List<Sale>> watchByDateRange(DateTime start, DateTime end) {
     return _col
@@ -208,6 +267,11 @@ class SalesRepository {
   /// `materialVariant == 'PEDRO'`. El filtro de rango después se aplica
   /// en memoria sobre el resultado para no requerir un índice compuesto
   /// extra por cada combinación field+date.
+  ///
+  /// Nota: este filtro matchea solo el mirror del item principal
+  /// (items[0]). Si la venta tiene un material secundario, no aparece
+  /// para auditores filtrados por ese material — limitación aceptada
+  /// para mantener el query indexado y barato.
   Stream<List<Sale>> watchByField(String field, String value) {
     return _col
         .where(field, isEqualTo: value)

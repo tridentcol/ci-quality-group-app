@@ -5,11 +5,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/utils/text_match.dart';
 import '../domain/master_list.dart';
-import 'master_lists_repository.dart' show saleFieldFor;
+import 'master_lists_repository.dart'
+    show ListPropagation, propagateValueChange, propagationFor;
 
-// Las funciones `saleFieldFor` y `listSupportsMerge` viven en
-// master_lists_repository para que también puedan usarse desde
-// `renameItem` (propagación de edits manuales). Aquí solo se importan.
+// La tabla canónica de propagaciones (`propagationFor`) y la función
+// `propagateValueChange` viven en `master_lists_repository` para que
+// `renameItem` y `applyMerges` compartan la misma lógica de propagación
+// y no se desincronicen. Aquí solo se importan.
 
 /// Un grupo de items que probablemente representan la misma entidad
 /// (típicamente una persona escrita con typos distintos). Se construye
@@ -133,10 +135,11 @@ class DuplicateService {
   Future<FindClustersResult> findClusters({
     required String listId,
   }) async {
-    final saleField = saleFieldFor(listId);
-    if (saleField == null) {
+    final ListPropagation? prop = propagationFor(listId);
+    if (prop == null) {
       throw StateError('Lista "$listId" no admite merge automático.');
     }
+    final target = prop.primary;
 
     // 1. Items existentes en el catálogo
     final itemsSnap = await _firestore
@@ -150,13 +153,34 @@ class DuplicateService {
         .toList();
     final existingValues = existingItems.map((it) => it.value).toSet();
 
-    // 2. Conteo de referencias en sales (un solo .get(), conteo en RAM)
-    final salesSnap = await _firestore.collection('sales').get();
+    // 2. Conteo de referencias en la colección primary del listId
+    //    (sales para casi todas, workers para `worker_roles`). Un solo
+    //    `.get()`, conteo en RAM. Si la lista guarda el value también
+    //    dentro de un array `items[]` (caso material/variant/unit en
+    //    Sale), también contamos referencias secundarias — pero
+    //    deduplicamos por doc, así "esta venta referencia LAMINA" cuenta
+    //    1 aunque LAMINA aparezca en items[0] y items[1].
+    final docsSnap = await _firestore.collection(target.collection).get();
     final refCounts = <String, int>{};
-    for (final d in salesSnap.docs) {
-      final v = d.data()[saleField] as String?;
-      if (v == null || v.isEmpty) continue;
-      refCounts[v] = (refCounts[v] ?? 0) + 1;
+    for (final d in docsSnap.docs) {
+      final data = d.data();
+      final valuesInDoc = <String>{};
+      final topValue = data[target.field] as String?;
+      if (topValue != null && topValue.isNotEmpty) {
+        valuesInDoc.add(topValue);
+      }
+      if (target.itemKey != null) {
+        final rawItems = data['items'] as List?;
+        if (rawItems != null) {
+          for (final m in rawItems) {
+            final iv = (m as Map)[target.itemKey] as String?;
+            if (iv != null && iv.isNotEmpty) valuesInDoc.add(iv);
+          }
+        }
+      }
+      for (final v in valuesInDoc) {
+        refCounts[v] = (refCounts[v] ?? 0) + 1;
+      }
     }
 
     // 3. BACKFILL: cualquier value en sales que NO esté en el catálogo,
@@ -275,15 +299,17 @@ class DuplicateService {
     );
   }
 
-  /// Sincroniza el catálogo de [listId] con valores que aparecen en
-  /// `sales` pero no estaban registrados como items. Devuelve cuántos
-  /// se agregaron. Útil como botón independiente del merge tool, para
-  /// que el admin pueble el catálogo sin necesariamente entrar a fusionar.
+  /// Sincroniza el catálogo de [listId] con valores que aparecen en la
+  /// colección primary (`sales` o `workers`) pero no estaban registrados
+  /// como items. Devuelve cuántos se agregaron. Útil como botón
+  /// independiente del merge tool, para que el admin pueble el catálogo
+  /// sin necesariamente entrar a fusionar.
   Future<int> syncCatalogFromSales({required String listId}) async {
-    final saleField = saleFieldFor(listId);
-    if (saleField == null) {
-      throw StateError('Lista "$listId" no se sincroniza con ventas.');
+    final prop = propagationFor(listId);
+    if (prop == null) {
+      throw StateError('Lista "$listId" no se sincroniza con su colección.');
     }
+    final target = prop.primary;
 
     final itemsSnap = await _firestore
         .collection('master_lists')
@@ -296,12 +322,26 @@ class DuplicateService {
         .map((it) => it.value)
         .toSet();
 
-    final salesSnap = await _firestore.collection('sales').get();
+    final docsSnap = await _firestore.collection(target.collection).get();
     final missing = <String>{};
-    for (final d in salesSnap.docs) {
-      final v = d.data()[saleField] as String?;
-      if (v == null || v.isEmpty) continue;
-      if (!existingValues.contains(v)) missing.add(v);
+    for (final d in docsSnap.docs) {
+      final data = d.data();
+      final v = data[target.field] as String?;
+      if (v != null && v.isNotEmpty && !existingValues.contains(v)) {
+        missing.add(v);
+      }
+      // También captura values de items[] secundarios si aplica.
+      if (target.itemKey != null) {
+        final rawItems = data['items'] as List?;
+        if (rawItems != null) {
+          for (final m in rawItems) {
+            final iv = (m as Map)[target.itemKey] as String?;
+            if (iv != null && iv.isNotEmpty && !existingValues.contains(iv)) {
+              missing.add(iv);
+            }
+          }
+        }
+      }
     }
 
     if (missing.isEmpty) return 0;
@@ -330,44 +370,42 @@ class DuplicateService {
   }
 
   /// Ejecuta los merges en orden. Por cada request:
-  ///   - Para cada duplicate: query `sales` donde el campo == duplicate.value,
-  ///     update todos a canonical.value en batches de 400.
+  ///   - Para cada duplicate: propaga el cambio de value a TODAS las
+  ///     colecciones registradas para este `listId` (primary + secondaries)
+  ///     usando `propagateValueChange`, que reescribe en batches.
   ///   - Borra el item duplicado del catálogo.
   ///
   /// Si algo falla a mitad de camino, los merges previos quedan aplicados
   /// (no es transaccional global porque las queries son demasiado grandes
   /// para una sola transacción de Firestore). El resumen devuelto refleja
   /// solo lo que efectivamente se aplicó.
+  ///
+  /// El nombre del campo `salesUpdated` en el resultado se conserva por
+  /// retro-compatibilidad con la UI; representa "docs actualizados" en
+  /// todas las colecciones (sales + workers + payments según aplique).
   Future<DuplicateMergeResult> applyMerges({
     required String listId,
     required List<DuplicateMergeRequest> requests,
   }) async {
-    final saleField = saleFieldFor(listId);
-    if (saleField == null) {
+    if (propagationFor(listId) == null) {
       throw StateError('Lista "$listId" no admite merge automático.');
     }
 
-    var salesUpdated = 0;
+    var docsUpdated = 0;
     var itemsDeleted = 0;
 
     for (final req in requests) {
       for (final dup in req.duplicates) {
-        // 1. Encontrar y actualizar las ventas que apuntan al duplicado.
-        final salesSnap = await _firestore
-            .collection('sales')
-            .where(saleField, isEqualTo: dup.value)
-            .get();
-
-        const chunkSize = 400; // Firestore batch limit es 500
-        for (var i = 0; i < salesSnap.docs.length; i += chunkSize) {
-          final chunk = salesSnap.docs.skip(i).take(chunkSize).toList();
-          final batch = _firestore.batch();
-          for (final doc in chunk) {
-            batch.update(doc.reference, {saleField: req.canonical.value});
-          }
-          await batch.commit();
-          salesUpdated += chunk.length;
-        }
+        // 1. Propagar el cambio de value a todas las colecciones
+        //    referenciadas (primary + secondaries). Esto cubre `sales`
+        //    + `payments` collectionGroup para `payers`/`payment_methods`/
+        //    `transfer_destinations`, y `workers` para `worker_roles`.
+        docsUpdated += await propagateValueChange(
+          _firestore,
+          listId: listId,
+          oldValue: dup.value,
+          newValue: req.canonical.value,
+        );
 
         // 2. Borrar el item duplicado del catálogo.
         await _firestore
@@ -381,7 +419,7 @@ class DuplicateService {
     }
 
     return DuplicateMergeResult(
-      salesUpdated: salesUpdated,
+      salesUpdated: docsUpdated,
       itemsDeleted: itemsDeleted,
     );
   }

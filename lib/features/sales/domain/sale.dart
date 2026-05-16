@@ -56,11 +56,81 @@ enum SaleFinancialStatus {
   }
 }
 
+/// Un item de material dentro de una venta. Una venta puede tener uno
+/// o varios items (ej. una venta cubre 100kg de LAMINA + 50kg de
+/// CHATARRA). Cada item lleva su propia cantidad/precio/unidad.
+///
+/// Para queries y filtros legacy (auditor por material/variant), los
+/// campos del primer item se mirrorean a campos top-level de `Sale`
+/// (`material`, `materialVariant`, `unit`, `quantity`, `unitPrice`).
+class SaleItem {
+  const SaleItem({
+    required this.material,
+    this.materialVariant,
+    required this.unit,
+    required this.quantity,
+    required this.unitPrice,
+  });
+
+  final String material;
+  final String? materialVariant;
+  final String unit;
+  final num quantity;
+  final num unitPrice;
+
+  num get totalValue => quantity * unitPrice;
+
+  /// Etiqueta legible: `MATERIAL · variante` o `MATERIAL` si no hay variante.
+  String get displayLabel =>
+      materialVariant != null ? '$material · $materialVariant' : material;
+
+  Map<String, dynamic> toMap() => {
+        'material': material,
+        'materialVariant': materialVariant,
+        'unit': unit,
+        'quantity': quantity,
+        'unitPrice': unitPrice,
+      };
+
+  factory SaleItem.fromMap(Map<String, dynamic> map) => SaleItem(
+        // Defensivo contra docs viejos / parcialmente escritos:
+        // material y unit nunca deberían ser null, pero si lo son no
+        // queremos crashear la app entera al recorrer la lista.
+        material: (map['material'] as String?) ?? '',
+        materialVariant: map['materialVariant'] as String?,
+        unit: (map['unit'] as String?) ?? '',
+        quantity: (map['quantity'] as num?) ?? 0,
+        unitPrice: (map['unitPrice'] as num?) ?? 0,
+      );
+
+  SaleItem copyWith({
+    String? material,
+    Object? materialVariant = _sentinel,
+    String? unit,
+    num? quantity,
+    num? unitPrice,
+  }) =>
+      SaleItem(
+        material: material ?? this.material,
+        materialVariant: identical(materialVariant, _sentinel)
+            ? this.materialVariant
+            : materialVariant as String?,
+        unit: unit ?? this.unit,
+        quantity: quantity ?? this.quantity,
+        unitPrice: unitPrice ?? this.unitPrice,
+      );
+}
+
+const Object _sentinel = Object();
+
 /// Una venta registrada en la app.
 ///
-/// Los campos "core" (los del formato original) son tipados; los campos
-/// adicionales que el admin agregue al esquema dinámico se guardan en
-/// `customFields` y se exportan al xlsx por nombre.
+/// El desglose de materiales vive en `items`. Para retro-compatibilidad
+/// y para que las queries indexadas (auditor filtrado por material)
+/// sigan funcionando, los campos `material`, `materialVariant`, `unit`,
+/// `quantity` y `unitPrice` están mirroreados a `items[0]`. Las ventas
+/// históricas (sin `items` en Firestore) se interpretan como una venta
+/// con un único item construido desde esos mismos campos.
 class Sale {
   const Sale({
     required this.id,
@@ -69,11 +139,7 @@ class Sale {
     required this.documentType,
     required this.documentNumber,
     required this.providerName,
-    required this.material,
-    required this.materialVariant,
-    required this.unit,
-    required this.quantity,
-    required this.unitPrice,
+    required this.items,
     required this.totalValue,
     required this.paymentMethod,
     required this.payerName,
@@ -85,7 +151,6 @@ class Sale {
     this.cashAmount,
     this.transferAmount,
     this.transferDestination,
-    this.customFields = const {},
     this.state = SaleState.procesada,
     this.paidAmount = 0,
     this.lossAmount = 0,
@@ -118,16 +183,39 @@ class Sale {
 
   final String providerName;
 
-  /// `LAMINA`, `CHATARRA`, `CHATARRA TUBERIA` o lo que el admin agregue.
-  final String material;
+  /// Items de material que compone la venta. Siempre hay al menos uno.
+  /// El primero es el "principal" y mirrorea a los campos legacy.
+  final List<SaleItem> items;
 
-  /// Sub-tipo cuando aplique (ej. `PEDRO`, `TIPO QUALITY`, `KINGSPAN` para LAMINA).
-  final String? materialVariant;
+  // ---- Acceso a campos del primer item (mirror para legacy/queries) ----
 
-  /// `Kilogramos` por defecto, gestionado por lista maestra.
-  final String unit;
-  final num quantity;
-  final num unitPrice;
+  /// Material del item principal (`items[0].material`).
+  String get material => items.first.material;
+
+  /// Variante del item principal (`items[0].materialVariant`).
+  String? get materialVariant => items.first.materialVariant;
+
+  /// Unidad del item principal (`items[0].unit`).
+  String get unit => items.first.unit;
+
+  /// Cantidad del item principal (`items[0].quantity`). Para totales
+  /// que cruzan varios items conviene iterar `items` directamente.
+  num get quantity => items.first.quantity;
+
+  /// Precio unitario del item principal (`items[0].unitPrice`).
+  num get unitPrice => items.first.unitPrice;
+
+  /// `true` si la venta tiene más de un item. UI lo usa para decidir
+  /// si mostrar un desglose o el formato compacto de siempre.
+  bool get hasMultipleItems => items.length > 1;
+
+  /// Etiqueta resumen del/los material(es). Cuando hay uno solo replica
+  /// `items[0].displayLabel`; con varios queda "N materiales" para
+  /// listas/cards y los detalles se enumeran aparte.
+  String get materialsSummary => items.length == 1
+      ? items.first.displayLabel
+      : '${items.length} materiales';
+
   final num totalValue;
 
   /// Resumen del método de pago: `Efectivo`, `Transferencia` o `Mixto`.
@@ -161,13 +249,10 @@ class Sale {
   final DateTime createdAt;
   final DateTime? updatedAt;
 
-  /// Hasta cuándo el usuario que la creó puede editarla. 24 h después de
-  /// crearla, solo el admin puede modificar.
+  /// Hasta cuándo el usuario que la creó puede editarla. Se fija al crear
+  /// (createdAt + 24 h) y NUNCA se reasigna en edits — la ventana es
+  /// estable. Después solo el admin puede modificar.
   final DateTime? editableUntil;
-
-  /// Campos agregados dinámicamente por el admin (clave = id del campo en el
-  /// esquema; valor = primitivo serializable: String / num / bool / Timestamp).
-  final Map<String, dynamic> customFields;
 
   // -------- Workflow (estado de la solicitud) --------
 
@@ -248,6 +333,19 @@ class Sale {
   bool get isWorkflowFinal =>
       state == SaleState.procesada || state == SaleState.cancelada;
 
+  /// Calcula el saldo pendiente desde los agregados. Lo clampea a >= 0
+  /// para no mostrar "saldo negativo" en sobrepagos — eso confunde más
+  /// que aclara. Si la empresa quisiera reflejar el crédito a favor del
+  /// cliente, eso amerita un campo separado.
+  static num computeOutstandingBalance({
+    required num totalValue,
+    required num paidAmount,
+    required num lossAmount,
+  }) {
+    final raw = totalValue - paidAmount - lossAmount;
+    return raw < 0 ? 0 : raw;
+  }
+
   /// Calcula el `financialStatus` desde los agregados monetarios.
   ///
   /// Regla "lost absorbe": si `lossAmount > 0` queda `lost` aunque
@@ -269,11 +367,15 @@ class Sale {
         'documentType': documentType,
         'documentNumber': documentNumber,
         'providerName': providerName,
-        'material': material,
-        'materialVariant': materialVariant,
-        'unit': unit,
-        'quantity': quantity,
-        'unitPrice': unitPrice,
+        // Mirror del item principal para queries indexadas y retro-compat.
+        'material': items.first.material,
+        'materialVariant': items.first.materialVariant,
+        'unit': items.first.unit,
+        'quantity': items.first.quantity,
+        'unitPrice': items.first.unitPrice,
+        // Lista completa de items. Cuando solo hay uno, igual la guardamos
+        // para uniformizar el schema y evitar la rama "legacy" en lecturas.
+        'items': items.map((i) => i.toMap()).toList(),
         'totalValue': totalValue,
         'paymentMethod': paymentMethod,
         'cashAmount': cashAmount,
@@ -289,7 +391,6 @@ class Sale {
         'editableUntil': editableUntil == null
             ? null
             : Timestamp.fromDate(AppClock.toInstant(editableUntil!)),
-        'customFields': customFields,
         'state': state.id,
         'paidAmount': paidAmount,
         'lossAmount': lossAmount,
@@ -319,7 +420,31 @@ class Sale {
 
   factory Sale.fromSnapshot(DocumentSnapshot<Map<String, dynamic>> snap) {
     final data = snap.data()!;
-    final totalValue = data['totalValue'] as num;
+    // Items: si Firestore tiene el array, lo usamos; si no (ventas viejas)
+    // sintetizamos un único item desde los campos top-level del modelo
+    // legacy. Todos los casts son nullable-tolerantes para no crashear
+    // la app entera al toparse con un doc parcial o legacy roto.
+    final rawItems = data['items'] as List?;
+    final List<SaleItem> items;
+    if (rawItems != null && rawItems.isNotEmpty) {
+      items = rawItems
+          .map((m) => SaleItem.fromMap(Map<String, dynamic>.from(m as Map)))
+          .toList();
+    } else {
+      items = [
+        SaleItem(
+          material: (data['material'] as String?) ?? '',
+          materialVariant: data['materialVariant'] as String?,
+          unit: (data['unit'] as String?) ?? '',
+          quantity: (data['quantity'] as num?) ?? 0,
+          unitPrice: (data['unitPrice'] as num?) ?? 0,
+        ),
+      ];
+    }
+    // totalValue: si el doc no lo tiene (caso muy raro, doc malformado),
+    // lo derivamos de los items. Si los items tampoco aportan, queda 0.
+    final num totalValue = (data['totalValue'] as num?) ??
+        items.fold<num>(0, (a, i) => a + i.quantity * i.unitPrice);
     // Backwards-compat: las ventas sin `state` son del flujo viejo,
     // donde el material se entregaba al instante y el pago se registraba
     // junto con la venta. Las interpretamos como procesada/pagada.
@@ -330,7 +455,11 @@ class Sale {
         (data['paidAmount'] as num?) ?? (hasNewSchema ? 0 : totalValue);
     final lossAmount = (data['lossAmount'] as num?) ?? 0;
     final outstandingBalance = (data['outstandingBalance'] as num?) ??
-        (totalValue - paidAmount - lossAmount);
+        computeOutstandingBalance(
+          totalValue: totalValue,
+          paidAmount: paidAmount,
+          lossAmount: lossAmount,
+        );
     final financialStatusId = data['financialStatus'] as String?;
     final financialStatus = financialStatusId != null
         ? SaleFinancialStatus.fromId(financialStatusId)
@@ -341,24 +470,24 @@ class Sale {
           );
     return Sale(
       id: snap.id,
-      consecutive: data['consecutive'] as String,
+      // Defensa contra docs corruptos: en producción todos los Strings
+      // requeridos se setean en `createSale`, pero un doc legacy o
+      // toqueteado en consola podría tener null. Default a '' antes que
+      // crashear la app entera.
+      consecutive: (data['consecutive'] as String?) ?? '',
       date: AppClock.fromInstant((data['date'] as Timestamp).toDate()),
-      documentType: data['documentType'] as String,
-      documentNumber: data['documentNumber'] as String,
-      providerName: data['providerName'] as String,
-      material: data['material'] as String,
-      materialVariant: data['materialVariant'] as String?,
-      unit: data['unit'] as String,
-      quantity: data['quantity'] as num,
-      unitPrice: data['unitPrice'] as num,
+      documentType: (data['documentType'] as String?) ?? '',
+      documentNumber: (data['documentNumber'] as String?) ?? '',
+      providerName: (data['providerName'] as String?) ?? '',
+      items: items,
       totalValue: totalValue,
-      paymentMethod: data['paymentMethod'] as String,
+      paymentMethod: (data['paymentMethod'] as String?) ?? '',
       cashAmount: data['cashAmount'] as num?,
       transferAmount: data['transferAmount'] as num?,
       transferDestination: data['transferDestination'] as String?,
-      payerName: data['payerName'] as String,
-      createdBy: data['createdBy'] as String,
-      createdByName: data['createdByName'] as String,
+      payerName: (data['payerName'] as String?) ?? '',
+      createdBy: (data['createdBy'] as String?) ?? '',
+      createdByName: (data['createdByName'] as String?) ?? '',
       createdAt:
           AppClock.fromInstant((data['createdAt'] as Timestamp).toDate()),
       updatedAt: data['updatedAt'] == null
@@ -367,8 +496,6 @@ class Sale {
       editableUntil: data['editableUntil'] == null
           ? null
           : AppClock.fromInstant((data['editableUntil'] as Timestamp).toDate()),
-      customFields:
-          Map<String, dynamic>.from(data['customFields'] as Map? ?? const {}),
       state: state,
       paidAmount: paidAmount,
       lossAmount: lossAmount,

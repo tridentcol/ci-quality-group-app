@@ -5,33 +5,216 @@ import '../../../core/constants/firestore_paths.dart';
 import '../../auth/data/auth_repository.dart';
 import '../domain/master_list.dart';
 
-/// Mapeo de listId → campo del documento `sales` que lo referencia.
-/// Determina dos cosas:
-///   1. Qué listas muestran el icono de "merge tool" en el admin
-///      (las que NO están aquí, no aparece el botón).
-///   2. Cuando el admin fusiona o renombra un item, qué campo de
-///      `sales` hay que reescribir para que las ventas históricas
-///      reflejen el cambio.
+/// Configuración de propagación de un cambio en una lista maestra a las
+/// colecciones que la referencian por valor (no por id). Cada lista que
+/// admita rename/merge automático tiene una entrada aquí.
 ///
-/// Si agregas una lista nueva al constructor de formularios y querés
-/// que se propague a sales históricas, agrégala acá.
-const Map<String, String> _saleFieldByListId = {
-  'payers': 'payerName',
-  'providers': 'providerName',
-  'materials': 'material',
-  // 'lamina_brands' es el listId histórico para tipos/subvariantes.
+/// Una lista puede impactar:
+///   - una colección **principal** (`primary`) — usada por merge/rename
+///     tools para listar referencias y proponer canónicos.
+///   - cero o más colecciones **secundarias** (`secondaries`) — típicamente
+///     subcolecciones que también guardan el value (ej. `payments`).
+class ListPropagation {
+  const ListPropagation({
+    required this.primary,
+    this.secondaries = const [],
+  });
+
+  final ListTarget primary;
+  final List<ListTarget> secondaries;
+}
+
+class ListTarget {
+  const ListTarget({
+    required this.collection,
+    required this.field,
+    this.itemKey,
+    this.isCollectionGroup = false,
+  });
+
+  /// Nombre de la colección (`sales`, `workers`) o del último segmento
+  /// si es collection group (`payments`).
+  final String collection;
+
+  /// Campo del documento a actualizar (`material`, `role`, ...).
+  final String field;
+
+  /// Si los docs ALSO guardan este value dentro de un array `items[]`
+  /// (caso de `material`/`materialVariant`/`unit` en `Sale.items`),
+  /// el key del campo dentro de cada item del array. Null si no aplica.
+  final String? itemKey;
+
+  /// Si es `true`, la query se hace con `collectionGroup(collection)`
+  /// en vez de `collection(collection)`. Necesario para subcolecciones
+  /// como `payments` que viven bajo `sales/{saleId}/payments/`.
+  final bool isCollectionGroup;
+}
+
+/// Tabla canónica de propagaciones. Cuando agregás una lista maestra
+/// nueva y querés que sus rename/merge propaguen a otra colección,
+/// sumá la entrada acá.
+const Map<String, ListPropagation> _propagationByListId = {
+  'providers': ListPropagation(
+    primary: ListTarget(collection: 'sales', field: 'providerName'),
+  ),
+  'payers': ListPropagation(
+    primary: ListTarget(collection: 'sales', field: 'payerName'),
+    secondaries: [
+      ListTarget(
+        collection: 'payments',
+        field: 'payerName',
+        isCollectionGroup: true,
+      ),
+    ],
+  ),
+  'materials': ListPropagation(
+    primary: ListTarget(
+      collection: 'sales',
+      field: 'material',
+      itemKey: 'material',
+    ),
+  ),
+  // `lamina_brands` es el listId histórico para tipos/subvariantes.
   // El display name es "Tipos de materiales" — funciona para cualquier
   // material, no solo lámina.
-  'lamina_brands': 'materialVariant',
-  'units': 'unit',
-  'payment_methods': 'paymentMethod',
-  'transfer_destinations': 'transferDestination',
+  'lamina_brands': ListPropagation(
+    primary: ListTarget(
+      collection: 'sales',
+      field: 'materialVariant',
+      itemKey: 'materialVariant',
+    ),
+  ),
+  'units': ListPropagation(
+    primary: ListTarget(
+      collection: 'sales',
+      field: 'unit',
+      itemKey: 'unit',
+    ),
+  ),
+  'payment_methods': ListPropagation(
+    primary: ListTarget(collection: 'sales', field: 'paymentMethod'),
+    secondaries: [
+      ListTarget(
+        collection: 'payments',
+        field: 'paymentMethod',
+        isCollectionGroup: true,
+      ),
+    ],
+  ),
+  'transfer_destinations': ListPropagation(
+    primary: ListTarget(collection: 'sales', field: 'transferDestination'),
+    secondaries: [
+      ListTarget(
+        collection: 'payments',
+        field: 'transferDestination',
+        isCollectionGroup: true,
+      ),
+    ],
+  ),
+  // `worker_roles` no afecta a `sales` — vive en `workers.role`.
+  'worker_roles': ListPropagation(
+    primary: ListTarget(collection: 'workers', field: 'role'),
+  ),
 };
 
 bool listSupportsMerge(String listId) =>
-    _saleFieldByListId.containsKey(listId);
+    _propagationByListId.containsKey(listId);
 
-String? saleFieldFor(String listId) => _saleFieldByListId[listId];
+/// Devuelve la propagación completa de un listId. Lo usan `renameItem`
+/// (esta clase) y `applyMerges` (en `duplicate_service.dart`) para saber
+/// dónde escribir los updates.
+ListPropagation? propagationFor(String listId) =>
+    _propagationByListId[listId];
+
+/// Backwards-compat: devuelve el campo del target primario solo cuando
+/// éste apunta a `sales`. Para todo lo demás (workers, payments) devuelve
+/// null. Los callers viejos que asumían "esto siempre es sales" siguen
+/// funcionando sin cambios. Para soporte completo de propagación, usar
+/// `propagationFor`.
+String? saleFieldFor(String listId) {
+  final prop = _propagationByListId[listId];
+  if (prop == null) return null;
+  return prop.primary.collection == 'sales' ? prop.primary.field : null;
+}
+
+/// Ejecuta la propagación de un cambio de value en TODOS los targets
+/// (primary + secondaries) configurados para `listId`. Devuelve el total
+/// de docs actualizados sumando todos los targets. Lo usan tanto
+/// `renameItem` como `applyMerges` para evitar duplicar la lógica de
+/// batch update.
+Future<int> propagateValueChange(
+  FirebaseFirestore firestore, {
+  required String listId,
+  required String oldValue,
+  required String newValue,
+}) async {
+  final prop = _propagationByListId[listId];
+  if (prop == null) return 0;
+  var totalUpdated = 0;
+  totalUpdated += await _applyToTarget(
+    firestore,
+    target: prop.primary,
+    oldValue: oldValue,
+    newValue: newValue,
+  );
+  for (final secondary in prop.secondaries) {
+    totalUpdated += await _applyToTarget(
+      firestore,
+      target: secondary,
+      oldValue: oldValue,
+      newValue: newValue,
+    );
+  }
+  return totalUpdated;
+}
+
+/// Helper interno: encuentra todos los docs de `target` que tengan el
+/// `oldValue` y los reescribe en batches de 400.
+Future<int> _applyToTarget(
+  FirebaseFirestore firestore, {
+  required ListTarget target,
+  required String oldValue,
+  required String newValue,
+}) async {
+  final Query<Map<String, dynamic>> query = target.isCollectionGroup
+      ? firestore
+          .collectionGroup(target.collection)
+          .where(target.field, isEqualTo: oldValue)
+      : firestore
+          .collection(target.collection)
+          .where(target.field, isEqualTo: oldValue);
+  final snap = await query.get();
+  if (snap.docs.isEmpty) return 0;
+
+  const chunkSize = 400; // Firestore batch limit es 500
+  for (var i = 0; i < snap.docs.length; i += chunkSize) {
+    final chunk = snap.docs.skip(i).take(chunkSize).toList();
+    final batch = firestore.batch();
+    for (final doc in chunk) {
+      final update = <String, dynamic>{target.field: newValue};
+      if (target.itemKey != null) {
+        // El value también puede vivir dentro de `items[]` (caso de
+        // material/variant/unit en `Sale`). Re-escribimos cada item
+        // que matchee para mantener consistencia con el mirror top-level.
+        final rawItems = doc.data()['items'] as List?;
+        if (rawItems != null) {
+          final updated = rawItems
+              .map((m) => Map<String, dynamic>.from(m as Map))
+              .map((m) {
+            if ((m[target.itemKey!] as String?) == oldValue) {
+              m[target.itemKey!] = newValue;
+            }
+            return m;
+          }).toList();
+          update['items'] = updated;
+        }
+      }
+      batch.update(doc.reference, update);
+    }
+    await batch.commit();
+  }
+  return snap.docs.length;
+}
 
 /// Acceso a las listas maestras gestionadas por el admin.
 ///
@@ -183,27 +366,16 @@ class MasterListsRepository {
       'userSuggested': false,
     });
 
-    // 2. Propagar a ventas si la lista afecta documentos de sales.
-    final saleField = saleFieldFor(listId);
-    if (saleField == null) return 0;
-
-    final salesSnap = await _firestore
-        .collection('sales')
-        .where(saleField, isEqualTo: oldValue)
-        .get();
-    if (salesSnap.docs.isEmpty) return 0;
-
-    // Batches de 400 (límite de Firestore es 500).
-    const chunkSize = 400;
-    for (var i = 0; i < salesSnap.docs.length; i += chunkSize) {
-      final chunk = salesSnap.docs.skip(i).take(chunkSize).toList();
-      final batch = _firestore.batch();
-      for (final doc in chunk) {
-        batch.update(doc.reference, {saleField: cleaned});
-      }
-      await batch.commit();
-    }
-    return salesSnap.docs.length;
+    // 2. Propagar a todas las colecciones que referencian este value.
+    //    Cubre primary (sales o workers) + secondaries (payments
+    //    collectionGroup si aplica). Si la lista no tiene propagación
+    //    registrada, devuelve 0.
+    return propagateValueChange(
+      _firestore,
+      listId: listId,
+      oldValue: oldValue,
+      newValue: cleaned,
+    );
   }
 
   /// Crea o actualiza la metadata (nombre, descripción, allowFreeText) de las
