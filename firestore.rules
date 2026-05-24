@@ -50,6 +50,36 @@ service cloud.firestore {
       return isSignedIn() && role() == 'cajero' && isActive();
     }
 
+    // ---------- Delegación caja (modo excepción) ----------
+    // Singleton en `settings/sales_delegation`. Cuando está vigente, las
+    // reglas de `sales/{sid}/payments` permiten al rol sales registrar el
+    // pago en el mismo submit de la venta (ver Fase 2 para ese cambio).
+    // La vigencia REAL combina `active` + ventana [startsAt..expiresAt].
+    // Firestore cachea `get()`/`exists()` dentro de una misma evaluación,
+    // así que las llamadas múltiples no multiplican la facturación.
+    function delegationDoc() {
+      return get(/databases/$(database)/documents/settings/sales_delegation);
+    }
+
+    function delegationExists() {
+      return exists(/databases/$(database)/documents/settings/sales_delegation);
+    }
+
+    function delegationActive() {
+      return delegationExists()
+        && delegationDoc().data.active == true
+        && (
+          !('startsAt' in delegationDoc().data)
+          || delegationDoc().data.startsAt == null
+          || request.time >= delegationDoc().data.startsAt
+        )
+        && (
+          !('expiresAt' in delegationDoc().data)
+          || delegationDoc().data.expiresAt == null
+          || request.time < delegationDoc().data.expiresAt
+        );
+    }
+
     // ---------- Users ----------
     // Cada usuario lee su propio perfil (necesario para arrancar la app
     // y resolver el rol). Admin lee y escribe todos los perfiles.
@@ -151,12 +181,25 @@ service cloud.firestore {
       allow read, write: if isAdmin() || isSales();
     }
 
-    // ---------- Settings (jornada laboral) ----------
+    // ---------- Settings (jornada laboral, delegación caja, …) ----------
     // Lectura para todos los autenticados (el calculador de horas y
-    // varias pantallas leen la jornada). Escritura solo admin.
+    // varias pantallas leen la jornada; sales lee `sales_delegation`
+    // para saber si su form debe mostrar campos de pago). Escritura
+    // solo admin.
     match /settings/{sid} {
       allow read: if isSignedIn();
       allow write: if isAdmin();
+    }
+
+    // Historial append-only de la delegación caja. Cada activación o
+    // desactivación crea una entry desde el repo en una runTransaction
+    // junto con el set del singleton padre. Visible solo para admin;
+    // nadie puede editar ni borrar entries (auditoría).
+    match /settings/sales_delegation/history/{hid} {
+      allow read: if isAdmin();
+      allow create: if isAdmin()
+                      && request.resource.data.actorUid == request.auth.uid;
+      allow update, delete: if false;
     }
 
     // ---------- Notifications (bell in-app) ----------

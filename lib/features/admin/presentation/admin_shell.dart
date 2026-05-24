@@ -70,9 +70,9 @@ class AdminShell extends ConsumerWidget {
       route: '/admin/master-lists',
     ),
     _AdminNavItem(
-      label: 'Jornada',
-      icon: Icons.tune_outlined,
-      route: '/admin/settings/schedule',
+      label: 'Configuración',
+      icon: Icons.settings_outlined,
+      route: '/admin/settings',
     ),
   ];
 

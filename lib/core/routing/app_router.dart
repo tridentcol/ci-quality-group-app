@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../features/admin/presentation/admin_metrics_screen.dart';
+import '../../features/admin/presentation/admin_settings_screen.dart';
 import '../../features/admin/presentation/admin_shell.dart';
 import '../../features/admin/presentation/clients_breakdown_screen.dart';
 import '../../features/admin/presentation/materials_breakdown_screen.dart';
@@ -14,6 +15,7 @@ import '../../features/cashier/presentation/sale_process_screen.dart';
 import '../../features/admin/presentation/duplicate_review_screen.dart';
 import '../../features/admin/presentation/master_list_detail_screen.dart';
 import '../../features/admin/presentation/master_lists_screen.dart';
+import '../../features/admin/presentation/sales_delegation_screen.dart';
 import '../../features/admin/presentation/user_form_screen.dart';
 import '../../features/admin/presentation/users_screen.dart';
 import '../../features/admin/presentation/work_schedule_settings_screen.dart';
@@ -184,8 +186,18 @@ final routerProvider = Provider<GoRouter>((ref) {
                 ],
               ),
               GoRoute(
-                path: 'settings/schedule',
-                builder: (_, __) => const WorkScheduleSettingsScreen(),
+                path: 'settings',
+                builder: (_, __) => const AdminSettingsScreen(),
+                routes: [
+                  GoRoute(
+                    path: 'schedule',
+                    builder: (_, __) => const WorkScheduleSettingsScreen(),
+                  ),
+                  GoRoute(
+                    path: 'delegation',
+                    builder: (_, __) => const SalesDelegationScreen(),
+                  ),
+                ],
               ),
               GoRoute(
                 path: 'users',
