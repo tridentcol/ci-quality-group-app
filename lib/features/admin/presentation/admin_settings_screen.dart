@@ -29,7 +29,7 @@ class AdminSettingsScreen extends ConsumerWidget {
             title: 'Jornada laboral',
             description:
                 'Horarios de entrada/salida, almuerzo y franjas diurna/nocturna que usa el cálculo legal de horas.',
-            onTap: () => context.go('/admin/settings/schedule'),
+            onTap: () => context.push('/admin/settings/schedule'),
           ),
           const SizedBox(height: 12),
           _SettingsCard(
@@ -40,7 +40,31 @@ class AdminSettingsScreen extends ConsumerWidget {
             description:
                 'Permite excepcionalmente al rol Ventas registrar el pago de una venta cuando no hay alguien en caja.',
             trailing: _DelegationStatusChip(delegation: delegation),
-            onTap: () => context.go('/admin/settings/delegation'),
+            onTap: () => context.push('/admin/settings/delegation'),
+          ),
+          const SizedBox(height: 12),
+          _SettingsCard(
+            icon: Icons.list_alt_outlined,
+            title: 'Listas maestras',
+            description:
+                'Catálogos editables: clientes, materiales, tipos, métodos de pago, destinos de transferencia y más.',
+            onTap: () => context.push('/admin/master-lists'),
+          ),
+          const SizedBox(height: 12),
+          _SettingsCard(
+            icon: Icons.manage_accounts_outlined,
+            title: 'Usuarios',
+            description:
+                'Altas, bajas y roles de las personas que usan la app (admin, ventas, caja, horas, auditor).',
+            onTap: () => context.push('/admin/users'),
+          ),
+          const SizedBox(height: 12),
+          _SettingsCard(
+            icon: Icons.engineering_outlined,
+            title: 'Trabajadores',
+            description:
+                'Personal operativo cuyas horas se registran (no son usuarios de la app).',
+            onTap: () => context.push('/admin/workers'),
           ),
         ],
       ),

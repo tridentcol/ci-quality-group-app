@@ -137,7 +137,10 @@ class _SalesDelegationScreenState extends ConsumerState<SalesDelegationScreen> {
 
     return Scaffold(
       drawer: adminDrawerOrNull(context, '/admin/settings/delegation'),
-      appBar: AppBar(title: const Text('Delegación caja')),
+      appBar: AppBar(
+        leading: Navigator.canPop(context) ? const BackButton() : null,
+        title: const Text('Delegación caja'),
+      ),
       body: delegationAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(

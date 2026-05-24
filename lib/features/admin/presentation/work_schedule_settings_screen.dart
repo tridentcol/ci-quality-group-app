@@ -189,6 +189,7 @@ class _WorkScheduleSettingsScreenState
     return Scaffold(
       drawer: adminDrawerOrNull(context, '/admin/settings/schedule'),
       appBar: AppBar(
+        leading: Navigator.canPop(context) ? const BackButton() : null,
         title: const Text('Configuración de jornada'),
         actions: [
           IconButton(

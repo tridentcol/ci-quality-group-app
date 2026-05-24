@@ -35,7 +35,10 @@ class _MasterListsScreenState extends ConsumerState<MasterListsScreen> {
     final listsAsync = ref.watch(masterListsProvider);
     return Scaffold(
       drawer: adminDrawerOrNull(context, '/admin/master-lists'),
-      appBar: AppBar(title: const Text('Listas maestras')),
+      appBar: AppBar(
+        leading: Navigator.canPop(context) ? const BackButton() : null,
+        title: const Text('Listas maestras'),
+      ),
       body: RefreshIndicator(
         // Solo invalida el stream — sin escribir a Firestore. Para forzar
         // el seed (rara vez necesario) está el botón "Crear listas por

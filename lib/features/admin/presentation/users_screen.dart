@@ -24,7 +24,10 @@ class UsersScreen extends ConsumerWidget {
 
     return Scaffold(
       drawer: adminDrawerOrNull(context, '/admin/users'),
-      appBar: AppBar(title: const Text('Usuarios de la app')),
+      appBar: AppBar(
+        leading: Navigator.canPop(context) ? const BackButton() : null,
+        title: const Text('Usuarios de la app'),
+      ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => context.push('/admin/users/new'),
         icon: const Icon(Icons.person_add_outlined),

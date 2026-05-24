@@ -87,6 +87,7 @@ class _WorkersScreenState extends ConsumerState<WorkersScreen> {
     return Scaffold(
       drawer: adminDrawerOrNull(context, '/admin/workers'),
       appBar: AppBar(
+        leading: Navigator.canPop(context) ? const BackButton() : null,
         title: const Text('Trabajadores'),
         actions: [
           IconButton(
