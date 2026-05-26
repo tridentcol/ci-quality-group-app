@@ -11,6 +11,7 @@ import '../../../shared/widgets/theme_mode_toggle.dart';
 import '../../auth/data/auth_repository.dart';
 import '../../auth/domain/app_user.dart';
 import '../../sales/data/sales_repository.dart';
+import '../../sales/domain/payment.dart';
 import '../../sales/domain/sale.dart';
 import '../data/cashier_repository.dart';
 
@@ -69,6 +70,17 @@ class _Body extends ConsumerWidget {
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: _StatusCard(sale: sale),
+        ),
+        // Si vino algún pago de delegación (típicamente 1 por venta),
+        // mostramos su detalle ANTES del detalle de items para que el
+        // cajero vea de un vistazo qué tiene que verificar / qué quedó
+        // recibido. El título y color cambian según el momento del
+        // workflow: amarillo "a verificar" mientras está abierta, gris
+        // "recibido" cuando ya quedó cerrada.
+        const SizedBox(height: 12),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: _DelegationPaymentDetail(sale: sale),
         ),
         const SizedBox(height: 12),
         Padding(
@@ -359,7 +371,7 @@ class _ActionsBar extends ConsumerWidget {
       title:
           isVerification ? 'Reportar discrepancia' : 'Devolver solicitud',
       hint: isVerification
-          ? 'Describí qué no cuadra (monto, transferencia, etc.)'
+          ? 'Describe qué no cuadra (monto, transferencia, etc.)'
           : 'Motivo (opcional)',
       confirmLabel:
           isVerification ? 'Reportar discrepancia' : 'Devolver',
@@ -695,6 +707,174 @@ Color _finColor(SaleFinancialStatus s, ThemeData theme) => switch (s) {
       SaleFinancialStatus.lost => theme.colorScheme.error,
     };
 
+/// Card que muestra el detalle del pago registrado por sales bajo
+/// delegación. Renderiza solo cuando la venta tiene al menos un payment
+/// con `createdViaDelegation: true`. Cambia de presentación según el
+/// momento del workflow:
+///
+///   - `generada` / `enProceso` → "Pago a verificar" en naranja, con
+///     copia que enfatiza la acción pendiente (confirmar efectivo o
+///     transferencia).
+///   - `procesada` / `cancelada` → "Pago recibido (delegación)" en gris,
+///     preservando la trazabilidad después de cerrar la venta.
+///
+/// Si no hay payment de delegación, devuelve `SizedBox.shrink()` (sin
+/// padding) — así el padre no tiene que ramificar.
+class _DelegationPaymentDetail extends ConsumerWidget {
+  const _DelegationPaymentDetail({required this.sale});
+
+  final Sale sale;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final paymentsAsync = ref.watch(paymentsBySaleProvider(sale.id));
+    final payments = paymentsAsync.valueOrNull;
+    if (payments == null) return const SizedBox.shrink();
+    final delegationPayments =
+        payments.where((p) => p.createdViaDelegation).toList();
+    if (delegationPayments.isEmpty) return const SizedBox.shrink();
+    final pending = sale.state == SaleState.generada ||
+        sale.state == SaleState.enProceso;
+    return _DelegationDetailCard(
+      payments: delegationPayments,
+      pending: pending,
+    );
+  }
+}
+
+class _DelegationDetailCard extends StatelessWidget {
+  const _DelegationDetailCard({
+    required this.payments,
+    required this.pending,
+  });
+
+  final List<SalePayment> payments;
+  final bool pending;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final accent = pending
+        ? const Color(0xFFE6A100)
+        : theme.colorScheme.onSurface.withValues(alpha: 0.55);
+    final title = pending ? 'Pago a verificar' : 'Pago recibido (delegación)';
+    final subtitle = pending
+        ? 'Sales registró este pago. Verifica los datos antes de confirmar.'
+        : 'Registrado bajo el modo delegación caja. Datos preservados '
+            'para trazabilidad.';
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  pending
+                      ? Icons.fact_check_outlined
+                      : Icons.verified_outlined,
+                  color: accent,
+                  size: 20,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  title,
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    color: accent,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text(
+              subtitle,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+              ),
+            ),
+            const SizedBox(height: 12),
+            for (var i = 0; i < payments.length; i++) ...[
+              if (i > 0) const Divider(height: 24),
+              _PaymentBlock(payment: payments[i]),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PaymentBlock extends StatelessWidget {
+  const _PaymentBlock({required this.payment});
+
+  final SalePayment payment;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isMixed = payment.paymentMethod.toLowerCase() == 'mixto';
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Text(
+              formatCop(payment.amount),
+              style: theme.textTheme.headlineSmall?.copyWith(
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 8,
+                vertical: 2,
+              ),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surfaceContainerHighest,
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: Text(
+                payment.paymentMethod,
+                style: theme.textTheme.labelSmall,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        if (isMixed)
+          _Line(
+            icon: Icons.payments_outlined,
+            text: '${formatCop(payment.cashAmount ?? 0)} efectivo · '
+                '${formatCop(payment.transferAmount ?? 0)} transferencia'
+                '${payment.transferDestination == null ? '' : ' a ${payment.transferDestination}'}',
+          )
+        else if (payment.transferDestination != null &&
+            payment.transferDestination!.isNotEmpty)
+          _Line(
+            icon: Icons.account_balance_outlined,
+            text: 'Destino: ${payment.transferDestination}',
+          ),
+        if (payment.payerName != null && payment.payerName!.isNotEmpty) ...[
+          const SizedBox(height: 4),
+          _Line(
+            icon: Icons.person_outline,
+            text: 'Recibido por: ${payment.payerName}',
+          ),
+        ],
+        const SizedBox(height: 4),
+        _Line(
+          icon: Icons.badge_outlined,
+          text: 'Sales · ${payment.registeredByName} · '
+              '${formatDateTime(payment.registeredAt)}',
+        ),
+      ],
+    );
+  }
+}
+
 /// Tarjeta arriba de los botones del cajero cuando la venta llegó
 /// pre-cobrada por sales. Le aclara su rol: ya no procesa, verifica.
 class _VerificationBanner extends StatelessWidget {
@@ -729,7 +909,7 @@ class _VerificationBanner extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  'Sales registró el pago en el form. Confirmá que el dinero entró (efectivo en caja o transferencia en banco) antes de finalizar.',
+                  'Sales registró el pago en el form. Confirma que el dinero entró (efectivo en caja o transferencia en banco) antes de finalizar.',
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: theme.colorScheme.onSurface.withValues(alpha: 0.8),
                   ),

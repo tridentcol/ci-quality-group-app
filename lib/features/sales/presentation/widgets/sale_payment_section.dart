@@ -190,8 +190,8 @@ class SalePaymentSectionState extends State<SalePaymentSection> {
               ),
               const SizedBox(height: 4),
               Text(
-                'Modo delegación caja activo: podés registrar el pago acá '
-                'mismo. Si no, dejá vacío y caja lo cobra después.',
+                'Modo delegación caja activo: puedes registrar el pago aquí '
+                'mismo. Si no, deja vacío y caja lo cobra después.',
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: scheme.onSurface.withValues(alpha: 0.7),
                 ),

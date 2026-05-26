@@ -792,7 +792,7 @@ class _DelegationDeactivatedBanner extends StatelessWidget {
           const SizedBox(width: 8),
           Expanded(
             child: Text(
-              'El modo delegación caja se desactivó. Si guardás ahora, los datos de pago no se registran — caja los cobrará después.',
+              'El modo delegación caja se desactivó. Si guardas ahora, los datos de pago no se registran — caja los cobrará después.',
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.onSurface,
               ),
