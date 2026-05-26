@@ -91,7 +91,7 @@ class _PaymentsViaDelegationScreenState
                   children: [
                     KpiRow(cards: [
                       KpiCard(
-                        label: 'Cobrado vía delegación',
+                        label: 'Total cobrado',
                         value: formatCop(total),
                         subtitle:
                             '${items.length} pago${items.length == 1 ? '' : 's'}',

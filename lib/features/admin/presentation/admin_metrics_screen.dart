@@ -237,7 +237,7 @@ class _SalesSection extends StatelessWidget {
           const SizedBox(height: 12),
           KpiRow(cards: [
             KpiCard(
-              label: 'Pagos bajo delegación',
+              label: 'Delegación caja',
               value: formatCop(metrics.delegationPaymentsTotal),
               subtitle:
                   '${metrics.delegationPaymentsCount} pago${metrics.delegationPaymentsCount == 1 ? '' : 's'} · ver detalle',
