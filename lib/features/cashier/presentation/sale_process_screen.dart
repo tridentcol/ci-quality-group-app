@@ -194,12 +194,29 @@ class _StatusCard extends StatelessWidget {
   }
 }
 
-class _DetailsCard extends StatelessWidget {
+class _DetailsCard extends ConsumerWidget {
   const _DetailsCard({required this.sale});
   final Sale sale;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    // `Sale.payerName` está seteado solo en el flujo legacy (admin
+    // viejo). En el flujo nuevo (sales → caja, y delegación caja) el
+    // payer real vive en cada `SalePayment` de la subcolección.
+    // Para no mostrar "Quién recibe: (vacío)" caemos al payer del
+    // payment más reciente; si tampoco hay payments, ocultamos la fila.
+    final fallbackPayer = sale.payerName.trim().isNotEmpty
+        ? sale.payerName
+        : ref
+                .watch(paymentsBySaleProvider(sale.id))
+                .valueOrNull
+                ?.where(
+                  (p) =>
+                      p.payerName != null && p.payerName!.trim().isNotEmpty,
+                )
+                .map((p) => p.payerName!)
+                .firstOrNull ??
+            '';
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -209,8 +226,10 @@ class _DetailsCard extends StatelessWidget {
             _Row(label: 'Documento', value: '${sale.documentType} · ${sale.documentNumber}'),
             const Divider(height: 24),
             _ItemsList(items: sale.items),
-            const SizedBox(height: 4),
-            _Row(label: 'Quién recibe', value: sale.payerName),
+            if (fallbackPayer.isNotEmpty) ...[
+              const SizedBox(height: 4),
+              _Row(label: 'Quién recibe', value: fallbackPayer),
+            ],
             const Divider(height: 24),
             _Row(label: 'Solicitada por', value: sale.createdByName),
             _Row(
