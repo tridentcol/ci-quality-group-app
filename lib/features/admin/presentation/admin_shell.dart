@@ -30,6 +30,10 @@ class AdminShell extends ConsumerWidget {
   /// activo en la rail/drawer.
   final String location;
 
+  // Las pantallas de Trabajadores, Usuarios y Listas maestras se acceden
+  // desde el card "Configuración" — sacarlas del sidebar evita
+  // duplicación visual ("Usuarios" + "Configuración → Usuarios" se veía
+  // raro en web/desktop).
   static const _navItems = <_AdminNavItem>[
     _AdminNavItem(
       label: 'Métricas',
@@ -55,38 +59,40 @@ class AdminShell extends ConsumerWidget {
       route: '/admin/hours',
     ),
     _AdminNavItem(
-      label: 'Trabajadores',
-      icon: Icons.engineering_outlined,
-      route: '/admin/workers',
-    ),
-    _AdminNavItem(
-      label: 'Usuarios',
-      icon: Icons.manage_accounts_outlined,
-      route: '/admin/users',
-    ),
-    _AdminNavItem(
-      label: 'Listas maestras',
-      icon: Icons.list_alt_outlined,
-      route: '/admin/master-lists',
-    ),
-    _AdminNavItem(
       label: 'Configuración',
       icon: Icons.settings_outlined,
       route: '/admin/settings',
     ),
   ];
 
+  /// Rutas que NO viven en el sidebar pero se navegan desde la pantalla
+  /// Configuración. Mapean al item padre para que el sidebar resalte
+  /// "Configuración" cuando el admin está dentro de cualquiera de ellas.
+  static const _childRouteToParent = <String, String>{
+    '/admin/users': '/admin/settings',
+    '/admin/workers': '/admin/settings',
+    '/admin/master-lists': '/admin/settings',
+  };
+
   /// Índice del item activo en `_navItems` según el `location`. Usa el
   /// match más específico (más caracteres) para que `/admin/sales/123`
-  /// también marque "Ventas".
+  /// también marque "Ventas". Para las rutas hidden (users/workers/
+  /// master-lists) reescribe a su padre lógico antes de buscar.
   int get _selectedIndex {
+    var loc = location;
+    for (final entry in _childRouteToParent.entries) {
+      if (loc == entry.key || loc.startsWith('${entry.key}/')) {
+        loc = entry.value;
+        break;
+      }
+    }
     var bestIdx = 0;
     var bestLen = 0;
     for (var i = 0; i < _navItems.length; i++) {
       final route = _navItems[i].route;
-      if (location == route ||
-          location.startsWith('$route/') ||
-          (route == '/admin' && location == '/admin')) {
+      if (loc == route ||
+          loc.startsWith('$route/') ||
+          (route == '/admin' && loc == '/admin')) {
         if (route.length > bestLen) {
           bestIdx = i;
           bestLen = route.length;
@@ -225,8 +231,17 @@ class AdminNavigationDrawer extends ConsumerWidget {
   }
 
   static bool _matches(String location, String route) {
-    if (route == '/admin') return location == '/admin';
-    return location == route || location.startsWith('$route/');
+    // Reescribir rutas hidden (users/workers/master-lists) a su padre
+    // lógico (Configuración) para que el drawer marque el item correcto.
+    var loc = location;
+    for (final entry in AdminShell._childRouteToParent.entries) {
+      if (loc == entry.key || loc.startsWith('${entry.key}/')) {
+        loc = entry.value;
+        break;
+      }
+    }
+    if (route == '/admin') return loc == '/admin';
+    return loc == route || loc.startsWith('$route/');
   }
 }
 
