@@ -123,15 +123,20 @@ service cloud.firestore {
       allow delete: if isAdmin();
 
       // ---------- Payments (subcolección) ----------
-      // Lectura: admin y cajero. Borrado: solo admin (anular un pago se
-      // modela como delete + recalculo del padre en una transacción).
+      // Lectura: admin y cajero siempre; sales solo los payments que
+      // ella misma registró (necesario para que el sales-side
+      // SaleDetailScreen muestre el payment de delegación recién creado).
+      // Borrado: solo admin (anular un pago se modela como delete +
+      // recalculo del padre en una transacción).
       // Creación: cajero/admin siempre; sales solo cuando la delegación
       // caja está vigente y el payload viene marcado con
       // `createdViaDelegation: true` + `registeredBy == auth.uid`. El
       // flag actúa como guard: si sales intentara crear un payment sin
       // él, se rechaza aunque la delegación esté activa.
       match /payments/{pid} {
-        allow read: if isAdmin() || isCajero();
+        allow read: if isAdmin()
+          || isCajero()
+          || (isSales() && resource.data.registeredBy == request.auth.uid);
         allow create: if request.resource.data.amount is number
           && request.resource.data.amount > 0
           && (
@@ -156,7 +161,9 @@ service cloud.firestore {
     // match anterior cubre las operaciones puntuales (lectura por
     // venta, create, delete); este cubre la query agregada.
     match /{path=**}/payments/{pid} {
-      allow read: if isAdmin() || isCajero();
+      allow read: if isAdmin()
+        || isCajero()
+        || (isSales() && resource.data.registeredBy == request.auth.uid);
     }
 
     // ---------- Hours entries ----------
@@ -207,10 +214,17 @@ service cloud.firestore {
     // desactivación crea una entry desde el repo en una runTransaction
     // junto con el set del singleton padre. Visible solo para admin;
     // nadie puede editar ni borrar entries (auditoría).
+    //
+    // El check de `keys().hasAll(...)` garantiza que toda entry traiga
+    // los campos mínimos para auditoría — sin esto, alguien con permiso
+    // de admin podría inyectar entries malformadas vía API directa.
     match /settings/sales_delegation/history/{hid} {
       allow read: if isAdmin();
       allow create: if isAdmin()
-                      && request.resource.data.actorUid == request.auth.uid;
+                      && request.resource.data.actorUid == request.auth.uid
+                      && request.resource.data.keys().hasAll(
+                        ['action', 'actorUid', 'actorName', 'at'],
+                      );
       allow update, delete: if false;
     }
 

@@ -163,11 +163,19 @@ class CashierRepository {
         'cancelReason': trimmed,
         'updatedAt': now,
       });
+      // Si la venta tenía dinero asociado (típicamente delegación caja:
+      // sales pre-cobró antes de que cajero la cancelara), el body
+      // incluye el monto a reconciliar — sin esto, sales no se entera de
+      // que tiene una devolución pendiente.
+      final paidAmount = (data['paidAmount'] as num?) ?? 0;
+      final outstandingPayment = paidAmount > 0
+          ? ' (tiene abono de ${formatCop(paidAmount)} — verificar devolución)'
+          : '';
       _notifications.emitInTxn(
         txn,
         type: NotificationType.saleCanceled,
         title: 'Solicitud cancelada',
-        body: _saleHeadline(data, reason: trimmed),
+        body: '${_saleHeadline(data, reason: trimmed)}$outstandingPayment',
         saleId: saleId,
         actorUid: actor.uid,
         actorName: actor.fullName,
@@ -301,11 +309,14 @@ class CashierRepository {
         'financialStatus': newStatus.id,
         'updatedAt': _now(),
       });
-      // Avisamos al cajero que registró el abono. Sin esto, ve que el
+      // Avisamos al usuario que registró el abono. Sin esto, ve que el
       // balance cambió "de la nada" y puede registrarlo de nuevo creyendo
-      // que se perdió la operación. Si el admin anuló un pago propio
-      // (mismo uid) la notif queda redundante pero inocua — el filtro
-      // se vería en cliente y no vale la pena complicar la regla.
+      // que se perdió la operación. Si el abono era de delegación
+      // (registrado por sales) también avisamos al rol cajero para que
+      // sepa que la caja perdió ese ingreso — sin esto un cajero podría
+      // hacer el cierre con cifras desactualizadas.
+      final wasDelegation =
+          (paymentData['createdViaDelegation'] as bool?) ?? false;
       if (paymentRegisteredBy != null && paymentRegisteredBy.isNotEmpty) {
         _notifications.emitInTxn(
           txn,
@@ -319,6 +330,7 @@ class CashierRepository {
           actorUid: actor.uid,
           actorName: actor.fullName,
           targetUids: [paymentRegisteredBy],
+          targetRoles: wasDelegation ? const [AppRole.cajero] : const [],
         );
       }
     });

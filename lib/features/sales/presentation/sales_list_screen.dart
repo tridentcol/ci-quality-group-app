@@ -13,7 +13,9 @@ import '../../../shared/widgets/hero_banner.dart';
 import '../../../shared/widgets/range_filter_bar.dart';
 import '../../../shared/widgets/skeleton.dart';
 import '../../admin/presentation/admin_shell.dart';
+import '../../cashier/data/cashier_repository.dart';
 import '../data/sales_repository.dart';
+import '../domain/payment.dart';
 import '../domain/sale.dart';
 import 'widgets/sale_card.dart';
 
@@ -52,11 +54,25 @@ class _SalesListScreenState extends ConsumerState<SalesListScreen> {
     }
     setState(() => _exporting = true);
     try {
+      // Fetch los payments del rango una sola vez (collection group
+      // query). Sin esto, las ventas del flujo nuevo exportan método/
+      // efectivo/transferencia/payer vacíos. `paymentsByRangeProvider`
+      // ya está cacheado en memoria si el dashboard del admin lo cargó
+      // antes; si no, esta es la primera lectura del periodo.
+      final range = SalesDateRange(start: _start, end: _end);
+      final payments =
+          await ref.read(paymentsByRangeProvider(range).future);
+      final paymentsBySaleId = <String, List<SalePayment>>{};
+      for (final p in payments) {
+        paymentsBySaleId.putIfAbsent(p.saleId, () => []).add(p.payment);
+      }
+      if (!mounted) return;
       await XlsxExportService.exportSales(
         context: context,
         sales: sales,
         rangeStart: _start,
         rangeEnd: _end,
+        paymentsBySaleId: paymentsBySaleId,
       );
     } catch (e) {
       if (mounted) {

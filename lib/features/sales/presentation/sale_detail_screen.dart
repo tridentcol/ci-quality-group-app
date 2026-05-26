@@ -15,7 +15,9 @@ import '../../../shared/widgets/hero_banner.dart';
 import '../../../shared/widgets/state_pill.dart';
 import '../../../shared/widgets/theme_mode_toggle.dart';
 import '../../auth/data/auth_repository.dart';
+import '../../cashier/data/cashier_repository.dart';
 import '../data/sales_repository.dart';
+import '../domain/payment.dart';
 import '../domain/sale.dart';
 
 /// Detalle de una venta. Permite editar/anular cuando:
@@ -196,6 +198,18 @@ class _SaleDetailBody extends ConsumerWidget {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: _PaymentBreakdownCard(sale: sale),
+          ),
+        ],
+        // Recibo del pago bajo delegación caja — solo se monta si el
+        // doc del sale tiene el flag (cheap check antes de subscribir
+        // al stream de payments). Visible para el creator (sales) y
+        // para admin/cajero. Otros sales reciben permission-denied
+        // silencioso por la regla de payments.
+        if (sale.createdWithDelegationPayment) ...[
+          const SizedBox(height: 16),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: _DelegationPaymentReceiptCard(saleId: sale.id),
           ),
         ],
         const SizedBox(height: 16),
@@ -570,6 +584,139 @@ class _ItemsBlock extends StatelessWidget {
             ),
           ),
         ],
+      ],
+    );
+  }
+}
+
+/// Recibo de pago bajo delegación caja: card pequeño que aparece en
+/// la pantalla de detalle de la venta cuando sales pre-cobró en el
+/// mismo submit. Sirve para:
+///   - Confirmar al sales que su cobro quedó persistido.
+///   - Mostrar al admin (auditando) los datos del cobro sin tener que
+///     abrir la pantalla de caja.
+/// Usa el stream de payments para mostrar info en vivo; si el doc se
+/// anula desde caja, la card desaparece.
+class _DelegationPaymentReceiptCard extends ConsumerWidget {
+  const _DelegationPaymentReceiptCard({required this.saleId});
+
+  final String saleId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final paymentsAsync = ref.watch(paymentsBySaleProvider(saleId));
+    final payments = paymentsAsync.valueOrNull;
+    if (payments == null) return const SizedBox.shrink();
+    final delegation =
+        payments.where((p) => p.createdViaDelegation).toList();
+    if (delegation.isEmpty) return const SizedBox.shrink();
+    final theme = Theme.of(context);
+    const accent = Color(0xFFE6A100);
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.payments_outlined, color: accent, size: 20),
+                const SizedBox(width: 8),
+                Text(
+                  'Cobro registrado bajo delegación',
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    color: accent,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            for (var i = 0; i < delegation.length; i++) ...[
+              if (i > 0) const Divider(height: 20),
+              _DelegationReceiptBlock(payment: delegation[i]),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _DelegationReceiptBlock extends StatelessWidget {
+  const _DelegationReceiptBlock({required this.payment});
+
+  final SalePayment payment;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isMixed = payment.paymentMethod.toLowerCase() == 'mixto';
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Text(
+              formatCop(payment.amount),
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 8,
+                vertical: 2,
+              ),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surfaceContainerHighest,
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: Text(
+                payment.paymentMethod,
+                style: theme.textTheme.labelSmall,
+              ),
+            ),
+          ],
+        ),
+        if (isMixed)
+          Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Text(
+              '${formatCop(payment.cashAmount ?? 0)} efectivo · '
+              '${formatCop(payment.transferAmount ?? 0)} transferencia'
+              '${payment.transferDestination == null ? '' : ' a ${payment.transferDestination}'}',
+              style: theme.textTheme.bodySmall,
+            ),
+          )
+        else if (payment.transferDestination != null &&
+            payment.transferDestination!.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Text(
+              'Destino: ${payment.transferDestination}',
+              style: theme.textTheme.bodySmall,
+            ),
+          ),
+        if (payment.payerName != null && payment.payerName!.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Text(
+              'Recibido por: ${payment.payerName}',
+              style: theme.textTheme.bodySmall,
+            ),
+          ),
+        Padding(
+          padding: const EdgeInsets.only(top: 4),
+          child: Text(
+            'Registrado por ${payment.registeredByName} · '
+            '${formatDateTime(payment.registeredAt)}',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+            ),
+          ),
+        ),
       ],
     );
   }

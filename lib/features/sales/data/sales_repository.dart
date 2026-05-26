@@ -146,6 +146,7 @@ class SalesRepository {
         lossAmount: 0,
         outstandingBalance: outstandingBalance,
         financialStatus: financialStatus,
+        createdWithDelegationPayment: hasDelegationPayment,
       );
 
       txn.set(_counterRef, {'value': next}, SetOptions(merge: true));

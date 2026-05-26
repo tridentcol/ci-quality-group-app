@@ -168,6 +168,7 @@ class Sale {
     this.markedAsLossByName,
     this.markedAsLossAt,
     this.lossReason,
+    this.createdWithDelegationPayment = false,
   });
 
   final String id;
@@ -306,6 +307,15 @@ class Sale {
   /// Razón obligatoria al marcar pérdida.
   final String? lossReason;
 
+  /// `true` cuando la venta nació con un payment de delegación adjunto
+  /// (sales pre-cobró en el mismo submit). Lo persistimos explícito en
+  /// vez de inferirlo por aggregates: en el flujo nuevo, cajero también
+  /// puede registrar abonos contra ventas todavía en `generada`, así
+  /// que `state in {generada, enProceso} && paidAmount > 0` no es
+  /// señal confiable de delegación. Este flag se setea solo en
+  /// `createSale` y nunca se reescribe — preserva la marca histórica.
+  final bool createdWithDelegationPayment;
+
   // -------- Helpers --------
 
   /// Monto efectivo "real" — usa `cashAmount` si existe, si no infiere
@@ -333,15 +343,17 @@ class Sale {
   bool get isWorkflowFinal =>
       state == SaleState.procesada || state == SaleState.cancelada;
 
-  /// `true` cuando la venta llegó a caja YA con dinero asociado: sales
-  /// registró un pago en el mismo submit usando el modo delegación. Antes
-  /// de la delegación esta combinación no existía (una `generada` siempre
-  /// nacía con `paidAmount: 0`), así que sirve como detector confiable
-  /// sin tener que leer la subcolección de payments. Cajero, en lugar
-  /// de "procesar", solo debe **verificar** que el dinero entró.
+  /// `true` cuando la venta llegó a caja YA con dinero asociado por
+  /// sales bajo el modo delegación caja. Usa el flag persistido
+  /// `createdWithDelegationPayment` + filtro de state — porque después
+  /// de procesada/cancelada el cajero ya no "verifica", solo audita.
+  /// Defensiva contra futuros flujos: si más adelante cajero registra
+  /// abonos parciales sobre ventas todavía en `generada`, aún así esta
+  /// venta sería marcada como verificación solo si sales fue quien
+  /// arrancó con el pago.
   bool get isDelegationPrepaid =>
-      (state == SaleState.generada || state == SaleState.enProceso) &&
-      paidAmount > 0;
+      createdWithDelegationPayment &&
+      (state == SaleState.generada || state == SaleState.enProceso);
 
   /// Calcula el saldo pendiente desde los agregados. Lo clampea a >= 0
   /// para no mostrar "saldo negativo" en sobrepagos — eso confunde más
@@ -426,6 +438,7 @@ class Sale {
             ? null
             : Timestamp.fromDate(AppClock.toInstant(markedAsLossAt!)),
         'lossReason': lossReason,
+        'createdWithDelegationPayment': createdWithDelegationPayment,
       };
 
   factory Sale.fromSnapshot(DocumentSnapshot<Map<String, dynamic>> snap) {
@@ -539,6 +552,8 @@ class Sale {
               (data['markedAsLossAt'] as Timestamp).toDate(),
             ),
       lossReason: data['lossReason'] as String?,
+      createdWithDelegationPayment:
+          (data['createdWithDelegationPayment'] as bool?) ?? false,
     );
   }
 }

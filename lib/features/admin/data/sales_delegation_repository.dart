@@ -119,7 +119,13 @@ class SalesDelegationRepository {
   Future<void> deactivate({required AppUser actor}) async {
     final now = AppClock.now();
     await _firestore.runTransaction((txn) async {
-      await txn.get(_docRef);
+      final snap = await txn.get(_docRef);
+      // Si nunca se activó (doc inexistente), `txn.update` revienta con
+      // un mensaje de servidor opaco. Disparamos un StateError claro
+      // para que la UI muestre algo útil con friendlyError.
+      if (!snap.exists) {
+        throw StateError('No hay delegación caja activa para desactivar.');
+      }
       txn.update(_docRef, {
         'active': false,
         'deactivatedBy': actor.uid,

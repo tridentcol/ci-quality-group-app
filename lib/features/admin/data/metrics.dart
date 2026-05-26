@@ -198,7 +198,13 @@ class SalesMetrics {
 
       if (s.state == SaleState.generada || s.state == SaleState.enProceso) {
         pendingCount++;
-        pendingTotal += s.totalValue;
+        // Usamos `outstandingBalance` (no `totalValue`) para no contar
+        // dos veces el dinero ya cobrado por delegación caja: si sales
+        // pre-cobró $800k de una venta de $1M, lo pendiente real son
+        // $200k, y los $800k ya están en `total`. Sin esto, una venta
+        // pre-cobrada parcial se ve como "$1M pendiente + $800k cobrado"
+        // = $1.8M ficticios en el dashboard del admin.
+        pendingTotal += s.outstandingBalance;
       }
       if (s.financialStatus == SaleFinancialStatus.lost) {
         lossCount++;

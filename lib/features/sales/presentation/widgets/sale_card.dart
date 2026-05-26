@@ -47,6 +47,10 @@ class SaleCard extends StatelessWidget {
                   ),
                   const SizedBox(width: 6),
                   StatePill(state: sale.state, compact: true),
+                  if (sale.createdWithDelegationPayment) ...[
+                    const SizedBox(width: 6),
+                    const _DelegationBadge(),
+                  ],
                   const Spacer(),
                   Text(
                     formatDate(sale.date),
@@ -131,6 +135,42 @@ class SaleCard extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Badge naranja en la card cuando la venta nació con pago de
+/// delegación caja. Le da al sales una pista visual de qué ventas
+/// suyas ya están cobradas vs cuáles dependen del flujo normal de
+/// cajero.
+class _DelegationBadge extends StatelessWidget {
+  const _DelegationBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    const accent = Color(0xFFE6A100);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: accent.withValues(alpha: 0.13),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: accent.withValues(alpha: 0.45)),
+      ),
+      child: const Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.payments_outlined, size: 10, color: accent),
+          SizedBox(width: 3),
+          Text(
+            'Con abono',
+            style: TextStyle(
+              color: accent,
+              fontWeight: FontWeight.w600,
+              fontSize: 10,
+            ),
+          ),
+        ],
       ),
     );
   }

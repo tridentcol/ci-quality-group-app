@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 
 import '../../features/hours/domain/hours_categories.dart';
 import '../../features/hours/domain/hours_entry.dart';
+import '../../features/sales/domain/payment.dart';
 import '../../features/sales/domain/sale.dart';
 // Conditional import: en native (Android/iOS) usa path_provider+share_plus,
 // en web usa Blob + anchor download. Mismo API público `deliverBytes`.
@@ -33,11 +34,19 @@ class XlsxExportService {
   /// Exporta una lista de ventas en formato tabular (una venta por fila).
   /// Filtra por rango antes de generar; si la lista llega vacía, lanza error
   /// para que el caller muestre snackbar.
+  ///
+  /// `paymentsBySaleId` (opcional): mapa saleId → payments para hidratar
+  /// las columnas de pago en ventas del flujo nuevo (`paymentMethod` en
+  /// blanco). Sin este mapa, esas ventas exportan método/efectivo/
+  /// transferencia/payer vacíos aunque tengan dinero cobrado en la
+  /// subcolección de payments. El caller (sales_list_screen) hace la
+  /// query del collection group una vez y pasa el agregado.
   static Future<void> exportSales({
     required BuildContext context,
     required List<Sale> sales,
     required DateTime rangeStart,
     required DateTime rangeEnd,
+    Map<String, List<SalePayment>> paymentsBySaleId = const {},
   }) async {
     if (sales.isEmpty) {
       throw StateError('No hay ventas en el rango seleccionado.');
@@ -98,6 +107,14 @@ class XlsxExportService {
 
     final sorted = [...sales]..sort((a, b) => a.date.compareTo(b.date));
     for (final s in sorted) {
+      // Para ventas del flujo nuevo (`paymentMethod` vacío en el doc
+      // padre, los datos reales viven en payments) agregamos los
+      // payments del mapa entrante. Para ventas legacy seguimos
+      // tomando los valores del doc Sale.
+      final payInfo = _SalePaymentSummary.from(
+        s,
+        paymentsBySaleId[s.id] ?? const [],
+      );
       // Una venta con N items se despliega como N filas que comparten el
       // consecutivo + datos generales. Los montos de pago aparecen solo
       // en la primera fila para no duplicarlos contablemente; las filas
@@ -119,11 +136,11 @@ class XlsxExportService {
           DoubleCellValue(i.quantity.toDouble()),
           DoubleCellValue(i.unitPrice.toDouble()),
           DoubleCellValue(i.totalValue.toDouble()),
-          TextCellValue(isFirst ? s.paymentMethod : ''),
-          DoubleCellValue(isFirst ? s.cashPortion.toDouble() : 0),
-          DoubleCellValue(isFirst ? s.transferPortion.toDouble() : 0),
-          TextCellValue(isFirst ? (s.transferDestination ?? '') : ''),
-          TextCellValue(isFirst ? s.payerName : ''),
+          TextCellValue(isFirst ? payInfo.method : ''),
+          DoubleCellValue(isFirst ? payInfo.cash.toDouble() : 0),
+          DoubleCellValue(isFirst ? payInfo.transfer.toDouble() : 0),
+          TextCellValue(isFirst ? payInfo.transferDestination : ''),
+          TextCellValue(isFirst ? payInfo.payer : ''),
           TextCellValue(isFirst ? s.createdByName : ''),
           TextCellValue(isFirst ? dateTimeFmt.format(s.createdAt) : ''),
         ]);
@@ -626,4 +643,72 @@ class _WeekRange {
   const _WeekRange({required this.start, required this.end});
   final DateTime start;
   final DateTime end;
+}
+
+/// Resumen de pago de una venta para exportación. Para ventas legacy
+/// (`Sale.paymentMethod` seteado) toma los datos del doc padre. Para
+/// ventas del flujo nuevo (incluyendo delegación caja) agrega los
+/// payments de la subcolección — método, montos por canal, destino y
+/// payer salen de ahí.
+class _SalePaymentSummary {
+  const _SalePaymentSummary({
+    required this.method,
+    required this.cash,
+    required this.transfer,
+    required this.transferDestination,
+    required this.payer,
+  });
+
+  final String method;
+  final num cash;
+  final num transfer;
+  final String transferDestination;
+  final String payer;
+
+  factory _SalePaymentSummary.from(Sale s, List<SalePayment> payments) {
+    if (s.paymentMethod.isNotEmpty) {
+      return _SalePaymentSummary(
+        method: s.paymentMethod,
+        cash: s.cashPortion,
+        transfer: s.transferPortion,
+        transferDestination: s.transferDestination ?? '',
+        payer: s.payerName,
+      );
+    }
+    if (payments.isEmpty) {
+      // Venta nueva sin abonos aún (en `generada` pre cierre): nada que
+      // exportar todavía. Las cuatro columnas quedan vacías.
+      return const _SalePaymentSummary(
+        method: '',
+        cash: 0,
+        transfer: 0,
+        transferDestination: '',
+        payer: '',
+      );
+    }
+    num cash = 0;
+    num transfer = 0;
+    final destinations = <String>{};
+    final payers = <String>{};
+    for (final p in payments) {
+      cash += p.cashAmount ??
+          (p.paymentMethod.toLowerCase() == 'efectivo' ? p.amount : 0);
+      transfer += p.transferAmount ??
+          (p.paymentMethod.toLowerCase() == 'transferencia' ? p.amount : 0);
+      final dst = p.transferDestination?.trim();
+      if (dst != null && dst.isNotEmpty) destinations.add(dst);
+      final payer = p.payerName?.trim();
+      if (payer != null && payer.isNotEmpty) payers.add(payer);
+    }
+    final method = (cash > 0 && transfer > 0)
+        ? 'Mixto'
+        : (transfer > 0 ? 'Transferencia' : 'Efectivo');
+    return _SalePaymentSummary(
+      method: method,
+      cash: cash,
+      transfer: transfer,
+      transferDestination: destinations.join(', '),
+      payer: payers.join(', '),
+    );
+  }
 }
