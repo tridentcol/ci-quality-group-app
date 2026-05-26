@@ -227,7 +227,24 @@ class _ActionsBar extends ConsumerWidget {
     if (profile == null) {
       return const SizedBox.shrink();
     }
+    // Cuando la venta llegó pre-cobrada por sales bajo delegación, el
+    // mindset del cajero cambia: no está procesando una solicitud nueva,
+    // está verificando que el dinero reportado entró. Los labels y el
+    // banner reflejan ese rol.
+    final verification = sale.isDelegationPrepaid;
+    final takeLabel = verification ? 'Verificar pago' : 'Iniciar proceso';
+    final processLabel =
+        verification ? 'Confirmar recibido' : 'Procesar';
+    final returnLabel =
+        verification ? 'Reportar discrepancia' : 'Devolver';
     final actions = <Widget>[];
+    if (verification &&
+        (sale.state == SaleState.generada ||
+            sale.state == SaleState.enProceso)) {
+      actions
+        ..add(const _VerificationBanner())
+        ..add(const SizedBox(height: 12));
+    }
     switch (sale.state) {
       case SaleState.generada:
         actions
@@ -235,7 +252,7 @@ class _ActionsBar extends ConsumerWidget {
             FilledButton.icon(
               onPressed: () => _takeRequest(context, ref, profile),
               icon: const Icon(Icons.play_arrow_outlined),
-              label: const Text('Iniciar proceso'),
+              label: Text(takeLabel),
             ),
           )
           ..add(const SizedBox(height: 10))
@@ -252,7 +269,7 @@ class _ActionsBar extends ConsumerWidget {
             FilledButton.icon(
               onPressed: () => _process(context, ref, profile),
               icon: const Icon(Icons.check_circle_outline),
-              label: const Text('Procesar'),
+              label: Text(processLabel),
             ),
           )
           ..add(const SizedBox(height: 10))
@@ -260,7 +277,7 @@ class _ActionsBar extends ConsumerWidget {
             OutlinedButton.icon(
               onPressed: () => _returnToSales(context, ref, profile),
               icon: const Icon(Icons.undo_outlined),
-              label: const Text('Devolver'),
+              label: Text(returnLabel),
             ),
           )
           ..add(const SizedBox(height: 10))
@@ -297,8 +314,11 @@ class _ActionsBar extends ConsumerWidget {
           .read(cashierRepositoryProvider)
           .takeRequest(saleId: sale.id, actor: actor);
       if (context.mounted) {
+        final msg = sale.isDelegationPrepaid
+            ? '${sale.consecutive} en verificación.'
+            : '${sale.consecutive} en proceso.';
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('${sale.consecutive} en proceso.')),
+          SnackBar(content: Text(msg)),
         );
       }
     } catch (e) {
@@ -316,8 +336,11 @@ class _ActionsBar extends ConsumerWidget {
           .read(cashierRepositoryProvider)
           .processRequest(saleId: sale.id, actor: actor);
       if (context.mounted) {
+        final msg = sale.isDelegationPrepaid
+            ? '${sale.consecutive} confirmada como recibida.'
+            : '${sale.consecutive} procesada.';
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('${sale.consecutive} procesada.')),
+          SnackBar(content: Text(msg)),
         );
       }
     } catch (e) {
@@ -330,12 +353,17 @@ class _ActionsBar extends ConsumerWidget {
     WidgetRef ref,
     AppUser actor,
   ) async {
+    final isVerification = sale.isDelegationPrepaid;
     final reason = await _askReason(
       context,
-      title: 'Devolver solicitud',
-      hint: 'Motivo (opcional)',
-      confirmLabel: 'Devolver',
-      requireText: false,
+      title:
+          isVerification ? 'Reportar discrepancia' : 'Devolver solicitud',
+      hint: isVerification
+          ? 'Describí qué no cuadra (monto, transferencia, etc.)'
+          : 'Motivo (opcional)',
+      confirmLabel:
+          isVerification ? 'Reportar discrepancia' : 'Devolver',
+      requireText: isVerification,
     );
     if (reason == null) return;
     try {
@@ -345,10 +373,11 @@ class _ActionsBar extends ConsumerWidget {
             reason: reason.isEmpty ? null : reason,
           );
       if (context.mounted) {
+        final msg = isVerification
+            ? '${sale.consecutive}: discrepancia reportada a sales.'
+            : '${sale.consecutive} devuelta.';
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('${sale.consecutive} devuelta.'),
-          ),
+          SnackBar(content: Text(msg)),
         );
       }
     } catch (e) {
@@ -665,3 +694,51 @@ Color _finColor(SaleFinancialStatus s, ThemeData theme) => switch (s) {
       SaleFinancialStatus.paid => const Color(0xFF2E7D32),
       SaleFinancialStatus.lost => theme.colorScheme.error,
     };
+
+/// Tarjeta arriba de los botones del cajero cuando la venta llegó
+/// pre-cobrada por sales. Le aclara su rol: ya no procesa, verifica.
+class _VerificationBanner extends StatelessWidget {
+  const _VerificationBanner();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    const accent = Color(0xFFE6A100);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: accent.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: accent.withValues(alpha: 0.45)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.fact_check_outlined, color: accent, size: 22),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Verificación de pago',
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    color: accent,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Sales registró el pago en el form. Confirmá que el dinero entró (efectivo en caja o transferencia en banco) antes de finalizar.',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurface.withValues(alpha: 0.8),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}

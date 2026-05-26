@@ -333,6 +333,16 @@ class Sale {
   bool get isWorkflowFinal =>
       state == SaleState.procesada || state == SaleState.cancelada;
 
+  /// `true` cuando la venta llegó a caja YA con dinero asociado: sales
+  /// registró un pago en el mismo submit usando el modo delegación. Antes
+  /// de la delegación esta combinación no existía (una `generada` siempre
+  /// nacía con `paidAmount: 0`), así que sirve como detector confiable
+  /// sin tener que leer la subcolección de payments. Cajero, en lugar
+  /// de "procesar", solo debe **verificar** que el dinero entró.
+  bool get isDelegationPrepaid =>
+      (state == SaleState.generada || state == SaleState.enProceso) &&
+      paidAmount > 0;
+
   /// Calcula el saldo pendiente desde los agregados. Lo clampea a >= 0
   /// para no mostrar "saldo negativo" en sobrepagos — eso confunde más
   /// que aclara. Si la empresa quisiera reflejar el crédito a favor del

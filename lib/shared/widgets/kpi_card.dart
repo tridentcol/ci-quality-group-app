@@ -23,6 +23,7 @@ class KpiCard extends StatelessWidget {
     this.subtitle,
     this.icon,
     this.color,
+    this.onTap,
   });
 
   final String label;
@@ -30,6 +31,11 @@ class KpiCard extends StatelessWidget {
   final String? subtitle;
   final IconData? icon;
   final Color? color;
+
+  /// Si se pasa, la card pasa a ser tappable y muestra un chevron sutil
+  /// arriba a la derecha. Útil para KPIs que sirven de drill-down a una
+  /// pantalla con desglose (ej. "Pagos bajo delegación" → lista).
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -42,37 +48,124 @@ class KpiCard extends StatelessWidget {
   }
 
   Widget _buildExpanded(ThemeData theme, Color c) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                if (icon != null) ...[
-                  Icon(icon, size: 16, color: c),
-                  const SizedBox(width: 6),
-                ],
-                Expanded(
-                  child: Text(
-                    label,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.labelSmall?.copyWith(
-                      color:
-                          theme.colorScheme.onSurface.withValues(alpha: 0.65),
-                      height: 1.2,
-                    ),
+    final body = Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              if (icon != null) ...[
+                Icon(icon, size: 16, color: c),
+                const SizedBox(width: 6),
+              ],
+              Expanded(
+                child: Text(
+                  label,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color:
+                        theme.colorScheme.onSurface.withValues(alpha: 0.65),
+                    height: 1.2,
                   ),
                 ),
+              ),
+              if (onTap != null)
+                Icon(
+                  Icons.chevron_right,
+                  size: 16,
+                  color: theme.colorScheme.onSurface.withValues(alpha: 0.45),
+                ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              value,
+              maxLines: 1,
+              style: theme.textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          if (subtitle != null) ...[
+            const SizedBox(height: 2),
+            Text(
+              subtitle!,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.55),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+    return Card(
+      clipBehavior: onTap != null ? Clip.antiAlias : Clip.none,
+      child: onTap != null ? InkWell(onTap: onTap, child: body) : body,
+    );
+  }
+
+  Widget _buildCompact(ThemeData theme, Color c) {
+    final body = Padding(
+      padding: const EdgeInsets.fromLTRB(14, 14, 16, 14),
+      child: Row(
+        children: [
+          if (icon != null) ...[
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: c.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              alignment: Alignment.center,
+              child: Icon(icon, size: 20, color: c),
+            ),
+            const SizedBox(width: 12),
+          ],
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    color:
+                        theme.colorScheme.onSurface.withValues(alpha: 0.75),
+                    fontWeight: FontWeight.w600,
+                    height: 1.2,
+                  ),
+                ),
+                if (subtitle != null) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle!,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurface
+                          .withValues(alpha: 0.55),
+                    ),
+                  ),
+                ],
               ],
             ),
-            const SizedBox(height: 8),
-            FittedBox(
+          ),
+          const SizedBox(width: 12),
+          Flexible(
+            child: FittedBox(
               fit: BoxFit.scaleDown,
-              alignment: Alignment.centerLeft,
+              alignment: Alignment.centerRight,
               child: Text(
                 value,
                 maxLines: 1,
@@ -81,90 +174,20 @@ class KpiCard extends StatelessWidget {
                 ),
               ),
             ),
-            if (subtitle != null) ...[
-              const SizedBox(height: 2),
-              Text(
-                subtitle!,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurface.withValues(alpha: 0.55),
-                ),
-              ),
-            ],
+          ),
+          if (onTap != null) ...[
+            const SizedBox(width: 6),
+            Icon(
+              Icons.chevron_right,
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.45),
+            ),
           ],
-        ),
+        ],
       ),
     );
-  }
-
-  Widget _buildCompact(ThemeData theme, Color c) {
     return Card(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(14, 14, 16, 14),
-        child: Row(
-          children: [
-            if (icon != null) ...[
-              Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  color: c.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                alignment: Alignment.center,
-                child: Icon(icon, size: 20, color: c),
-              ),
-              const SizedBox(width: 12),
-            ],
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    label,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.labelMedium?.copyWith(
-                      color:
-                          theme.colorScheme.onSurface.withValues(alpha: 0.75),
-                      fontWeight: FontWeight.w600,
-                      height: 1.2,
-                    ),
-                  ),
-                  if (subtitle != null) ...[
-                    const SizedBox(height: 2),
-                    Text(
-                      subtitle!,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurface
-                            .withValues(alpha: 0.55),
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-            const SizedBox(width: 12),
-            Flexible(
-              child: FittedBox(
-                fit: BoxFit.scaleDown,
-                alignment: Alignment.centerRight,
-                child: Text(
-                  value,
-                  maxLines: 1,
-                  style: theme.textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
+      clipBehavior: onTap != null ? Clip.antiAlias : Clip.none,
+      child: onTap != null ? InkWell(onTap: onTap, child: body) : body,
     );
   }
 }

@@ -637,6 +637,10 @@ class _CashierSaleCard extends StatelessWidget {
                   ),
                 ],
               ),
+              if (sale.isDelegationPrepaid) ...[
+                const SizedBox(height: 8),
+                _DelegationPrepaidChip(sale: sale),
+              ],
               const SizedBox(height: 10),
               Text(
                 sale.providerName,
@@ -782,6 +786,50 @@ class _FinancialPillMini extends StatelessWidget {
       SaleFinancialStatus.lost => (theme.colorScheme.error, 'Pérdida'),
     };
     return _Pill(color: color, label: label);
+  }
+}
+
+/// Chip naranja para señalar que la venta llegó pre-cobrada por sales
+/// vía el modo delegación caja. Le dice al cajero "esto no lo cargás,
+/// solo verificás". La etiqueta detalla si fue pago total o parcial.
+class _DelegationPrepaidChip extends StatelessWidget {
+  const _DelegationPrepaidChip({required this.sale});
+  final Sale sale;
+
+  @override
+  Widget build(BuildContext context) {
+    const accent = Color(0xFFE6A100);
+    final isPartial = sale.outstandingBalance > 0;
+    final label = isPartial
+        ? 'Bajo delegación · Pagado parcial'
+        : 'Bajo delegación · Pagado';
+    return Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+          decoration: BoxDecoration(
+            color: accent.withValues(alpha: 0.13),
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(color: accent.withValues(alpha: 0.45)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.payments_outlined, size: 12, color: accent),
+              const SizedBox(width: 4),
+              Text(
+                label,
+                style: const TextStyle(
+                  color: accent,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 10.5,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
   }
 }
 

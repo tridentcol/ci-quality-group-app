@@ -403,6 +403,10 @@ class _PaymentCard extends ConsumerWidget {
                     style: theme.textTheme.labelSmall,
                   ),
                 ),
+                if (payment.createdViaDelegation) ...[
+                  const SizedBox(width: 6),
+                  const _DelegationPaymentChip(),
+                ],
                 const Spacer(),
                 if (isAdmin && profile != null)
                   IconButton(
@@ -438,8 +442,13 @@ class _PaymentCard extends ConsumerWidget {
             ],
             const SizedBox(height: 6),
             Text(
-              'Registrado por ${payment.registeredByName} · '
-              '${formatDateTime(payment.registeredAt)}',
+              // El prefijo "Sales · " comunica de un vistazo que quien lo
+              // cargó no es cajero — útil cuando el admin/cajero audita.
+              payment.createdViaDelegation
+                  ? 'Sales · ${payment.registeredByName} · '
+                      '${formatDateTime(payment.registeredAt)}'
+                  : 'Registrado por ${payment.registeredByName} · '
+                      '${formatDateTime(payment.registeredAt)}',
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
               ),
@@ -1067,4 +1076,32 @@ Future<String?> _askReasonDialog(
       );
     },
   );
+}
+
+
+/// Chip que distingue un payment creado por sales bajo delegación caja
+/// del flujo normal de abonos del cajero. Mismo naranja del banner.
+class _DelegationPaymentChip extends StatelessWidget {
+  const _DelegationPaymentChip();
+
+  @override
+  Widget build(BuildContext context) {
+    const accent = Color(0xFFE6A100);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      decoration: BoxDecoration(
+        color: accent.withValues(alpha: 0.13),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: accent.withValues(alpha: 0.45)),
+      ),
+      child: const Text(
+        'Bajo delegación',
+        style: TextStyle(
+          color: accent,
+          fontWeight: FontWeight.w600,
+          fontSize: 10.5,
+        ),
+      ),
+    );
+  }
 }

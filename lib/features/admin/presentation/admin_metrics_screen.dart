@@ -230,6 +230,24 @@ class _SalesSection extends StatelessWidget {
             color: AppColors.danger,
           ),
         ],),
+        // KPI de delegación caja: solo visible si hubo actividad en el
+        // rango. Es un flujo excepcional — no queremos un card vacío
+        // permanente en el dashboard cuando nadie usó la delegación.
+        if (metrics.delegationPaymentsCount > 0) ...[
+          const SizedBox(height: 12),
+          KpiRow(cards: [
+            KpiCard(
+              label: 'Pagos bajo delegación',
+              value: formatCop(metrics.delegationPaymentsTotal),
+              subtitle:
+                  '${metrics.delegationPaymentsCount} pago${metrics.delegationPaymentsCount == 1 ? '' : 's'} · ver detalle',
+              icon: Icons.lock_open_outlined,
+              color: const Color(0xFFE6A100),
+              onTap: () =>
+                  context.push('/admin/delegation/payments'),
+            ),
+          ],),
+        ],
         if (metrics.dailyTotals.length >= 2) ...[
           const SizedBox(height: 16),
           Card(

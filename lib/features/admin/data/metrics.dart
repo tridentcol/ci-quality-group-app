@@ -32,6 +32,8 @@ class SalesMetrics {
     required this.receivableTotal,
     required this.lossCount,
     required this.lossTotal,
+    required this.delegationPaymentsCount,
+    required this.delegationPaymentsTotal,
   });
 
   /// Dinero efectivamente cobrado en el rango = sum(`paidAmount`) sobre
@@ -74,6 +76,13 @@ class SalesMetrics {
   final int lossCount;
   final num lossTotal;
 
+  /// Payments creados por sales bajo el modo "delegación caja" en el
+  /// rango (subset de los payments del periodo). Sirve para que el
+  /// admin vea cuánto se está usando esa excepción y pueda revisar
+  /// caso por caso si algo no cuadra.
+  final int delegationPaymentsCount;
+  final num delegationPaymentsTotal;
+
   static SalesMetrics empty() => const SalesMetrics(
         total: 0,
         count: 0,
@@ -88,6 +97,8 @@ class SalesMetrics {
         receivableTotal: 0,
         lossCount: 0,
         lossTotal: 0,
+        delegationPaymentsCount: 0,
+        delegationPaymentsTotal: 0,
       );
 
   /// Computa el resumen de ventas para el rango dado.
@@ -122,6 +133,8 @@ class SalesMetrics {
     num receivableTotal = 0;
     int lossCount = 0;
     num lossTotal = 0;
+    int delegationPaymentsCount = 0;
+    num delegationPaymentsTotal = 0;
 
     // Set de saleIds cubiertos por la subcolección de payments en este
     // rango. Sirve para distinguir "venta nueva-flujo" (tiene payments
@@ -146,6 +159,10 @@ class SalesMetrics {
       final sale = salesById[pr.saleId];
       if (sale == null) continue; // pago fuera del set de ventas filtradas
       final p = pr.payment;
+      if (p.createdViaDelegation) {
+        delegationPaymentsCount++;
+        delegationPaymentsTotal += p.amount;
+      }
       final cash = p.cashAmount ??
           (p.paymentMethod.toLowerCase() == 'efectivo' ? p.amount : 0);
       final transfer = p.transferAmount ??
@@ -289,6 +306,8 @@ class SalesMetrics {
       receivableTotal: receivableTotal,
       lossCount: lossCount,
       lossTotal: lossTotal,
+      delegationPaymentsCount: delegationPaymentsCount,
+      delegationPaymentsTotal: delegationPaymentsTotal,
     );
   }
 }

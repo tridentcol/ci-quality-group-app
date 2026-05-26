@@ -8,6 +8,7 @@ import '../../features/admin/presentation/admin_shell.dart';
 import '../../features/admin/presentation/clients_breakdown_screen.dart';
 import '../../features/admin/presentation/materials_breakdown_screen.dart';
 import '../../features/admin/presentation/payers_breakdown_screen.dart';
+import '../../features/admin/presentation/payments_via_delegation_screen.dart';
 import '../../features/auditor/presentation/auditor_dashboard_screen.dart';
 import '../../features/cashier/presentation/cashier_home_screen.dart';
 import '../../features/cashier/presentation/sale_payments_screen.dart';
@@ -142,6 +143,10 @@ final routerProvider = Provider<GoRouter>((ref) {
               GoRoute(
                 path: 'metrics/payers',
                 builder: (_, __) => const PayersBreakdownScreen(),
+              ),
+              GoRoute(
+                path: 'delegation/payments',
+                builder: (_, __) => const PaymentsViaDelegationScreen(),
               ),
               GoRoute(
                 path: 'master-lists',
