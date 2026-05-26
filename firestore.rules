@@ -123,14 +123,26 @@ service cloud.firestore {
       allow delete: if isAdmin();
 
       // ---------- Payments (subcolección) ----------
-      // Solo admin y cajero ven y registran abonos. Solo admin puede
-      // borrar (anular un pago se modela como delete + recalculo del
-      // padre en una transacción).
+      // Lectura: admin y cajero. Borrado: solo admin (anular un pago se
+      // modela como delete + recalculo del padre en una transacción).
+      // Creación: cajero/admin siempre; sales solo cuando la delegación
+      // caja está vigente y el payload viene marcado con
+      // `createdViaDelegation: true` + `registeredBy == auth.uid`. El
+      // flag actúa como guard: si sales intentara crear un payment sin
+      // él, se rechaza aunque la delegación esté activa.
       match /payments/{pid} {
         allow read: if isAdmin() || isCajero();
-        allow create: if (isAdmin() || isCajero())
-          && request.resource.data.amount is number
-          && request.resource.data.amount > 0;
+        allow create: if request.resource.data.amount is number
+          && request.resource.data.amount > 0
+          && (
+            isAdmin() || isCajero()
+            || (
+              isSales()
+              && delegationActive()
+              && request.resource.data.registeredBy == request.auth.uid
+              && request.resource.data.createdViaDelegation == true
+            )
+          );
         allow update: if false;
         allow delete: if isAdmin();
       }
