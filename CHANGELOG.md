@@ -7,6 +7,92 @@ versionado [SemVer](https://semver.org/spec/v2.0.0.html). El número entre `+`
 es el `versionCode` de Android — cada release se sube en uno para que los
 celulares acepten la actualización sobre la versión anterior.
 
+## [1.4.0+14] — 2026-05-25
+
+### Agregado
+- **Modo "delegación caja" — excepción on-demand para que sales cobre.**
+  El admin puede activar un toggle en `Configuración → Delegación caja`
+  con duración opcional (preset 2h/hoy hasta 18:00/sin vencimiento o
+  programación personalizada con date+time picker). Mientras esté
+  vigente, un banner naranja persistente arriba del Navigator avisa a
+  todos los roles autenticados, y el form de venta del rol `sales`
+  muestra una sección extra para registrar el pago (efectivo /
+  transferencia / mixto + destino + "quién recibe") en el mismo
+  submit. Si sales llena los campos, el repo crea venta + payment en
+  una sola `runTransaction` con el payment marcado
+  `createdViaDelegation: true` y los agregados financieros
+  (`paidAmount`, `outstandingBalance`, `financialStatus`) ya cuadrados.
+  Si los deja vacíos, la venta se crea como una solicitud normal sin
+  payment y caja la cobra después como siempre. El history de
+  activaciones/desactivaciones queda persistido como subcolección
+  append-only visible en la misma pantalla del admin.
+- **Caja "verifica" en vez de "procesar" cuando la venta llegó
+  pre-cobrada por sales.** El detalle del cajero detecta esa
+  combinación (`isDelegationPrepaid`) y reetiqueta los botones:
+  *Iniciar proceso* → *Verificar pago*, *Procesar* → *Confirmar
+  recibido*, *Devolver* → *Reportar discrepancia* (con motivo
+  obligatorio). Una card naranja *"Pago a verificar"* muestra el
+  monto, método, desglose mixto, destino de transferencia, "quién
+  recibe" y "Sales · nombre" del payment para que el cajero
+  confirme que el dinero efectivamente entró antes de finalizar;
+  después del cierre la misma card queda como *"Pago recibido
+  (delegación)"* en gris para preservar la trazabilidad.
+- **Trazabilidad visual en cards y listas.** Las cards del cajero
+  llevan un chip naranja *"Bajo delegación · Pagado [parcial]"* en
+  la tab Pendientes; las cards de sales un badge *"Con abono"*
+  cuando la venta nació con pago de delegación. El timeline de
+  abonos marca cada payment de delegación con el mismo chip y
+  prefija el actor con *"Sales · "* para distinguirlo del flujo
+  normal del cajero.
+- **KPI "Delegación caja" en el dashboard del admin con drill-down.**
+  Aparece solo cuando hubo pagos de delegación en el rango — naranja,
+  con count + monto cobrado, tap para abrir `/admin/delegation/payments`
+  con la lista filtrada (rango configurable) y link al detalle de
+  cada venta.
+- **Tres notificaciones nuevas:** `delegation_activated`,
+  `delegation_deactivated`, `payment_delegation_recorded`. Las dos
+  primeras se emiten al rol `cajero` + `admin` cuando el admin
+  cambia el toggle. La tercera se emite cuando sales registra un
+  pago de delegación.
+- **Recibo de pago bajo delegación en el detalle de sales.** El
+  vendedor que pre-cobró ahora ve su propio cobro en
+  `SaleDetailScreen` con monto, método, payer y timestamp — antes
+  solo podía verlo abriendo la pantalla de pagos del cajero (donde
+  tampoco tenía permisos de lectura).
+
+### Cambiado
+- **Rules de Firestore:** sales ahora puede leer payments con
+  `registeredBy == auth.uid` (necesario para que el detalle muestre
+  su propio cobro de delegación). El history de delegación exige
+  `keys().hasAll(['action','actorUid','actorName','at'])` como
+  defensa contra entries malformadas vía API directa.
+- **Métrica admin "Pendientes en caja"** ahora suma
+  `outstandingBalance` en vez de `totalValue` para no double-counter
+  el dinero ya cobrado vía delegación (antes una venta pre-cobrada
+  parcial inflaba el KPI con el doble de plata).
+- **Export xlsx de ventas:** ahora hidrata las columnas *Método*,
+  *Efectivo*, *Transferencia*, *Destino transferencia* y *Quién
+  recibe* desde la subcolección de payments cuando
+  `Sale.paymentMethod` viene vacío (caso del flujo nuevo y
+  delegación). Antes esas ventas exportaban esas columnas en blanco
+  a pesar de tener dinero cobrado.
+- **`DetailsCard` del cajero:** la fila "Quién recibe" ahora cae al
+  payer del payment más reciente cuando `Sale.payerName` está vacío,
+  y se oculta si tampoco hay payments — antes mostraba la fila
+  siempre con valor en blanco para ventas del flujo nuevo.
+- **Notif de `voidPayment`:** si el payment anulado era de
+  delegación, también se notifica al rol cajero para que el cierre
+  de caja refleje el cambio.
+- **Notif de `cancelRequest`:** si la venta cancelada tiene
+  `paidAmount > 0`, el body incluye el monto a verificar para
+  devolución.
+
+### Corregido
+- **`SalesDelegationRepository.deactivate`** ya no falla con error
+  opaco de servidor cuando el singleton `settings/sales_delegation`
+  no existe todavía — devuelve `StateError` claro para que
+  `friendlyError` muestre un mensaje útil.
+
 ## [1.3.0+13] — 2026-05-15
 
 ### Agregado
