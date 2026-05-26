@@ -15,9 +15,12 @@ import '../../../shared/widgets/master_list_field.dart';
 import '../../../shared/widgets/section_label.dart';
 import '../../../shared/widgets/theme_mode_toggle.dart';
 import '../../admin/data/master_lists_repository.dart';
+import '../../admin/data/sales_delegation_repository.dart';
+import '../../admin/domain/sales_delegation.dart';
 import '../../auth/data/auth_repository.dart';
 import '../data/sales_repository.dart';
 import '../domain/sale.dart';
+import 'widgets/sale_payment_section.dart';
 
 const _defaultUnit = 'Kilogramos';
 
@@ -52,6 +55,18 @@ class _SaleFormScreenState extends ConsumerState<SaleFormScreen> {
 
   bool _saving = false;
   String? _formError;
+
+  /// Key para acceder al state de la sección de pago bajo delegación.
+  /// Solo se monta cuando corresponde (rol sales + create + delegación
+  /// activa o usuario ya tipeó algo). Cuando no está montado, queda
+  /// `null` y los lectores deben fallar a vacío.
+  final _paymentKey = GlobalKey<SalePaymentSectionState>();
+
+  /// `true` cuando el usuario tocó cualquier campo de pago. Lo usamos
+  /// para mantener la sección montada (no destruir lo que escribió) y
+  /// para mostrar el banner si la delegación se desactiva mientras
+  /// llenaba.
+  bool _didFillPayment = false;
 
   bool get _isEdit => widget.editingSale != null;
 
@@ -178,6 +193,30 @@ class _SaleFormScreenState extends ConsumerState<SaleFormScreen> {
     const paymentMethodValue = '';
     const createState = SaleState.generada;
 
+    // Re-evaluar la delegación AL momento del submit (no al abrir el
+    // form): el caso "delegación se desactivó mientras llenaba" debe
+    // dropear los datos de pago en silencio y dejarle al cajero el
+    // cobro. Si quedó activa, validamos el draft del usuario.
+    final delegationAtSubmit =
+        ref.read(salesDelegationProvider).valueOrNull ??
+            SalesDelegation.inactive();
+    final acceptingPayment = !_isEdit &&
+        profile.role == AppRole.sales &&
+        delegationAtSubmit.isCurrentlyActive;
+    DelegationPaymentDraft? draftToSend;
+    if (acceptingPayment) {
+      final draft = _paymentKey.currentState?.currentDraft();
+      if (draft != null && !draft.isEmpty) {
+        final err = draft.validate();
+        if (err != null) {
+          _setError(err);
+          return;
+        }
+        draftToSend = draft;
+      }
+    }
+    final paymentDropped = _didFillPayment && !acceptingPayment;
+
     setState(() => _saving = true);
     try {
       if (_isEdit) {
@@ -207,10 +246,19 @@ class _SaleFormScreenState extends ConsumerState<SaleFormScreen> {
               createdBy: profile.uid,
               createdByName: profile.fullName,
               state: createState,
+              delegationPaymentCashAmount: draftToSend?.cashAmount,
+              delegationPaymentTransferAmount: draftToSend?.transferAmount,
+              delegationPaymentTransferDestination:
+                  draftToSend?.transferDestination,
+              delegationPaymentMethod: draftToSend?.paymentMethod,
+              delegationPaymentPayerName: draftToSend?.payerName,
             );
         if (mounted) {
+          final msg = paymentDropped
+              ? 'Venta ${sale.consecutive} registrada. Los datos de pago no se guardaron porque el modo delegación se desactivó.'
+              : 'Venta ${sale.consecutive} registrada.';
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Venta ${sale.consecutive} registrada.')),
+            SnackBar(content: Text(msg)),
           );
           context.pop();
         }
@@ -225,6 +273,25 @@ class _SaleFormScreenState extends ConsumerState<SaleFormScreen> {
   @override
   Widget build(BuildContext context) {
     final keyboardInset = MediaQuery.viewInsetsOf(context).bottom;
+    // Pago bajo delegación: solo aplica a NUEVAS ventas creadas por el
+    // rol sales. Admin sigue usando el flujo de cajero; en edición el
+    // payment ya existente no se toca desde acá.
+    final profile = ref.watch(currentProfileProvider).valueOrNull;
+    final delegation = ref.watch(salesDelegationProvider).valueOrNull ??
+        SalesDelegation.inactive();
+    final delegationActive = delegation.isCurrentlyActive;
+    final eligibleForDelegationPayment =
+        !_isEdit && profile?.role == AppRole.sales;
+    // Mantener montada la sección si la delegación está activa O si el
+    // usuario ya tipeó algo (para no destruirle los datos cuando admin
+    // desactiva mid-form — el banner le explica que no se guardarán).
+    final showPaymentSection = eligibleForDelegationPayment &&
+        (delegationActive || _didFillPayment);
+    final paymentSectionEnabled =
+        eligibleForDelegationPayment && delegationActive;
+    final showDeactivatedBanner = eligibleForDelegationPayment &&
+        !delegationActive &&
+        _didFillPayment;
     return Scaffold(
       appBar: AppBar(
         title: Text(_isEdit ? 'Editar venta' : 'Nueva venta'),
@@ -291,6 +358,24 @@ class _SaleFormScreenState extends ConsumerState<SaleFormScreen> {
               ),
               const SizedBox(height: 16),
               _TotalCard(items: _items),
+              if (showPaymentSection) ...[
+                const SizedBox(height: 16),
+                SalePaymentSection(
+                  key: _paymentKey,
+                  enabled: paymentSectionEnabled,
+                  onChanged: () {
+                    final hasInput =
+                        _paymentKey.currentState?.hasInput ?? false;
+                    if (hasInput != _didFillPayment) {
+                      setState(() => _didFillPayment = hasInput);
+                    }
+                  },
+                ),
+              ],
+              if (showDeactivatedBanner) ...[
+                const SizedBox(height: 12),
+                const _DelegationDeactivatedBanner(),
+              ],
               if (_formError != null) ...[
                 const SizedBox(height: 16),
                 FormErrorBanner(message: _formError!),
@@ -679,6 +764,42 @@ class _TotalCard extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+/// Banner que aparece cuando la delegación se desactiva mientras el
+/// vendedor tenía datos de pago tipeados. Le avisa que si envía la
+/// venta ahora, los datos se descartan (no se guarda payment) y caja
+/// los cobrará después como siempre.
+class _DelegationDeactivatedBanner extends StatelessWidget {
+  const _DelegationDeactivatedBanner();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    const accent = Color(0xFFE6A100);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: accent.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: accent.withValues(alpha: 0.5)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.warning_amber_outlined, color: accent, size: 20),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'El modo delegación caja se desactivó. Si guardás ahora, los datos de pago no se registran — caja los cobrará después.',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurface,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

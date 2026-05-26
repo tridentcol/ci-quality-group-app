@@ -374,6 +374,12 @@ class _NotificationGroupTileState extends State<_NotificationGroupTile> {
         '$n solicitudes devueltas para corrección',
       NotificationType.saleMarkedLoss => '$n saldos marcados como pérdida',
       NotificationType.paymentVoided => '$n abonos anulados',
+      NotificationType.delegationActivated =>
+        '$n activaciones de delegación caja',
+      NotificationType.delegationDeactivated =>
+        '$n desactivaciones de delegación caja',
+      NotificationType.paymentDelegationRecorded =>
+        '$n abonos bajo delegación',
       NotificationType.unknown => '$n notificaciones',
     };
   }

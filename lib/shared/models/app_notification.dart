@@ -17,6 +17,9 @@ enum NotificationType {
   saleReturnedToSales('sale_returned_to_sales'),
   saleMarkedLoss('sale_marked_loss'),
   paymentVoided('payment_voided'),
+  delegationActivated('delegation_activated'),
+  delegationDeactivated('delegation_deactivated'),
+  paymentDelegationRecorded('payment_delegation_recorded'),
   unknown('unknown');
 
   const NotificationType(this.id);
@@ -37,6 +40,9 @@ enum NotificationType {
         NotificationType.saleReturnedToSales => Icons.undo_outlined,
         NotificationType.saleMarkedLoss => Icons.warning_amber_outlined,
         NotificationType.paymentVoided => Icons.history_outlined,
+        NotificationType.delegationActivated => Icons.lock_open_outlined,
+        NotificationType.delegationDeactivated => Icons.lock_outline,
+        NotificationType.paymentDelegationRecorded => Icons.payments_outlined,
         NotificationType.unknown => Icons.notifications_outlined,
       };
 
@@ -50,6 +56,13 @@ enum NotificationType {
         NotificationType.saleReturnedToSales => const Color(0xFFE6A100),
         NotificationType.saleMarkedLoss => scheme.error,
         NotificationType.paymentVoided => scheme.error,
+        // Naranja para los eventos de delegación — mismo acento del
+        // banner global, así el usuario asocia la notif con el modo
+        // excepción.
+        NotificationType.delegationActivated => const Color(0xFFE6A100),
+        NotificationType.delegationDeactivated =>
+          scheme.onSurface.withValues(alpha: 0.55),
+        NotificationType.paymentDelegationRecorded => const Color(0xFFE6A100),
         NotificationType.unknown => scheme.primary,
       };
 }

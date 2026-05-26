@@ -2,7 +2,11 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants/firestore_paths.dart';
+import '../../../core/constants/roles.dart';
 import '../../../core/utils/clock.dart';
+import '../../../core/utils/dates.dart';
+import '../../../shared/models/app_notification.dart';
+import '../../../shared/services/notifications_repository.dart';
 import '../../auth/data/auth_repository.dart';
 import '../../auth/domain/app_user.dart';
 import '../domain/sales_delegation.dart';
@@ -19,9 +23,10 @@ const String _delegationDocId = 'sales_delegation';
 /// history queden siempre consistentes: si el set del doc falla, la entry
 /// no se crea, y viceversa.
 class SalesDelegationRepository {
-  SalesDelegationRepository(this._firestore);
+  SalesDelegationRepository(this._firestore, this._notifications);
 
   final FirebaseFirestore _firestore;
+  final NotificationsRepository _notifications;
 
   DocumentReference<Map<String, dynamic>> get _docRef => _firestore
       .collection(FirestorePaths.settings)
@@ -90,6 +95,21 @@ class SalesDelegationRepository {
             ? cleanedNote
             : null,
       ).toMap(),);
+      _notifications.emitInTxn(
+        txn,
+        type: NotificationType.delegationActivated,
+        title: 'Modo delegación caja activado',
+        body: _buildActivatedBody(
+          actor: actor,
+          startsAt: effectiveStart.isAfter(now) ? startsAt : null,
+          expiresAt: expiresAt,
+        ),
+        actorUid: actor.uid,
+        actorName: actor.fullName,
+        // Cajero y admin reciben la señal — el sales que va a usar la
+        // delegación se entera por el banner global, no por la bell.
+        targetRoles: const [AppRole.cajero, AppRole.admin],
+      );
     });
   }
 
@@ -113,13 +133,42 @@ class SalesDelegationRepository {
         actorName: actor.fullName,
         at: now,
       ).toMap(),);
+      _notifications.emitInTxn(
+        txn,
+        type: NotificationType.delegationDeactivated,
+        title: 'Modo delegación caja desactivado',
+        body: '${actor.fullName} cerró la delegación caja.',
+        actorUid: actor.uid,
+        actorName: actor.fullName,
+        targetRoles: const [AppRole.cajero, AppRole.admin],
+      );
     });
+  }
+
+  static String _buildActivatedBody({
+    required AppUser actor,
+    DateTime? startsAt,
+    DateTime? expiresAt,
+  }) {
+    final parts = <String>['${actor.fullName} habilitó delegación caja'];
+    if (startsAt != null) {
+      parts.add('desde ${formatDateTime(startsAt)}');
+    }
+    if (expiresAt != null) {
+      parts.add('hasta ${formatDateTime(expiresAt)}');
+    } else if (startsAt == null) {
+      parts.add('sin vencimiento');
+    }
+    return '${parts.join(' ')}.';
   }
 }
 
 final salesDelegationRepositoryProvider =
     Provider<SalesDelegationRepository>((ref) {
-  return SalesDelegationRepository(FirebaseFirestore.instance);
+  return SalesDelegationRepository(
+    FirebaseFirestore.instance,
+    ref.watch(notificationsRepositoryProvider),
+  );
 });
 
 final salesDelegationProvider =

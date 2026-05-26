@@ -8,6 +8,7 @@ import '../../../core/utils/money.dart';
 import '../../../shared/models/app_notification.dart';
 import '../../../shared/services/notifications_repository.dart';
 import '../../auth/data/auth_repository.dart';
+import '../domain/payment.dart';
 import '../domain/sale.dart';
 
 /// Acceso a la colección `sales`.
@@ -56,10 +57,29 @@ class SalesRepository {
     required String createdBy,
     required String createdByName,
     SaleState state = SaleState.procesada,
+    // ---------- Pago opcional bajo delegación caja ----------
+    // Cuando rol sales envía la venta con el modo "delegación caja"
+    // activo y al menos uno de los montos viene > 0, creamos un
+    // SalePayment en la misma transacción y arrancamos los agregados
+    // con `paidAmount` correspondiente. Si los tres montos vienen null
+    // (o ambos 0) este branch no se activa: queda el flujo normal
+    // generada con paidAmount = 0.
+    //
+    // El payment lleva `createdViaDelegation: true` — la rule de
+    // payments lo exige para autorizar la creación desde sales.
+    num? delegationPaymentCashAmount,
+    num? delegationPaymentTransferAmount,
+    String? delegationPaymentTransferDestination,
+    String? delegationPaymentMethod,
+    String? delegationPaymentPayerName,
   }) async {
     assert(items.isNotEmpty, 'createSale requiere al menos un item.');
     final now = AppClock.now();
     final docRef = _col.doc();
+
+    final hasDelegationPayment =
+        ((delegationPaymentCashAmount ?? 0) > 0) ||
+            ((delegationPaymentTransferAmount ?? 0) > 0);
 
     return _firestore.runTransaction<Sale>((txn) async {
       final counterSnap = await txn.get(_counterRef);
@@ -69,15 +89,37 @@ class SalesRepository {
 
       final totalValue =
           items.fold<num>(0, (a, i) => a + i.quantity * i.unitPrice);
-      // Para solicitudes nuevas (state=generada) el pago se registra
-      // después desde caja. Para el flujo legacy (procesada) la venta
-      // se considera cobrada al instante.
+
+      // Tres ramas para arrancar los agregados financieros:
+      //   - `procesada` legacy: cobrada al instante (paidAmount = total).
+      //   - `generada` con delegación + pago: cajero todavía debe
+      //     procesar la venta, pero el dinero ya entró. paidAmount =
+      //     monto del payment registrado en este mismo submit.
+      //   - `generada` sin pago: flujo normal sales → caja.
       final isRequest = state == SaleState.generada;
-      final paidAmount = isRequest ? 0 : totalValue;
-      final outstandingBalance = isRequest ? totalValue : 0;
-      final financialStatus = isRequest
-          ? SaleFinancialStatus.pending
-          : SaleFinancialStatus.paid;
+      final delegationPaid = hasDelegationPayment
+          ? (delegationPaymentCashAmount ?? 0) +
+              (delegationPaymentTransferAmount ?? 0)
+          : 0;
+      final num paidAmount;
+      if (!isRequest) {
+        paidAmount = totalValue;
+      } else if (hasDelegationPayment) {
+        paidAmount = delegationPaid;
+      } else {
+        paidAmount = 0;
+      }
+      final outstandingBalance = Sale.computeOutstandingBalance(
+        totalValue: totalValue,
+        paidAmount: paidAmount,
+        lossAmount: 0,
+      );
+      final financialStatus = Sale.computeFinancialStatus(
+        totalValue: totalValue,
+        paidAmount: paidAmount,
+        lossAmount: 0,
+      );
+
       final sale = Sale(
         id: docRef.id,
         consecutive: consecutive,
@@ -108,6 +150,40 @@ class SalesRepository {
 
       txn.set(_counterRef, {'value': next}, SetOptions(merge: true));
       txn.set(docRef, sale.toMap());
+
+      if (hasDelegationPayment) {
+        final paymentRef = docRef.collection('payments').doc();
+        final payment = SalePayment(
+          id: paymentRef.id,
+          amount: delegationPaid,
+          paymentMethod: delegationPaymentMethod ?? 'Efectivo',
+          cashAmount: (delegationPaymentCashAmount ?? 0) > 0
+              ? delegationPaymentCashAmount
+              : null,
+          transferAmount: (delegationPaymentTransferAmount ?? 0) > 0
+              ? delegationPaymentTransferAmount
+              : null,
+          transferDestination: delegationPaymentTransferDestination,
+          payerName: delegationPaymentPayerName,
+          registeredBy: createdBy,
+          registeredByName: createdByName,
+          registeredAt: now,
+          createdViaDelegation: true,
+        );
+        txn.set(paymentRef, payment.toMap());
+
+        _notifications.emitInTxn(
+          txn,
+          type: NotificationType.paymentDelegationRecorded,
+          title: 'Abono bajo delegación',
+          body:
+              '$createdByName registró ${formatCop(delegationPaid)} en ${sale.consecutive}.',
+          saleId: sale.id,
+          actorUid: createdBy,
+          actorName: createdByName,
+          targetRoles: const [AppRole.cajero, AppRole.admin],
+        );
+      }
 
       // Cuando es una solicitud nueva (state=generada), avisar a caja +
       // admin para que la procesen. El flujo legacy (state=procesada) no

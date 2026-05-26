@@ -23,6 +23,7 @@ class SalePayment {
     this.transferDestination,
     this.payerName,
     this.notes,
+    this.createdViaDelegation = false,
   });
 
   final String id;
@@ -59,6 +60,12 @@ class SalePayment {
   /// Notas opcionales del cajero (ej. "abono parcial, completa mañana").
   final String? notes;
 
+  /// `true` cuando el payment fue creado por un usuario rol `sales` en el
+  /// mismo submit de la venta bajo el modo "delegación caja". Las rules
+  /// exigen el flag para autorizar la creación (guard de trazabilidad).
+  /// Para abonos normales de cajero/admin queda en `false`.
+  final bool createdViaDelegation;
+
   Map<String, dynamic> toMap() => {
         'amount': amount,
         'paymentMethod': paymentMethod,
@@ -70,6 +77,7 @@ class SalePayment {
         'registeredByName': registeredByName,
         'registeredAt': Timestamp.fromDate(AppClock.toInstant(registeredAt)),
         'notes': notes,
+        'createdViaDelegation': createdViaDelegation,
       };
 
   factory SalePayment.fromSnapshot(
@@ -89,6 +97,8 @@ class SalePayment {
       registeredAt:
           AppClock.fromInstant((data['registeredAt'] as Timestamp).toDate()),
       notes: data['notes'] as String?,
+      createdViaDelegation:
+          (data['createdViaDelegation'] as bool?) ?? false,
     );
   }
 }
