@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/utils/dates.dart';
+import '../../cashier/data/cash_shift_repository.dart';
+import '../../cashier/domain/cash_register.dart';
 import '../data/sales_delegation_repository.dart';
 import '../domain/sales_delegation.dart';
 import 'admin_shell.dart';
@@ -17,6 +19,8 @@ class AdminSettingsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final delegation = ref.watch(salesDelegationProvider).valueOrNull ??
         SalesDelegation.inactive();
+    final register = ref.watch(cashRegisterProvider).valueOrNull ??
+        CashRegister.closed();
 
     return Scaffold(
       drawer: adminDrawerOrNull(context, '/admin/settings'),
@@ -41,6 +45,18 @@ class AdminSettingsScreen extends ConsumerWidget {
                 'Permite excepcionalmente al rol Ventas registrar el pago de una venta cuando no hay alguien en caja.',
             trailing: _DelegationStatusChip(delegation: delegation),
             onTap: () => context.push('/admin/settings/delegation'),
+          ),
+          const SizedBox(height: 12),
+          _SettingsCard(
+            icon: register.isOpen
+                ? Icons.lock_open_outlined
+                : Icons.point_of_sale_outlined,
+            title: 'Cierre de caja',
+            description:
+                'Abre y cierra la caja del turno, cuenta el efectivo y cuadra '
+                'contra lo que registró el sistema.',
+            trailing: _CashRegisterStatusChip(register: register),
+            onTap: () => context.push('/admin/settings/cierre'),
           ),
           const SizedBox(height: 12),
           _SettingsCard(
@@ -217,6 +233,52 @@ class _DelegationStatusChip extends StatelessWidget {
       scheme.surfaceContainerHighest,
       scheme.onSurface.withValues(alpha: 0.65),
       Icons.lock_outline,
+    );
+  }
+}
+
+class _CashRegisterStatusChip extends StatelessWidget {
+  const _CashRegisterStatusChip({required this.register});
+  final CashRegister register;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final (String label, Color bg, Color fg, IconData icon) = register.isOpen
+        ? (
+            register.openedAt != null
+                ? 'Abierta · ${formatTime(register.openedAt!)}'
+                : 'Abierta',
+            scheme.primary.withValues(alpha: 0.15),
+            scheme.primary,
+            Icons.lock_open_outlined,
+          )
+        : (
+            'Cerrada',
+            scheme.surfaceContainerHighest,
+            scheme.onSurface.withValues(alpha: 0.65),
+            Icons.point_of_sale_outlined,
+          );
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: fg.withValues(alpha: 0.4)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: fg),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: theme.textTheme.labelMedium
+                ?.copyWith(color: fg, fontWeight: FontWeight.w600),
+          ),
+        ],
+      ),
     );
   }
 }

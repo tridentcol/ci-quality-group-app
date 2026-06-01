@@ -228,6 +228,33 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    // ---------- Cierre de caja (estado singleton) ----------
+    // Estado runtime de la caja en `settings/cash_register`. La abren y
+    // cierran cajero y admin; la lee cualquier autenticado (el banner
+    // global "caja abierta" se muestra en todos los roles). El genérico
+    // settings/{sid} solo da write a admin; este match SUMA write a cajero
+    // (Firestore combina reglas con OR). La config con la hora de cierre
+    // vive en settings/cash_register_config y queda admin-only por la regla
+    // genérica — no necesita match propio.
+    match /settings/cash_register {
+      allow read: if isSignedIn();
+      allow write: if isAdmin() || isCajero();
+    }
+
+    // ---------- Cierre de caja (ledger de turnos) ----------
+    // Append-only. Cajero/admin crean el turno (status open) y lo cierran
+    // (único update permitido: solo mientras está open). Un turno cerrado
+    // es inmutable — `resource.data.status == 'open'` en el update lo
+    // garantiza. Lectura solo caja/admin (no sales, no auditor).
+    match /cash_shifts/{shiftId} {
+      allow read: if isAdmin() || isCajero();
+      allow create: if (isAdmin() || isCajero())
+                      && request.resource.data.status == 'open';
+      allow update: if (isAdmin() || isCajero())
+                      && resource.data.status == 'open';
+      allow delete: if isAdmin();
+    }
+
     // ---------- Notifications (bell in-app) ----------
     // Colección plana de notifs con target por uid y/o por rol. Firestore
     // no permite OR en `where`, así que cada cliente hace dos queries

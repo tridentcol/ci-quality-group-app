@@ -10,6 +10,7 @@ import '../../features/admin/presentation/materials_breakdown_screen.dart';
 import '../../features/admin/presentation/payers_breakdown_screen.dart';
 import '../../features/admin/presentation/payments_via_delegation_screen.dart';
 import '../../features/auditor/presentation/auditor_dashboard_screen.dart';
+import '../../features/cashier/presentation/cash_close_screen.dart';
 import '../../features/cashier/presentation/cashier_home_screen.dart';
 import '../../features/cashier/presentation/sale_payments_screen.dart';
 import '../../features/cashier/presentation/sale_process_screen.dart';
@@ -201,6 +202,10 @@ final routerProvider = Provider<GoRouter>((ref) {
                   GoRoute(
                     path: 'delegation',
                     builder: (_, __) => const SalesDelegationScreen(),
+                  ),
+                  GoRoute(
+                    path: 'cierre',
+                    builder: (_, __) => const CashCloseScreen(),
                   ),
                 ],
               ),

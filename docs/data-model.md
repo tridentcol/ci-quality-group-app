@@ -287,6 +287,83 @@ por separado; la dedup es solo UI).
 
 Reglas: lee cualquiera autenticado, escribe solo admin.
 
+### `settings/cash_register`
+
+`CashRegister` — estado runtime de la caja (cierre de caja). Singleton.
+Si el doc no existe, equivale a caja cerrada.
+
+| Campo               | Tipo       | Notas                                            |
+|---------------------|------------|--------------------------------------------------|
+| `isOpen`            | bool       | `true` mientras hay un turno abierto.            |
+| `openShiftId`       | String?    | Id del doc en `cash_shifts` abierto. Null si cerrada. |
+| `openedBy` / `openedByName` | String? | Quién abrió el turno vigente.               |
+| `openedAt`          | Timestamp? | Cuándo se abrió.                                 |
+| `openingFloat`      | num?       | Base inicial declarada al abrir.                 |
+| `periodStart`       | Timestamp? | Inicio de la **ventana contigua** del turno = `lastClosedAt` del cierre anterior (o `openedAt` si es el primero). Todo lo cobrado en `(periodStart, closedAt]` entra al cierre — nada se pierde aunque se cierre temprano/tarde o cruce la medianoche. |
+| `lastClosedAt`      | Timestamp? | `closedAt` del último cierre. Semilla del `periodStart` de la próxima apertura. |
+| `lastRemainingCash` | num?       | `remainingCash` del último cierre. Precarga la base del próximo turno. |
+
+Reglas:
+- Lee: cualquier autenticado (el banner global "caja abierta" se muestra
+  en todos los roles).
+- Escribe: `admin` y `cajero`. El `match` específico SUMA write a cajero
+  por encima del genérico `settings/{sid}` (que solo da write a admin).
+
+### `settings/cash_register_config`
+
+`CashRegisterConfig` — configuración del cierre de caja. Singleton
+admin-only. Lazy default si no existe.
+
+| Campo         | Tipo   | Notas                                              |
+|---------------|--------|----------------------------------------------------|
+| `closingTime` | String | Hora de cierre sugerida `'HH:mm'` (24h). Default `'18:00'`. Es solo un **recordatorio** operativo, NO la frontera del dinero (esa la define `periodStart`/`closedAt`). |
+
+Reglas: lee cualquiera autenticado, escribe solo admin (regla genérica
+`settings/{sid}` — no tiene match propio).
+
+### `cash_shifts/{shiftId}`
+
+`CashShift` — ledger append-only de turnos de caja. Id autogenerado (un
+doc por turno). Se crea con `status: open` y se actualiza una sola vez a
+`status: closed` con el arqueo. Una vez cerrado es **inmutable**: si luego
+se anula un payment de su ventana, este doc NO cambia (el ajuste se ve en
+reportes en vivo). Sin migración — no hay docs históricos.
+
+| Campo                       | Tipo       | Notas                                  |
+|-----------------------------|------------|----------------------------------------|
+| `status`                    | String enum | `'open'` \| `'closed'`.               |
+| `businessDate`              | String     | Etiqueta legible `YYYY-MM-DD` (por defecto el día de apertura, editable al cerrar). Solo display/orden; la ventana del dinero no depende de ella. |
+| `openedBy` / `openedByName` | String     | Quién abrió.                           |
+| `openedAt`                  | Timestamp  | Apertura.                              |
+| `openingFloat`              | num        | Base inicial.                          |
+| `periodStart`               | Timestamp  | Inicio de la ventana del dinero (cierre anterior o `openedAt`). |
+| `closedBy` / `closedByName` | String?    | Quién cerró. Null mientras `open`.     |
+| `closedAt`                  | Timestamp? | Cierre = fin de la ventana. Null mientras `open`. |
+| `expectedCash`              | num?       | `openingFloat` + Σ efectivo de payments en la ventana. Congelado al cerrar. |
+| `countedCash`               | num?       | Efectivo físico contado.               |
+| `cashDiscrepancy`           | num?       | `countedCash - expectedCash`.          |
+| `cashDiscrepancyReason`     | String?    | Obligatoria si `cashDiscrepancy != 0`. |
+| `expectedTransfer`          | num?       | Σ transferencias de payments en la ventana. Congelado. |
+| `confirmedTransfer`         | num?       | Transferencias confirmadas.            |
+| `transferDiscrepancy`       | num?       | `confirmedTransfer - expectedTransfer`. |
+| `transferDiscrepancyReason` | String?    | Obligatoria si `transferDiscrepancy != 0`. |
+| `preOpenReceived`           | num?       | Informativo: dinero recibido en `(periodStart, openedAt)` (caja estuvo cerrada). |
+| `withdrawalAmount`          | num?       | Retiro/consignación opcional al cerrar. |
+| `remainingCash`             | num?       | `countedCash - (withdrawalAmount ?? 0)`. Precarga la base del próximo turno. |
+| `paymentsCount`             | int?       | Cantidad de payments incluidos en la ventana. |
+| `note`                      | String?    | Nota libre.                            |
+
+El esperado se calcula con un `collectionGroup('payments')` filtrado por
+`registeredAt` en `(periodStart, until]` (mismo criterio de método que
+`SalesMetrics.compute`; reusa el índice `COLLECTION_GROUP` existente).
+
+Reglas:
+- Lee: `admin`, `cajero`. (No sales, no auditor.)
+- Crea: `admin`, `cajero`, exigiendo `status == 'open'`.
+- Actualiza: `admin`, `cajero`, solo mientras `resource.data.status == 'open'`
+  (cerrar es el único update; un cerrado queda inmutable).
+- Borra: solo `admin`.
+
 ## Índices compuestos
 
 En `firestore.indexes.json`. Generamos lo mínimo. Patrón actual:

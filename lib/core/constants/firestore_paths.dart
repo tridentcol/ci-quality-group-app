@@ -30,6 +30,17 @@ class FirestorePaths {
   static const settings = 'settings';
   static const workScheduleSettings = 'work_schedule';
 
+  // Estado runtime de la caja (turno abierto/cerrado). Doc singleton
+  // dentro de `settings`. Ver `CashRegister`.
+  static const cashRegisterSettings = 'cash_register';
+
+  // Configuración del cierre de caja (hora de cierre recordatorio). Doc
+  // singleton admin-only dentro de `settings`. Ver `CashRegisterConfig`.
+  static const cashRegisterConfigSettings = 'cash_register_config';
+
+  // Ledger append-only de turnos de caja (un doc por turno). Ver `CashShift`.
+  static const cashShifts = 'cash_shifts';
+
   // Notificaciones in-app (campana del AppBar). Colección plana con
   // targets por uid y/o rol — ver `AppNotification`.
   static const notifications = 'notifications';
