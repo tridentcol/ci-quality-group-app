@@ -5,6 +5,7 @@ import '../../../core/constants/firestore_paths.dart';
 import '../../../core/constants/roles.dart';
 import '../../../core/utils/clock.dart';
 import '../../../core/utils/money.dart';
+import '../../../core/utils/text_match.dart';
 import '../../../shared/models/app_notification.dart';
 import '../../../shared/services/notifications_repository.dart';
 import '../../auth/data/auth_repository.dart';
@@ -368,16 +369,43 @@ class SalesRepository {
   /// la primera vez que se le carga la cédula en una venta, la próxima
   /// queda disponible para autocompletarse.
   ///
-  /// No usa `orderBy` en el query (evita un índice compuesto
-  /// `providerName + date`): filtra por igualdad y elige la más reciente
-  /// en memoria — mismo criterio que `watchByField`, y el volumen por
-  /// cliente es bajo.
+  /// Dos pasos:
+  ///   1. Fast path: query indexada por igualdad exacta de `providerName`.
+  ///      Cubre el caso normal — el `MasterListField` "snappea" el nombre
+  ///      al valor canónico al seleccionar, así que coincide con el que se
+  ///      guardó. Sin `orderBy` para no requerir un índice compuesto:
+  ///      elige la más reciente en memoria.
+  ///   2. Fallback tolerante: si el fast path no encontró nada, puede ser
+  ///      que ventas históricas guardaran el nombre con otra variante
+  ///      (mayúsculas/acentos/espacios). Recorremos las ventas recientes y
+  ///      matcheamos con `normalizeForMatch` — mismo criterio con que el
+  ///      `MasterListField` deduplica. Acotado a `watchRecent` para no
+  ///      traer la colección entera.
   Future<String?> latestDocumentNumberFor(String providerName) async {
     final trimmed = providerName.trim();
     if (trimmed.isEmpty) return null;
-    final snap = await _col.where('providerName', isEqualTo: trimmed).get();
-    final withDoc = snap.docs
-        .map(Sale.fromSnapshot)
+
+    final exact = await _col
+        .where('providerName', isEqualTo: trimmed)
+        .get();
+    final fromExact = _latestDocIn(exact.docs.map(Sale.fromSnapshot));
+    if (fromExact != null) return fromExact;
+
+    final target = normalizeForMatch(trimmed);
+    final recent = await _col
+        .orderBy('createdAt', descending: true)
+        .limit(300)
+        .get();
+    return _latestDocIn(
+      recent.docs
+          .map(Sale.fromSnapshot)
+          .where((s) => normalizeForMatch(s.providerName) == target),
+    );
+  }
+
+  /// La cédula (no vacía) de la venta más reciente del iterable, o null.
+  static String? _latestDocIn(Iterable<Sale> sales) {
+    final withDoc = sales
         .where((s) => s.documentNumber.trim().isNotEmpty)
         .toList()
       ..sort((a, b) => b.date.compareTo(a.date));
