@@ -7,7 +7,7 @@ versionado [SemVer](https://semver.org/spec/v2.0.0.html). El número entre `+`
 es el `versionCode` de Android — cada release se sube en uno para que los
 celulares acepten la actualización sobre la versión anterior.
 
-## [1.4.1+15] — 2026-07-12
+## [1.4.1+16] — 2026-07-12
 
 ### Agregado
 - **Autocompletado de la cédula al elegir un cliente conocido.** En el
@@ -18,8 +18,10 @@ celulares acepten la actualización sobre la versión anterior.
   disponible para autocompletarse en las siguientes ventas. El
   autocompletado es "sticky": si el usuario escribió el documento a
   mano, no se sobrescribe al cambiar de cliente; solo se reemplaza el
-  valor que la app había autocompletado. No requiere cambios de schema
-  ni de reglas — la cédula se deriva del historial de ventas
+  valor que la app había autocompletado. El match del cliente tolera
+  diferencias de mayúsculas/acentos/espacios en nombres históricos
+  (mismo criterio con que se deduplican clientes). No requiere cambios
+  de schema ni de reglas — la cédula se deriva del historial de ventas
   (`Sale.documentNumber`).
 
 ## [1.4.0+14] — 2026-05-25
