@@ -131,16 +131,35 @@ class _SaleFormScreenState extends ConsumerState<SaleFormScreen> {
     // Sticky: si el usuario ya escribió algo propio (no autocompletado),
     // respetamos su valor y no consultamos.
     if (current.isNotEmpty && current != _autofilledDoc) return;
-    final doc = await ref
-        .read(salesRepositoryProvider)
-        .latestDocumentNumberFor(provider);
-    // Descartamos si otro lookup más nuevo arrancó, si el widget se
-    // desmontó, o si el usuario tomó el campo mientras resolvía.
-    if (!mounted || token != _docLookupToken || doc == null) return;
+    // El autocompletado es best-effort: si la consulta falla (sin conexión
+    // en web, que no tiene persistencia, o permisos) no rompemos el
+    // formulario — el usuario escribe la cédula a mano como siempre.
+    String? doc;
+    try {
+      doc = await ref
+          .read(salesRepositoryProvider)
+          .latestDocumentNumberFor(provider);
+    } catch (_) {
+      return;
+    }
+    // Descartamos si otro lookup más nuevo arrancó o si el widget se
+    // desmontó mientras resolvía.
+    if (!mounted || token != _docLookupToken) return;
     final now = _docNumberCtrl.text.trim();
+    // Reconfirmamos tras el await que seguimos "dueños" del campo: si el
+    // usuario escribió algo propio mientras la consulta viajaba, respetarlo.
     if (now.isNotEmpty && now != _autofilledDoc) return;
-    _docNumberCtrl.text = doc;
-    _autofilledDoc = doc;
+    if (doc != null) {
+      _docNumberCtrl.text = doc;
+      _autofilledDoc = doc;
+    } else if (now.isNotEmpty && now == _autofilledDoc) {
+      // El nuevo cliente no tiene cédula previa y el campo solo tenía la
+      // que autocompletamos de otro cliente: la limpiamos para no arrastrar
+      // una cédula equivocada. Si el usuario la había tecleado, ya salimos
+      // arriba y no llegamos acá.
+      _docNumberCtrl.clear();
+      _autofilledDoc = null;
+    }
   }
 
   void _setError(String msg) {
