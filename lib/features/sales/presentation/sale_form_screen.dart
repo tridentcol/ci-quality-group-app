@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -56,6 +58,16 @@ class _SaleFormScreenState extends ConsumerState<SaleFormScreen> {
   bool _saving = false;
   String? _formError;
 
+  /// Autocompletado de la cédula al elegir un cliente conocido. Guardamos
+  /// el último valor que autocompletamos para saber si el campo lo sigue
+  /// "poseyendo" (sticky): si el usuario lo editó a mano, `_docNumberCtrl`
+  /// deja de coincidir con `_autofilledDoc` y no lo pisamos al cambiar de
+  /// cliente. `_docLookupToken` cancela lookups viejos que resuelvan tarde.
+  String? _autofilledDoc;
+  String? _lastProviderLookup;
+  Timer? _docLookupDebounce;
+  int _docLookupToken = 0;
+
   /// Key para acceder al state de la sección de pago bajo delegación.
   /// Solo se monta cuando corresponde (rol sales + create + delegación
   /// activa o usuario ya tipeó algo). Cuando no está montado, queda
@@ -87,11 +99,48 @@ class _SaleFormScreenState extends ConsumerState<SaleFormScreen> {
 
   @override
   void dispose() {
+    _docLookupDebounce?.cancel();
     _docNumberCtrl.dispose();
     for (final i in _items) {
       i.dispose();
     }
     super.dispose();
+  }
+
+  /// Reacciona al cambio de cliente: busca (con debounce) la cédula de su
+  /// venta más reciente y la autocompleta. Sticky: solo rellena si el
+  /// campo está vacío o si su contenido es un valor que autocompletamos
+  /// antes (no pisa lo que el usuario tecleó a mano). No aplica en edición
+  /// de una venta existente — ahí el documento ya viene cargado.
+  void _onProviderChanged(String? provider) {
+    setState(() => _provider = provider);
+    if (_isEdit) return;
+    final name = provider?.trim() ?? '';
+    if (name == _lastProviderLookup) return;
+    _lastProviderLookup = name;
+    _docLookupDebounce?.cancel();
+    if (name.isEmpty) return;
+    _docLookupDebounce = Timer(const Duration(milliseconds: 400), () {
+      _lookupDocumentFor(name);
+    });
+  }
+
+  Future<void> _lookupDocumentFor(String provider) async {
+    final token = ++_docLookupToken;
+    final current = _docNumberCtrl.text.trim();
+    // Sticky: si el usuario ya escribió algo propio (no autocompletado),
+    // respetamos su valor y no consultamos.
+    if (current.isNotEmpty && current != _autofilledDoc) return;
+    final doc = await ref
+        .read(salesRepositoryProvider)
+        .latestDocumentNumberFor(provider);
+    // Descartamos si otro lookup más nuevo arrancó, si el widget se
+    // desmontó, o si el usuario tomó el campo mientras resolvía.
+    if (!mounted || token != _docLookupToken || doc == null) return;
+    final now = _docNumberCtrl.text.trim();
+    if (now.isNotEmpty && now != _autofilledDoc) return;
+    _docNumberCtrl.text = doc;
+    _autofilledDoc = doc;
   }
 
   void _setError(String msg) {
@@ -344,7 +393,7 @@ class _SaleFormScreenState extends ConsumerState<SaleFormScreen> {
                 label: 'Nombre del cliente',
                 initialValue: _provider,
                 required: true,
-                onChanged: (v) => setState(() => _provider = v),
+                onChanged: _onProviderChanged,
                 helperText:
                     'Si no existe, escríbelo y queda como sugerencia.',
               ),

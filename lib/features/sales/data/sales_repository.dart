@@ -362,6 +362,29 @@ class SalesRepository {
     });
   }
 
+  /// Número de documento de la venta más reciente de un cliente (por
+  /// `providerName`), o null si no hay ninguna con documento cargado.
+  /// Sirve para autocompletar la cédula al elegir un cliente ya conocido:
+  /// la primera vez que se le carga la cédula en una venta, la próxima
+  /// queda disponible para autocompletarse.
+  ///
+  /// No usa `orderBy` en el query (evita un índice compuesto
+  /// `providerName + date`): filtra por igualdad y elige la más reciente
+  /// en memoria — mismo criterio que `watchByField`, y el volumen por
+  /// cliente es bajo.
+  Future<String?> latestDocumentNumberFor(String providerName) async {
+    final trimmed = providerName.trim();
+    if (trimmed.isEmpty) return null;
+    final snap = await _col.where('providerName', isEqualTo: trimmed).get();
+    final withDoc = snap.docs
+        .map(Sale.fromSnapshot)
+        .where((s) => s.documentNumber.trim().isNotEmpty)
+        .toList()
+      ..sort((a, b) => b.date.compareTo(a.date));
+    if (withDoc.isEmpty) return null;
+    return withDoc.first.documentNumber.trim();
+  }
+
   Stream<List<Sale>> watchRecent({int limit = 50}) {
     return _col
         .orderBy('createdAt', descending: true)
