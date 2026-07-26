@@ -67,6 +67,9 @@ const Map<String, ListPropagation> _propagationByListId = {
       ),
     ],
   ),
+  'commission_agents': ListPropagation(
+    primary: ListTarget(collection: 'sales', field: 'commissionAgent'),
+  ),
   'materials': ListPropagation(
     primary: ListTarget(
       collection: 'sales',
@@ -440,6 +443,19 @@ List<Map<String, dynamic>> _defaultListsSeed() => [
         'name': 'Quién recibe',
         'allowFreeText': true,
         'description': 'Quién recibe efectivamente el pago de una venta.',
+        'items': <String>[],
+      },
+      {
+        'id': 'commission_agents',
+        'name': 'Comisionistas',
+        // Estricta a propósito: sin captura libre, el vendedor elige de
+        // esta lista y solo el admin da de alta/baja. Así el análisis
+        // "quién vende más" no se ensucia con variantes del mismo nombre.
+        'allowFreeText': false,
+        'description':
+            'Personas que traen ventas por comisión. Solo el admin '
+                'gestiona esta lista; el vendedor elige de aquí. Una venta '
+                'sin comisionista cuenta como venta directa de bodega.',
         'items': <String>[],
       },
       {

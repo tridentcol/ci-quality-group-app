@@ -49,6 +49,7 @@ class _SaleFormScreenState extends ConsumerState<SaleFormScreen> {
   DateTime _date = AppClock.now();
   String _documentType = 'Cédula';
   String? _provider;
+  String? _commissionAgent;
 
   /// Cada item del formulario lleva sus propios controllers + selección
   /// reactiva de material/variante/unidad. La lista nunca queda vacía:
@@ -91,6 +92,7 @@ class _SaleFormScreenState extends ConsumerState<SaleFormScreen> {
       _documentType = s.documentType;
       _docNumberCtrl.text = s.documentNumber;
       _provider = s.providerName;
+      _commissionAgent = s.commissionAgent;
       _items = s.items.map(_ItemFormState.fromSaleItem).toList();
     } else {
       _items = [_ItemFormState.empty()];
@@ -255,6 +257,13 @@ class _SaleFormScreenState extends ConsumerState<SaleFormScreen> {
 
     final saleItems = _items.map((s) => s.toSaleItem()).toList();
 
+    // Comisionista: normalizamos vacío/whitespace a null para que el
+    // bucket "Bodega" del tracking no se ensucie con cadenas vacías.
+    final commissionAgentValue =
+        (_commissionAgent?.trim().isNotEmpty ?? false)
+            ? _commissionAgent!.trim()
+            : null;
+
     // Toda venta nueva entra al flujo de caja: arranca en `generada`,
     // sin método de pago, sin destino de transferencia, sin payerName.
     // Cajero define esos campos al registrar cada abono.
@@ -295,6 +304,8 @@ class _SaleFormScreenState extends ConsumerState<SaleFormScreen> {
               documentNumber: _docNumberCtrl.text.trim(),
               providerName: _provider!,
               items: saleItems,
+              commissionAgent: commissionAgentValue,
+              clearCommissionAgent: commissionAgentValue == null,
             );
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -311,6 +322,7 @@ class _SaleFormScreenState extends ConsumerState<SaleFormScreen> {
               items: saleItems,
               paymentMethod: paymentMethodValue,
               payerName: '',
+              commissionAgent: commissionAgentValue,
               createdBy: profile.uid,
               createdByName: profile.fullName,
               state: createState,
@@ -415,6 +427,11 @@ class _SaleFormScreenState extends ConsumerState<SaleFormScreen> {
                 onChanged: _onProviderChanged,
                 helperText:
                     'Si no existe, escríbelo y queda como sugerencia.',
+              ),
+              const SizedBox(height: 12),
+              _CommissionAgentField(
+                value: _commissionAgent,
+                onChanged: (v) => setState(() => _commissionAgent = v),
               ),
               const SizedBox(height: 24),
               ..._buildItemSections(),
@@ -899,6 +916,62 @@ class _ConsecutiveBadge extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Selector de comisionista para la venta. Opcional y estricto: el
+/// vendedor elige de la lista maestra `commission_agents` (que solo el
+/// admin gestiona) o deja "Bodega (venta directa)" — la opción que
+/// representa "sin comisionista".
+///
+/// No reusa `MasterListField` porque su dropdown estricto está pensado
+/// para campos requeridos (unidad, método de pago) y no ofrece volver a
+/// vacío. Aquí necesitamos exactamente eso: una opción explícita que
+/// mapea a `null`.
+class _CommissionAgentField extends ConsumerWidget {
+  const _CommissionAgentField({required this.value, required this.onChanged});
+
+  final String? value;
+  final ValueChanged<String?> onChanged;
+
+  static const _bodegaSentinel = '__bodega__';
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final itemsAsync = ref.watch(
+      masterListItemsProvider(
+        const MasterListItemsQuery(listId: 'commission_agents'),
+      ),
+    );
+
+    final agents = itemsAsync.valueOrNull?.map((e) => e.value).toList() ?? [];
+    // Si la venta que se edita apunta a un comisionista ya desactivado /
+    // borrado de la lista, lo mostramos igual para no perder el dato al
+    // guardar (mismo criterio que _DropdownField del MasterListField).
+    final options = <String>[...agents];
+    if (value != null && value!.isNotEmpty && !options.contains(value)) {
+      options.add(value!);
+    }
+
+    return DropdownButtonFormField<String>(
+      initialValue: value == null || value!.isEmpty ? _bodegaSentinel : value,
+      isExpanded: true,
+      decoration: const InputDecoration(
+        labelText: 'Comisionista (opcional)',
+        helperText: 'Si la venta es directa, deja "Bodega".',
+        prefixIcon: Icon(Icons.handshake_outlined),
+      ),
+      items: [
+        const DropdownMenuItem(
+          value: _bodegaSentinel,
+          child: Text('Bodega (venta directa)'),
+        ),
+        for (final a in options)
+          DropdownMenuItem(value: a, child: Text(a)),
+      ],
+      onChanged: (v) =>
+          onChanged(v == null || v == _bodegaSentinel ? null : v),
     );
   }
 }

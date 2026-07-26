@@ -55,6 +55,7 @@ class SalesRepository {
     num? transferAmount,
     String? transferDestination,
     required String payerName,
+    String? commissionAgent,
     required String createdBy,
     required String createdByName,
     SaleState state = SaleState.procesada,
@@ -135,6 +136,7 @@ class SalesRepository {
         transferAmount: transferAmount,
         transferDestination: transferDestination,
         payerName: payerName,
+        commissionAgent: commissionAgent,
         createdBy: createdBy,
         createdByName: createdByName,
         createdAt: now,
@@ -238,6 +240,8 @@ class SalesRepository {
     String? transferDestination,
     bool clearTransferDestination = false,
     String? payerName,
+    String? commissionAgent,
+    bool clearCommissionAgent = false,
   }) async {
     final basePatch = <String, dynamic>{
       if (date != null) 'date': Timestamp.fromDate(AppClock.toInstant(date)),
@@ -253,6 +257,8 @@ class SalesRepository {
       else if (transferDestination != null)
         'transferDestination': transferDestination,
       if (payerName != null) 'payerName': payerName,
+      if (clearCommissionAgent) 'commissionAgent': null
+      else if (commissionAgent != null) 'commissionAgent': commissionAgent,
       'updatedAt': Timestamp.fromDate(AppClock.toInstant(AppClock.now())),
     };
 

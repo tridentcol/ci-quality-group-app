@@ -62,6 +62,7 @@ class XlsxExportService {
       'Tipo documento',
       'Número documento',
       'Cliente',
+      'Comisionista',
       'Material',
       'Tipo lámina',
       'Unidad',
@@ -85,6 +86,7 @@ class XlsxExportService {
       14, // Tipo doc
       18, // Núm doc
       28, // Cliente
+      22, // Comisionista
       18, // Material
       18, // Tipo lámina
       12, // Unidad
@@ -130,6 +132,11 @@ class XlsxExportService {
           TextCellValue(s.documentType),
           TextCellValue(s.documentNumber),
           TextCellValue(s.providerName),
+          TextCellValue(
+            (s.commissionAgent?.trim().isNotEmpty ?? false)
+                ? s.commissionAgent!
+                : 'Bodega',
+          ),
           TextCellValue(i.material),
           TextCellValue(i.materialVariant ?? ''),
           TextCellValue(i.unit),

@@ -60,6 +60,7 @@ Reglas:
 | `transferAmount`       | num?       | Monto por transferencia. Null si 100% efectivo o vieja. |
 | `transferDestination`  | String?    | De `transfer_destinations`. Null si 100% efectivo. |
 | `payerName`            | String     | "Quién recibe". De `payers`.           |
+| `commissionAgent`      | String?    | Comisionista que trajo la venta. Null/ausente = venta directa de bodega. De la lista maestra `commission_agents` (estricta). Opcional; no afecta agregados financieros. Usado para el análisis "quién vende más". |
 | `createdBy`            | String     | uid de quien la creó.                  |
 | `createdByName`        | String     | Nombre cacheado para mostrar.          |
 | `createdAt`            | Timestamp  |                                        |
@@ -194,6 +195,7 @@ Reglas:
 |-------------------------|--------------------------|-----------|--------------------------------------------|
 | `providers`             | Clientes                 | sí        |                                            |
 | `payers`                | Quién recibe             | sí        |                                            |
+| `commission_agents`     | Comisionistas            | no        | Estricta: solo el admin gestiona. Vacío en venta = bodega. |
 | `materials`             | Materiales               | sí        | LAMINA, CHATARRA, CHATARRA TUBERIA         |
 | `lamina_brands`         | Tipos de materiales      | sí        | Items con `parent` = material. ListId histórico, no renombrar. |
 | `payment_methods`       | Métodos de pago          | no        | Efectivo, Transferencia, Mixto             |
@@ -209,6 +211,7 @@ listas afectan ventas históricas cuando el admin renombra un item.
 | listId                  | Campo en Sale          |
 |-------------------------|------------------------|
 | `payers`                | `payerName`            |
+| `commission_agents`     | `commissionAgent`      |
 | `providers`             | `providerName`         |
 | `materials`             | `material`             |
 | `lamina_brands`         | `materialVariant`      |
@@ -391,6 +394,7 @@ master_lists/{listId}/items/{itemId}.value
     └── referenciado por VALOR (no por id) en:
         sales.providerName  (listId = providers)
         sales.payerName     (listId = payers)
+        sales.commissionAgent (listId = commission_agents)
         sales.material      (listId = materials)
         sales.materialVariant (listId = lamina_brands, con parent = material)
         sales.unit          (listId = units)

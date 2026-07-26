@@ -151,6 +151,7 @@ class Sale {
     this.cashAmount,
     this.transferAmount,
     this.transferDestination,
+    this.commissionAgent,
     this.state = SaleState.procesada,
     this.paidAmount = 0,
     this.lossAmount = 0,
@@ -243,6 +244,12 @@ class Sale {
   final String? transferDestination;
 
   final String payerName;
+
+  /// Comisionista que trajo la venta. `null`/vacío = venta directa de
+  /// bodega. Opcional; gestionado por la lista maestra `commission_agents`
+  /// (estricta: solo el admin da de alta/baja). Se usa para el análisis
+  /// "quién vende más" en el panel admin — no afecta agregados financieros.
+  final String? commissionAgent;
 
   /// uid del usuario que creó la venta.
   final String createdBy;
@@ -404,6 +411,7 @@ class Sale {
         'transferAmount': transferAmount,
         'transferDestination': transferDestination,
         'payerName': payerName,
+        'commissionAgent': commissionAgent,
         'createdBy': createdBy,
         'createdByName': createdByName,
         'createdAt': Timestamp.fromDate(AppClock.toInstant(createdAt)),
@@ -509,6 +517,7 @@ class Sale {
       transferAmount: data['transferAmount'] as num?,
       transferDestination: data['transferDestination'] as String?,
       payerName: (data['payerName'] as String?) ?? '',
+      commissionAgent: data['commissionAgent'] as String?,
       createdBy: (data['createdBy'] as String?) ?? '',
       createdByName: (data['createdByName'] as String?) ?? '',
       createdAt:

@@ -143,6 +143,12 @@ class _SaleDetailBody extends ConsumerWidget {
                   _Row(
                       label: 'Número de documento', value: sale.documentNumber,),
                   _Row(label: 'Cliente', value: sale.providerName),
+                  _Row(
+                    label: 'Comisionista',
+                    value: (sale.commissionAgent?.trim().isNotEmpty ?? false)
+                        ? sale.commissionAgent!
+                        : 'Bodega (venta directa)',
+                  ),
                   const Divider(height: 24),
                   _ItemsBlock(items: sale.items),
                   const SizedBox(height: 8),
