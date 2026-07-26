@@ -6,6 +6,7 @@ import '../../features/admin/presentation/admin_metrics_screen.dart';
 import '../../features/admin/presentation/admin_settings_screen.dart';
 import '../../features/admin/presentation/admin_shell.dart';
 import '../../features/admin/presentation/clients_breakdown_screen.dart';
+import '../../features/admin/presentation/commission_agents_breakdown_screen.dart';
 import '../../features/admin/presentation/materials_breakdown_screen.dart';
 import '../../features/admin/presentation/payers_breakdown_screen.dart';
 import '../../features/admin/presentation/payments_via_delegation_screen.dart';
@@ -144,6 +145,10 @@ final routerProvider = Provider<GoRouter>((ref) {
               GoRoute(
                 path: 'metrics/payers',
                 builder: (_, __) => const PayersBreakdownScreen(),
+              ),
+              GoRoute(
+                path: 'metrics/commission-agents',
+                builder: (_, __) => const CommissionAgentsBreakdownScreen(),
               ),
               GoRoute(
                 path: 'delegation/payments',

@@ -7,6 +7,23 @@ versionado [SemVer](https://semver.org/spec/v2.0.0.html). El número entre `+`
 es el `versionCode` de Android — cada release se sube en uno para que los
 celulares acepten la actualización sobre la versión anterior.
 
+## [Unreleased]
+
+### Agregado
+- **Comisionistas: campo en la venta + análisis "quién vende más".** La
+  venta tiene un campo opcional de comisionista, elegible de una lista
+  maestra `Comisionistas` que solo el admin gestiona (estricta, sin
+  captura libre, para que el conteo no se ensucie con variantes del mismo
+  nombre). Una venta sin comisionista cuenta como venta directa de
+  **bodega**. En el panel admin aparece una nueva sección "Por
+  comisionista" (card en el dashboard + pantalla de detalle con KPIs,
+  ranking y filtro de rango) que muestra cuánto vende cada comisionista y
+  cuánto es venta directa de bodega, para comparar y poder manejar precios
+  diferenciados. El campo se refleja en el detalle de la venta y en el
+  export a Excel. Renombrar un comisionista en la lista maestra propaga a
+  sus ventas históricas. Retrocompatible: las ventas anteriores quedan sin
+  comisionista (bodega), sin migración.
+
 ## [1.4.1+16] — 2026-07-12
 
 ### Agregado

@@ -284,6 +284,12 @@ class _SalesSection extends StatelessWidget {
           const SizedBox(height: 16),
           _PayersSummaryCard(topPayers: metrics.topPayers),
         ],
+        if (metrics.byCommissionAgent.isNotEmpty) ...[
+          const SizedBox(height: 16),
+          _CommissionAgentsSummaryCard(
+            byCommissionAgent: metrics.byCommissionAgent,
+          ),
+        ],
       ],
     );
   }
@@ -360,6 +366,139 @@ class _PayersSummaryCard extends StatelessWidget {
                       ),
                     ),
                   ),
+              const SizedBox(height: 4),
+              Text(
+                'Toca para ver el detalle completo.',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Card resumen del ranking por comisionista. Muestra el top de agentes
+/// (sin Bodega) para responder "quién vende más", más una línea de Bodega
+/// para contrastar bodega vs comisionistas. Tap → breakdown completo.
+class _CommissionAgentsSummaryCard extends StatelessWidget {
+  const _CommissionAgentsSummaryCard({required this.byCommissionAgent});
+
+  final Map<String, num> byCommissionAgent;
+
+  static const _bodegaKey = 'Bodega';
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final entries = byCommissionAgent.entries
+        .where((e) => e.value > 0)
+        .toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    final agents =
+        entries.where((e) => e.key != _bodegaKey).take(5).toList();
+    final bodega = byCommissionAgent[_bodegaKey] ?? 0;
+
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: () => context.push('/admin/metrics/commission-agents'),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Por comisionista',
+                      style: theme.textTheme.titleMedium,
+                    ),
+                  ),
+                  Icon(
+                    Icons.chevron_right,
+                    color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              if (agents.isEmpty)
+                Text(
+                  'Todas las ventas del rango son directas de bodega.',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+                  ),
+                )
+              else
+                ...agents.asMap().entries.map(
+                      (e) => Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 4),
+                        child: Row(
+                          children: [
+                            CircleAvatar(
+                              radius: 12,
+                              backgroundColor: theme.colorScheme.primary
+                                  .withValues(alpha: 0.15),
+                              child: Text(
+                                '${e.key + 1}',
+                                style: TextStyle(
+                                  color: theme.colorScheme.primary,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                e.value.key,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            Text(
+                              formatCop(e.value.value),
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+              if (bodega > 0) ...[
+                const Divider(height: 20),
+                Row(
+                  children: [
+                    Icon(Icons.store_outlined,
+                        size: 16,
+                        color: theme.colorScheme.onSurface
+                            .withValues(alpha: 0.6),),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Bodega (venta directa)',
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          fontStyle: FontStyle.italic,
+                          color: theme.colorScheme.onSurface
+                              .withValues(alpha: 0.75),
+                        ),
+                      ),
+                    ),
+                    Text(
+                      formatCop(bodega),
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                        color:
+                            theme.colorScheme.onSurface.withValues(alpha: 0.75),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
               const SizedBox(height: 4),
               Text(
                 'Toca para ver el detalle completo.',

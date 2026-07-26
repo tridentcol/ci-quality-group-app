@@ -34,6 +34,7 @@ class SalesMetrics {
     required this.lossTotal,
     required this.delegationPaymentsCount,
     required this.delegationPaymentsTotal,
+    required this.byCommissionAgent,
   });
 
   /// Dinero efectivamente cobrado en el rango = sum(`paidAmount`) sobre
@@ -83,6 +84,11 @@ class SalesMetrics {
   final int delegationPaymentsCount;
   final num delegationPaymentsTotal;
 
+  /// Dinero cobrado (`paidAmount`) por comisionista sobre ventas
+  /// `procesada` del rango. La clave `'Bodega'` agrupa las ventas sin
+  /// comisionista (directas). Base del análisis "quién vende más".
+  final Map<String, num> byCommissionAgent;
+
   static SalesMetrics empty() => const SalesMetrics(
         total: 0,
         count: 0,
@@ -99,6 +105,7 @@ class SalesMetrics {
         lossTotal: 0,
         delegationPaymentsCount: 0,
         delegationPaymentsTotal: 0,
+        byCommissionAgent: {},
       );
 
   /// Computa el resumen de ventas para el rango dado.
@@ -123,6 +130,7 @@ class SalesMetrics {
     final byMethod = <String, num>{};
     final byMaterial = <String, num>{};
     final byPayer = <String, num>{};
+    final byCommissionAgent = <String, num>{};
     final byDay = <int, num>{};
 
     num total = 0;
@@ -260,6 +268,18 @@ class SalesMetrics {
       if (s.state != SaleState.procesada) continue;
       procesadasCount++;
 
+      // Ranking por comisionista sobre dinero cobrado (venta entera, no
+      // prorrateado por item). Sin comisionista = venta directa → bucket
+      // 'Bodega'. Responde "quién vende más: bodega o los comisionistas".
+      final agent = (s.commissionAgent?.trim().isNotEmpty ?? false)
+          ? s.commissionAgent!.trim()
+          : 'Bodega';
+      byCommissionAgent.update(
+        agent,
+        (v) => v + s.paidAmount,
+        ifAbsent: () => s.paidAmount,
+      );
+
       // Por material: iteramos `items` y prorrateamos el paidAmount al
       // peso financiero de cada item dentro del total. Así una venta con
       // CHATARRA $300k + LAMINA $700k cobra parcialmente $500k → cada
@@ -314,6 +334,7 @@ class SalesMetrics {
       lossTotal: lossTotal,
       delegationPaymentsCount: delegationPaymentsCount,
       delegationPaymentsTotal: delegationPaymentsTotal,
+      byCommissionAgent: byCommissionAgent,
     );
   }
 }
