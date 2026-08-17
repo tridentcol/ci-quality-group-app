@@ -286,13 +286,20 @@ Reglas:
   `editableUntil`. `type` y `consecutive` son inmutables en cualquier
   update (el consecutivo ING-/SAL- ya codifica el tipo).
 - Borra: solo `admin`.
-- `storage.rules` (archivo nuevo en la raíz del repo) espeja la misma
-  regla: lectura solo `admin`/`hours`; escritura solo `admin`, o `hours`
-  sobre su propio movimiento dentro de la ventana de 24h (consultando
-  `material_entries/{entryId}` vía `firestore.get()`/`firestore.exists()`
-  cross-service) — con un caso especial para la subida inicial, que pasa
-  ANTES de que exista el doc de Firestore. Límite 10MB y `contentType`
-  `image/*`.
+- `storage.rules` (archivo nuevo en la raíz del repo) es más simple de
+  lo que sería ideal: solo exige sesión autenticada (sin distinguir
+  rol) para leer/crear/actualizar, más límite 10MB y `contentType`
+  `image/*` para crear/actualizar. **Se intentó** atar esto al mismo
+  criterio de rol + dueño/ventana de 24h que usa Firestore, consultando
+  `material_entries/{entryId}` vía la función cross-service
+  `firestore.get()`/`firestore.exists()` — compila sin error, pero en
+  la práctica (probado con uploads reales vía la API REST de Storage)
+  siempre devuelve `permission-denied`, incluso en el caso más simple.
+  No se identificó la causa exacta; ver el comentario largo al principio
+  de `storage.rules` antes de reintentarlo. El control de acceso real
+  por rol sigue viviendo en `firestore.rules` (`material_entries` solo
+  admin/hours) — el `entryId` en el path de Storage es un id de
+  Firestore autogenerado (~20 caracteres al azar), no adivinable.
 
 ### `mail/{id}`
 

@@ -41,8 +41,12 @@ class _PhotoPickerFieldState extends State<PhotoPickerField> {
     try {
       final file = await ImagePicker().pickImage(
         source: source,
-        imageQuality: 70,
-        maxWidth: 1600,
+        // 1280px / calidad 60 sigue siendo perfectamente legible para
+        // una foto de evidencia (material, vagón, placa) y pesa bastante
+        // menos que el ajuste anterior (1600px/70) — más rápido de subir
+        // con datos móviles y menos espacio en Storage.
+        imageQuality: 60,
+        maxWidth: 1280,
       );
       if (file == null) return;
       final bytes = await file.readAsBytes();

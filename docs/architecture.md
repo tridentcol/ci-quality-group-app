@@ -263,10 +263,17 @@ generaba/compartía `.xlsx`). Patrón en
   `<img>` en el correo a gerencia sin que el destinatario tenga que
   loguearse. La lectura autenticada (`storage.rules`) es una capa
   aparte que protege quién puede listar/enumerar objetos desde la app.
-- **`storage.rules`** (raíz del repo, análogo a `firestore.rules`)
-  usa `firestore.get()` — una función cross-service de Storage Rules
-  v2 — para leer `users/{uid}` y decidir el rol, mismo criterio que
-  Firestore. Deploy: `firebase deploy --only storage`.
+- **`storage.rules`** (raíz del repo, análogo a `firestore.rules`) NO
+  usa `firestore.get()` cross-service, a pesar de que en teoría
+  permitiría leer `users/{uid}` y decidir el rol igual que Firestore —
+  se probó (compila sin error) pero en runtime siempre devuelve
+  `permission-denied` para este proyecto (ver comentario largo al
+  principio del archivo). Storage solo exige sesión autenticada; el
+  control de acceso real por rol lo hace `firestore.rules` sobre
+  `material_entries`. Deploy: `firebase deploy --only storage`. Después
+  de desplegar reglas nuevas, esperar ~20-30s antes de probar — la
+  propagación no es instantánea y un test inmediato puede dar falsos
+  negativos.
 
 ## Extensión de correo: `firestore-send-email`
 

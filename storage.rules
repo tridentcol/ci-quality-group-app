@@ -3,80 +3,46 @@ rules_version = '2';
 // Reglas de Cloud Storage for Firebase para CI Quality Group.
 //
 // Único uso hoy: fotos del control de ingreso/salida de material
-// (`material_entries/{entryId}/{material|origin}.jpg`). El rol se valida
-// consultando el mismo doc `users/{uid}` que usan las reglas de Firestore
-// (`firestore.rules`), vía la función cross-service `firestore.get`.
+// (`material_entries/{entryId}/{material|origin}.jpg`).
+//
+// IMPORTANTE — por qué NO usamos `firestore.get()`/`firestore.exists()`
+// acá: en un principio estas reglas ataban el acceso al rol (admin/hours)
+// y, más adelante, también al dueño + ventana de 24h del doc en
+// `material_entries`, consultando Firestore desde Storage Rules vía la
+// función cross-service documentada por Firebase. Esa función COMPILA
+// sin error (`firebase deploy` la acepta), pero probado en runtime contra
+// este proyecto (subida real vía la API REST de Storage, con un ID token
+// real de un usuario `hours`) siempre devuelve `permission-denied`,
+// incluso en el caso más simple (rol + doc inexistente). No se identificó
+// la causa exacta — puede ser una limitación de la plataforma para este
+// proyecto en particular. Dado que es una función central para poder usar
+// la app (sin esto nadie puede subir una foto), se optó por NO depender
+// de ella: el control de acceso real por rol vive en `firestore.rules`
+// (`material_entries` solo lee/escribe admin/hours). Acá solo exigimos
+// sesión autenticada — el `entryId` es un id de Firestore autogenerado
+// (~20 caracteres al azar), así que un rol sin acceso a `material_entries`
+// no tiene forma práctica de enumerar o adivinar qué fotos existen.
+//
+// Si en el futuro se quiere retomar el atado a dueño/ventana, probar
+// primero con una regla mínima igual a esta vía la API REST antes de
+// asumir que funciona — no confiar solo en que "compiló bien".
 //
 // Para desplegar tras editar:
 //   firebase deploy --only storage
 
 service firebase.storage {
   match /b/{bucket}/o {
-
-    function isSignedIn() {
-      return request.auth != null;
-    }
-
-    function userDoc() {
-      return firestore.get(
-        /databases/(default)/documents/users/$(request.auth.uid)
-      ).data;
-    }
-
-    function isActive() {
-      return userDoc().get('active', true) == true;
-    }
-
-    function isAdminRole() {
-      return isSignedIn() && isActive() && userDoc().role == 'admin';
-    }
-
-    function isHoursRole() {
-      return isSignedIn() && isActive() && userDoc().role == 'hours';
-    }
-
-    // admin y hours son quienes manejan el panel de material — mismo
-    // criterio que `firestore.rules` para `material_entries`.
-    function canManageMaterial() {
-      return isAdminRole() || isHoursRole();
-    }
-
-    function entryDocPath(entryId) {
-      return /databases/(default)/documents/material_entries/$(entryId);
-    }
-
-    // Igual que la regla de Firestore para `material_entries`: admin
-    // siempre puede; hours solo puede tocar la foto de SU PROPIO
-    // movimiento y solo dentro de la ventana de 24h. El caso
-    // `!exists(...)` cubre la subida inicial — el cliente sube la foto
-    // ANTES de crear el doc de Firestore (usa el id ya generado), así
-    // que en ese momento el doc todavía no existe.
-    function canWriteEntryPhoto(entryId) {
-      return isAdminRole()
-        || (
-          isHoursRole()
-          && (
-            !firestore.exists(entryDocPath(entryId))
-            || (
-              firestore.get(entryDocPath(entryId)).data.createdBy == request.auth.uid
-              && request.time
-                  < firestore.get(entryDocPath(entryId)).data.get('editableUntil', request.time)
-            )
-          )
-        );
-    }
-
     match /material_entries/{entryId}/{fileName} {
-      // Lectura restringida a admin/hours, igual que la colección
-      // `material_entries` en Firestore — sales/cajero/auditor no
-      // tienen acceso al panel de material y tampoco deberían poder
-      // leer sus fotos directo desde Storage. El correo a gerencia NO
-      // pasa por acá — usa la download URL con token embebido, que no
-      // requiere sesión ni pasa por esta regla.
-      allow read: if canManageMaterial();
-      allow write: if canWriteEntryPhoto(entryId)
+      allow read: if request.auth != null;
+      allow create, update: if request.auth != null
         && request.resource.size < 10 * 1024 * 1024
         && request.resource.contentType.matches('image/.*');
+      // Aparte de `create`/`update`: en `delete` no existe
+      // `request.resource` (no hay contenido nuevo), así que validar
+      // tamaño/tipo ahí siempre falla. `deleteEntry()` en el repo
+      // depende de este permiso para limpiar las fotos al borrar un
+      // movimiento.
+      allow delete: if request.auth != null;
     }
   }
 }
