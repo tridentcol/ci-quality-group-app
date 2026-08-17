@@ -193,11 +193,24 @@ service cloud.firestore {
       }
     }
 
-    // ---------- Counters (consecutivo CQG-XXX) ----------
-    // Solo sales y admin pueden incrementar. La transacción atómica
-    // de ventas necesita escribir aquí.
+    // ---------- Counters (consecutivo CQG-XXX / ING-XXX / SAL-XXX) ----------
+    // Genérico: admin + sales, EXCEPTO los dos contadores de material
+    // (esos tienen su match propio más abajo, solo admin + hours).
+    // Firestore combina reglas con OR — sin el `cid != ...` de acá,
+    // sales seguiría teniendo acceso a esos dos vía este match genérico
+    // aunque no le corresponda (mismo patrón de "combina con OR" que
+    // `settings/cash_register`, pero acá va en la otra dirección: hay
+    // que RESTAR explícitamente, no sumar).
     match /counters/{cid} {
-      allow read, write: if isAdmin() || isSales();
+      allow read, write: if (isAdmin() || isSales())
+        && cid != 'material_entries_consecutive'
+        && cid != 'material_exits_consecutive';
+    }
+    match /counters/material_entries_consecutive {
+      allow read, write: if isAdmin() || isHours();
+    }
+    match /counters/material_exits_consecutive {
+      allow read, write: if isAdmin() || isHours();
     }
 
     // ---------- Settings (jornada laboral, delegación caja, …) ----------
@@ -281,6 +294,71 @@ service cloud.firestore {
                     && request.resource.data.diff(resource.data)
                         .affectedKeys().hasOnly(['readBy']);
       allow delete: if isAdmin();
+    }
+
+    // ---------- Material entries (control de ingreso/salida de material) ----------
+    // Admin y hours registran movimientos con fotos (subidas antes a
+    // Storage — ver storage.rules). Mismo criterio de ventana de edición
+    // que sales/hours_entries: 24h fijas desde `createdAt`, nunca se
+    // reasigna. Independiente de `sales` — decisión explícita de Carlos.
+    //
+    // `materialPhotoUrl`/`originPhotoUrl` deben ser download URLs reales
+    // de Storage — sin esto, alguien con acceso a la API cruda (no el
+    // formulario) podría meter un string arbitrario ahí, que después
+    // termina sin escapar de más en el `<img src>` del correo a
+    // gerencia (el cliente Dart también escapa, pero esto es la
+    // barrera del lado del servidor).
+    function isStorageUrl(url) {
+      return url is string
+        && url.matches('https://firebasestorage\\.googleapis\\.com/.*');
+    }
+    match /material_entries/{id} {
+      allow read: if isAdmin() || isHours();
+      allow create: if (isAdmin() || isHours())
+        && request.resource.data.type in ['ingreso', 'salida']
+        && isStorageUrl(request.resource.data.materialPhotoUrl)
+        && (
+          !('originPhotoUrl' in request.resource.data)
+          || request.resource.data.originPhotoUrl == null
+          || isStorageUrl(request.resource.data.originPhotoUrl)
+        );
+      // `type` y `consecutive` son inmutables una vez creado el doc —
+      // el consecutivo (ING-/SAL-) ya codifica el tipo, así que dejar
+      // cambiar uno sin el otro desincroniza el dashboard y el correo.
+      allow update: if (isAdmin()
+            || (isHours()
+                && resource.data.createdBy == request.auth.uid
+                && resource.data.get('editableUntil', request.time) > request.time))
+        && request.resource.data.type == resource.data.type
+        && request.resource.data.consecutive == resource.data.consecutive;
+      allow delete: if isAdmin();
+    }
+
+    // ---------- Mail (consume la extensión firestore-send-email) ----------
+    // El cliente solo puede ENCOLAR un correo — nunca leerlo, editarlo ni
+    // borrarlo (eso lo gestiona la extensión, que corre con privilegios
+    // de admin y no pasa por estas rules). `hasOnly` evita que se cuelen
+    // campos extra (ej. un `from` que suplante el remitente configurado).
+    // Además, `to` debe ser subconjunto de los destinatarios que el admin
+    // configuró en `settings/material_notifications` — sin esto, un
+    // admin/hours con acceso a la API cruda podría usar el Gmail de la
+    // empresa para mandarle correo a cualquier dirección arbitraria.
+    function allowedMailRecipients() {
+      return exists(/databases/$(database)/documents/settings/material_notifications)
+        ? get(/databases/$(database)/documents/settings/material_notifications)
+            .data.get('recipientEmails', [])
+        : [];
+    }
+    match /mail/{id} {
+      allow read: if false;
+      allow create: if (isAdmin() || isHours())
+        && request.resource.data.keys().hasOnly(['to', 'message'])
+        && request.resource.data.to is list
+        && request.resource.data.to.size() > 0
+        && request.resource.data.to.hasOnly(allowedMailRecipients())
+        && request.resource.data.message.subject is string
+        && request.resource.data.message.html is string;
+      allow update, delete: if false;
     }
 
   }

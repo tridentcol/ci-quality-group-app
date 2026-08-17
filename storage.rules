@@ -1,0 +1,82 @@
+rules_version = '2';
+
+// Reglas de Cloud Storage for Firebase para CI Quality Group.
+//
+// Único uso hoy: fotos del control de ingreso/salida de material
+// (`material_entries/{entryId}/{material|origin}.jpg`). El rol se valida
+// consultando el mismo doc `users/{uid}` que usan las reglas de Firestore
+// (`firestore.rules`), vía la función cross-service `firestore.get`.
+//
+// Para desplegar tras editar:
+//   firebase deploy --only storage
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function userDoc() {
+      return firestore.get(
+        /databases/(default)/documents/users/$(request.auth.uid)
+      ).data;
+    }
+
+    function isActive() {
+      return userDoc().get('active', true) == true;
+    }
+
+    function isAdminRole() {
+      return isSignedIn() && isActive() && userDoc().role == 'admin';
+    }
+
+    function isHoursRole() {
+      return isSignedIn() && isActive() && userDoc().role == 'hours';
+    }
+
+    // admin y hours son quienes manejan el panel de material — mismo
+    // criterio que `firestore.rules` para `material_entries`.
+    function canManageMaterial() {
+      return isAdminRole() || isHoursRole();
+    }
+
+    function entryDocPath(entryId) {
+      return /databases/(default)/documents/material_entries/$(entryId);
+    }
+
+    // Igual que la regla de Firestore para `material_entries`: admin
+    // siempre puede; hours solo puede tocar la foto de SU PROPIO
+    // movimiento y solo dentro de la ventana de 24h. El caso
+    // `!exists(...)` cubre la subida inicial — el cliente sube la foto
+    // ANTES de crear el doc de Firestore (usa el id ya generado), así
+    // que en ese momento el doc todavía no existe.
+    function canWriteEntryPhoto(entryId) {
+      return isAdminRole()
+        || (
+          isHoursRole()
+          && (
+            !firestore.exists(entryDocPath(entryId))
+            || (
+              firestore.get(entryDocPath(entryId)).data.createdBy == request.auth.uid
+              && request.time
+                  < firestore.get(entryDocPath(entryId)).data.get('editableUntil', request.time)
+            )
+          )
+        );
+    }
+
+    match /material_entries/{entryId}/{fileName} {
+      // Lectura restringida a admin/hours, igual que la colección
+      // `material_entries` en Firestore — sales/cajero/auditor no
+      // tienen acceso al panel de material y tampoco deberían poder
+      // leer sus fotos directo desde Storage. El correo a gerencia NO
+      // pasa por acá — usa la download URL con token embebido, que no
+      // requiere sesión ni pasa por esta regla.
+      allow read: if canManageMaterial();
+      allow write: if canWriteEntryPhoto(entryId)
+        && request.resource.size < 10 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+    }
+  }
+}

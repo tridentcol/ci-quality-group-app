@@ -29,7 +29,8 @@ corresponde.
 
 - **Flutter ≥ 3.32** (Dart ≥ 3.4) — Android + iOS + Web desde un solo codebase.
 - **Firebase** — Auth (usuario/contraseña → `<username>@cqg.app`),
-  Firestore (offline en native, en memoria en web), Hosting (web).
+  Firestore (offline en native, en memoria en web), Hosting (web),
+  Storage (fotos del control de ingreso de material).
 - **Riverpod** (`flutter_riverpod`) — estado y DI.
 - **go_router** — navegación declarativa con redirect por rol.
 - **fl_chart** — gráficas (line + pie).
@@ -112,6 +113,7 @@ ci-quality-group/
 │   │   ├── sales/             # ventas (formulario + lista + detalle, multi-material)
 │   │   ├── cashier/           # caja (procesar solicitudes, abonos, pérdidas)
 │   │   ├── hours/             # control de horas + motor de cálculo
+│   │   ├── material/          # control de ingreso de material (fotos, proveedor)
 │   │   └── workers/           # CRUD de trabajadores
 │   └── shared/                # widgets y services reutilizables entre features
 │       ├── widgets/           # AppLogo, MasterListField, HeroBanner, ...
@@ -210,7 +212,7 @@ git push origin claude/check-system-status-FP9g9
 |----------|-----------------------------------------------|-----------------------------------|
 | `admin`  | Todo                                           | r/w sobre todo                    |
 | `sales`  | `/sales/*`                                     | r/w sobre `sales`, lectura de listas |
-| `hours`  | `/hours/*`                                     | r/w sobre `hours_entries`         |
+| `hours`  | `/hours/*`, `/material/*`                      | r/w sobre `hours_entries`, `material_entries` |
 | `auditor`| `/audit` (dashboard filtrado por su auditFilter)| solo lectura sobre `sales`        |
 
 Detalles completos en `docs/data-model.md` y `firestore.rules`.
@@ -240,7 +242,10 @@ Detalles completos en `docs/data-model.md` y `firestore.rules`.
   mano siguiendo `docs/workflows.md` → "Agregar un campo nuevo al
   modelo Sale". Tampoco existen `customFields` ni `form_schemas/` en
   Firestore activos.
-- **Cloud Functions** — no hay backend custom. Si necesitás trabajo
-  server-side, hablalo con el usuario antes.
+- **Cloud Functions propias** — no hay backend custom. Si necesitás
+  trabajo server-side, hablalo con el usuario antes. **Excepción**: el
+  control de material usa la extensión oficial de Firebase
+  `firestore-send-email` (correo a gerencia) — es un paquete manejado
+  por Google, no código nuestro. Ver `docs/architecture.md`.
 - **Notificaciones push** — no implementado.
 - **Sync con sistemas externos** — sin integraciones. Todo es manual via xlsx.

@@ -1,7 +1,7 @@
 name: ci_quality_group
 description: "App interna de CI Quality Group: control de ventas y horas laboradas."
 publish_to: "none"
-version: 1.5.0+17
+version: 1.6.0+18
 
 environment:
   sdk: ">=3.4.0 <4.0.0"
@@ -17,6 +17,7 @@ dependencies:
   firebase_core: ^3.6.0
   firebase_auth: ^5.3.1
   cloud_firestore: ^5.4.4
+  firebase_storage: ^12.4.10
 
   # State management
   flutter_riverpod: ^2.6.1
@@ -44,6 +45,9 @@ dependencies:
 
   # Persistencia local (preferencia de tema)
   shared_preferences: ^2.3.0
+
+  # Fotos del control de ingreso de material
+  image_picker: ^1.2.3
 
 dev_dependencies:
   flutter_test:

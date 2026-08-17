@@ -3,5 +3,11 @@
     "default": "quality-group-app"
   },
   "targets": {},
-  "etags": {}
+  "etags": {
+    "quality-group-app": {
+      "extensionInstances": {
+        "firestore-send-email": "d6d492bc758fba62359614d166efd2484d8ff662130328578f24538cb0a078ac"
+      }
+    }
+  }
 }

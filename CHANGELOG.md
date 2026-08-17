@@ -7,6 +7,37 @@ versionado [SemVer](https://semver.org/spec/v2.0.0.html). El número entre `+`
 es el `versionCode` de Android — cada release se sube en uno para que los
 celulares acepten la actualización sobre la versión anterior.
 
+## [1.6.0+18] — 2026-08-16
+
+### Agregado
+- **Control de ingreso y salida de material.** Nuevo módulo,
+  totalmente independiente de `sales` (decisión explícita de Carlos),
+  para registrar cada movimiento físico de bodega: foto del
+  material/vagón (obligatoria), foto de procedencia/destino (opcional),
+  material y cantidad (reusa las listas maestras de ventas), y la
+  empresa contraparte — proveedor en ingreso (lista maestra nueva
+  `Proveedores de material`) o cliente en salida (reusa la lista
+  "Clientes" que ya usa Ventas, para no duplicar el catálogo). Cada
+  movimiento genera un consecutivo atómico propio (`ING-XXX` o
+  `SAL-XXX`). Lo maneja el mismo rol `hours` (control de horas) — gana
+  una pantalla nueva `/material` con acceso directo desde `/hours` —
+  más admin, que además tiene un dashboard (`/admin/material`) con
+  ingresos y salidas por separado: totales del rango y desglose por
+  empresa y por material en cada uno. Cada movimiento nuevo dispara una
+  notificación in-app (campanita) al rol admin y, si hay destinatarios
+  configurados en `Configuración → Notificaciones de material`, un
+  correo con el resumen y las fotos vía la extensión de Firebase
+  `firestore-send-email` (no requiere Cloud Functions propias).
+  Primera vez que la app sube archivos: se habilitó Cloud Storage for
+  Firebase (`storage.rules` nuevo) y se sumaron los paquetes
+  `image_picker` + `firebase_storage`. Admin puede editar o borrar
+  cualquier movimiento sin límite de tiempo (hours solo el suyo, dentro
+  de 24h); borrar limpia también las fotos en Storage. Las reglas de
+  Firestore/Storage validan que las fotos sean URLs reales de Storage,
+  bloquean cambiar `type`/`consecutive` después de creado, y el correo
+  a gerencia solo puede mandarse a los destinatarios configurados (no a
+  direcciones arbitrarias).
+
 ## [1.5.0+17] — 2026-07-26
 
 ### Agregado

@@ -26,6 +26,10 @@
 		<string>$(FLUTTER_BUILD_NUMBER)</string>
 		<key>LSRequiresIPhoneOS</key>
 		<true/>
+		<key>NSCameraUsageDescription</key>
+		<string>Se usa la cámara para fotografiar el material y su procedencia al registrar un ingreso de bodega.</string>
+		<key>NSPhotoLibraryUsageDescription</key>
+		<string>Se usa la galería para adjuntar una foto ya tomada al registrar un ingreso de material.</string>
 		<key>UIApplicationSceneManifest</key>
 		<dict>
 			<key>UIApplicationSupportsMultipleScenes</key>

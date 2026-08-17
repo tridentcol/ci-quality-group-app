@@ -29,6 +29,13 @@ import '../../features/hours/presentation/hours_admin_screen.dart';
 import '../../features/hours/presentation/hours_home_screen.dart';
 import '../../features/hours/presentation/manual_hours_entry_screen.dart';
 import '../../features/hours/presentation/worker_day_screen.dart';
+import '../../features/admin/presentation/material_admin_screen.dart';
+import '../../features/admin/presentation/material_notification_settings_screen.dart';
+import '../../features/material/data/material_entries_repository.dart';
+import '../../features/material/domain/material_entry.dart';
+import '../../features/material/presentation/material_entry_detail_screen.dart';
+import '../../features/material/presentation/material_entry_form_screen.dart';
+import '../../features/material/presentation/material_home_screen.dart';
 import '../../features/sales/data/sales_repository.dart';
 import '../../features/sales/domain/sale.dart';
 import '../../features/sales/presentation/sale_detail_screen.dart';
@@ -91,6 +98,11 @@ final routerProvider = Provider<GoRouter>((ref) {
         return home;
       }
       if (loc.startsWith('/hours') &&
+          user.role != AppRole.admin &&
+          user.role != AppRole.hours) {
+        return home;
+      }
+      if (loc.startsWith('/material') &&
           user.role != AppRole.admin &&
           user.role != AppRole.hours) {
         return home;
@@ -197,6 +209,10 @@ final routerProvider = Provider<GoRouter>((ref) {
                 ],
               ),
               GoRoute(
+                path: 'material',
+                builder: (_, __) => const MaterialAdminScreen(),
+              ),
+              GoRoute(
                 path: 'settings',
                 builder: (_, __) => const AdminSettingsScreen(),
                 routes: [
@@ -211,6 +227,11 @@ final routerProvider = Provider<GoRouter>((ref) {
                   GoRoute(
                     path: 'cierre',
                     builder: (_, __) => const CashCloseScreen(),
+                  ),
+                  GoRoute(
+                    path: 'material-notifications',
+                    builder: (_, __) =>
+                        const MaterialNotificationSettingsScreen(),
                   ),
                 ],
               ),
@@ -289,6 +310,47 @@ final routerProvider = Provider<GoRouter>((ref) {
             path: ':workerId',
             builder: (_, state) =>
                 WorkerDayScreen(workerId: state.pathParameters['workerId']!),
+          ),
+        ],
+      ),
+
+      // Material (admin + hours). Pantalla operativa fuera del shell,
+      // igual que `/hours` — el dashboard agregado de gerencia vive en
+      // `/admin/material`, dentro del shell.
+      GoRoute(
+        path: '/material',
+        builder: (_, __) => const MaterialHomeScreen(),
+        routes: [
+          GoRoute(
+            path: 'new',
+            builder: (_, state) {
+              final extra = state.extra;
+              return MaterialEntryFormScreen(
+                type: extra is MaterialMovementType
+                    ? extra
+                    : MaterialMovementType.ingreso,
+              );
+            },
+          ),
+          GoRoute(
+            path: ':id',
+            builder: (_, state) => MaterialEntryDetailScreen(
+              entryId: state.pathParameters['id']!,
+            ),
+            routes: [
+              GoRoute(
+                path: 'edit',
+                builder: (_, state) {
+                  final extra = state.extra;
+                  if (extra is MaterialEntry) {
+                    return MaterialEntryFormScreen(editingEntry: extra);
+                  }
+                  return _EditMaterialEntryRoute(
+                    entryId: state.pathParameters['id']!,
+                  );
+                },
+              ),
+            ],
           ),
         ],
       ),
@@ -372,6 +434,19 @@ class _EditWorkerRoute extends ConsumerWidget {
       async: ref.watch(workerByIdProvider(workerId)),
       notFoundLabel: 'Trabajador no encontrado.',
       onData: (w) => WorkerFormScreen(editing: w),
+    );
+  }
+}
+
+class _EditMaterialEntryRoute extends ConsumerWidget {
+  const _EditMaterialEntryRoute({required this.entryId});
+  final String entryId;
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return _asyncEntityScreen(
+      async: ref.watch(materialEntryByIdProvider(entryId)),
+      notFoundLabel: 'Ingreso no encontrado.',
+      onData: (e) => MaterialEntryFormScreen(editingEntry: e),
     );
   }
 }

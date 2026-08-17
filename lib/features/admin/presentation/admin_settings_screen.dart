@@ -60,6 +60,15 @@ class AdminSettingsScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 12),
           _SettingsCard(
+            icon: Icons.mail_outline,
+            title: 'Notificaciones de material',
+            description:
+                'Correos que reciben el aviso cada vez que se registra un ingreso de material.',
+            onTap: () =>
+                context.push('/admin/settings/material-notifications'),
+          ),
+          const SizedBox(height: 12),
+          _SettingsCard(
             icon: Icons.list_alt_outlined,
             title: 'Listas maestras',
             description:

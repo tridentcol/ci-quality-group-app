@@ -149,6 +149,16 @@ class _NotificationsSheetState extends ConsumerState<NotificationsSheet> {
           .markAsRead(id: notif.id, uid: uid);
     }
     if (!mounted) return;
+
+    // Ingresos/salidas de material no tienen `saleId` — su recurso va en `data`.
+    if (notif.type == NotificationType.materialEntryCreated ||
+        notif.type == NotificationType.materialExitCreated) {
+      final entryId = notif.data['materialEntryId'] as String?;
+      Navigator.of(context).pop();
+      if (entryId != null) context.push('/material/$entryId');
+      return;
+    }
+
     final saleId = notif.saleId;
     if (saleId == null) {
       Navigator.of(context).pop();
@@ -380,6 +390,8 @@ class _NotificationGroupTileState extends State<_NotificationGroupTile> {
         '$n desactivaciones de delegación caja',
       NotificationType.paymentDelegationRecorded =>
         '$n abonos bajo delegación',
+      NotificationType.materialEntryCreated => '$n ingresos de material',
+      NotificationType.materialExitCreated => '$n salidas de material',
       NotificationType.unknown => '$n notificaciones',
     };
   }

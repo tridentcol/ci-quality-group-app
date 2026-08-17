@@ -59,6 +59,11 @@ class AdminShell extends ConsumerWidget {
       route: '/admin/hours',
     ),
     _AdminNavItem(
+      label: 'Material',
+      icon: Icons.inventory_2_outlined,
+      route: '/admin/material',
+    ),
+    _AdminNavItem(
       label: 'Configuración',
       icon: Icons.settings_outlined,
       route: '/admin/settings',

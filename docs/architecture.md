@@ -73,6 +73,12 @@ Una sola instancia en `lib/core/routing/app_router.dart`:
   - Acceso a ruta de rol que no le corresponde → home del rol
 - **ShellRoute para admin** — el admin tiene NavigationRail/drawer
   persistente vía `AdminShell`. Las rutas `/admin/*` viven adentro.
+- **Patrón dual operativo/gerencia** — `/hours` (fuera del shell,
+  pantalla operativa del rol) + `/admin/hours` (dentro del shell,
+  vista de gerencia) es el precedente que siguió `/material` +
+  `/admin/material`: la persona que hace el trabajo entra por la
+  ruta top-level, el admin ve el agregado desde el shell. Ambos
+  apuntan al mismo detalle (`/material/:id`) para no duplicar pantalla.
 - **Detalle/edit** — patrón `(_, state) => _EditXRoute(id: state.pathParameters['id']!)`
   donde `_EditXRoute` envuelve el screen con un `_asyncEntityScreen` helper
   que maneja loading/error/null antes de pasarle el modelo al screen real.
@@ -185,7 +191,10 @@ El modo se persiste en SharedPreferences (`themeModeProvider`).
 
 El bell del AppBar + bottom sheet con la lista de notifs. **No** usamos
 FCM/APNs por ahora (push del SO requiere setup de Mac + service workers
-+ certificados iOS) ni Cloud Functions (la app no tiene backend custom).
++ certificados iOS) ni Cloud Functions custom (la app no tiene backend
+propio — la única excepción es la extensión oficial de correo del
+control de material, ver más abajo, que es un paquete manejado por
+Google, no código nuestro).
 
 **Arquitectura:**
 
@@ -232,6 +241,49 @@ un tipo nuevo (no se reutiliza `saleProcessed`).
 con la app cerrada o en background. Hoy no es el caso — los avisos son
 útiles solo durante la sesión activa de trabajo, y el bell con badge
 cubre el 100% de ese flujo.
+
+## Cloud Storage: fotos del control de material
+
+Primera vez que la app sube archivos binarios (hasta ahora solo
+generaba/compartía `.xlsx`). Patrón en
+`lib/features/material/data/material_entries_repository.dart`:
+
+- **Sin conditional import** — a diferencia de `xlsx_export_service`
+  (que sí diverge web/native), `image_picker` y `firebase_storage`
+  exponen la misma API en las 3 plataformas: `XFile.readAsBytes()` +
+  `Reference.putData(Uint8List)`. Un solo archivo de código sirve para
+  Android, iOS y Web.
+- **Id generado en cliente antes de subir**: `_col.doc()` da un id sin
+  escribir todavía. Se usa ese id para el path en Storage
+  (`material_entries/{id}/...`) y luego para el doc de Firestore — así
+  las fotos ya tienen URL antes de que el doc exista.
+- **Download URLs sin sesión**: `getDownloadURL()` de Firebase Storage
+  devuelve una URL con un token embebido que **no requiere Firebase
+  Auth** para verse — es justo lo que permite incrustar la foto como
+  `<img>` en el correo a gerencia sin que el destinatario tenga que
+  loguearse. La lectura autenticada (`storage.rules`) es una capa
+  aparte que protege quién puede listar/enumerar objetos desde la app.
+- **`storage.rules`** (raíz del repo, análogo a `firestore.rules`)
+  usa `firestore.get()` — una función cross-service de Storage Rules
+  v2 — para leer `users/{uid}` y decidir el rol, mismo criterio que
+  Firestore. Deploy: `firebase deploy --only storage`.
+
+## Extensión de correo: `firestore-send-email`
+
+El control de material manda un correo a gerencia por cada ingreso
+nuevo. Como la app no tiene backend custom, esto usa la extensión
+oficial de Firebase **`firestore-send-email`**: el cliente escribe un
+doc en `mail/{id}` (`to` + `message.subject/html`) y la extensión —
+instalada y configurada por el usuario, con sus propias credenciales
+SMTP — lo envía. Es la única pieza de la app que corre como Cloud
+Function, pero es un paquete pre-armado y mantenido por Google, no
+código que mantengamos nosotros.
+
+Si `settings/material_notifications.recipientEmails` está vacío, el
+repo no escribe nada en `mail/` — el resto del flujo (dashboard,
+notificación in-app) sigue funcionando igual. Sin la extensión
+instalada, los docs en `mail/` simplemente quedan sin procesar; no
+rompen nada.
 
 ## Auditor: filtro genérico
 

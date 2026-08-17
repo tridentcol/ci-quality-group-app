@@ -20,6 +20,8 @@ enum NotificationType {
   delegationActivated('delegation_activated'),
   delegationDeactivated('delegation_deactivated'),
   paymentDelegationRecorded('payment_delegation_recorded'),
+  materialEntryCreated('material_entry_created'),
+  materialExitCreated('material_exit_created'),
   unknown('unknown');
 
   const NotificationType(this.id);
@@ -43,6 +45,8 @@ enum NotificationType {
         NotificationType.delegationActivated => Icons.lock_open_outlined,
         NotificationType.delegationDeactivated => Icons.lock_outline,
         NotificationType.paymentDelegationRecorded => Icons.payments_outlined,
+        NotificationType.materialEntryCreated => Icons.inventory_2_outlined,
+        NotificationType.materialExitCreated => Icons.local_shipping_outlined,
         NotificationType.unknown => Icons.notifications_outlined,
       };
 
@@ -63,6 +67,8 @@ enum NotificationType {
         NotificationType.delegationDeactivated =>
           scheme.onSurface.withValues(alpha: 0.55),
         NotificationType.paymentDelegationRecorded => const Color(0xFFE6A100),
+        NotificationType.materialEntryCreated => const Color(0xFF2E7D32),
+        NotificationType.materialExitCreated => const Color(0xFFE6A100),
         NotificationType.unknown => scheme.primary,
       };
 }

@@ -56,6 +56,12 @@ class ListTarget {
 const Map<String, ListPropagation> _propagationByListId = {
   'providers': ListPropagation(
     primary: ListTarget(collection: 'sales', field: 'providerName'),
+    // Salidas de material reusan este mismo catálogo de clientes
+    // (decisión explícita: no duplicar la lista solo porque el
+    // movimiento físico es independiente de la venta comercial).
+    secondaries: [
+      ListTarget(collection: 'material_entries', field: 'clientName'),
+    ],
   ),
   'payers': ListPropagation(
     primary: ListTarget(collection: 'sales', field: 'payerName'),
@@ -76,6 +82,11 @@ const Map<String, ListPropagation> _propagationByListId = {
       field: 'material',
       itemKey: 'material',
     ),
+    // `material_entries.material` es un campo plano (sin `items[]`,
+    // a diferencia de Sale), así que no lleva `itemKey`.
+    secondaries: [
+      ListTarget(collection: 'material_entries', field: 'material'),
+    ],
   ),
   // `lamina_brands` es el listId histórico para tipos/subvariantes.
   // El display name es "Tipos de materiales" — funciona para cualquier
@@ -86,6 +97,9 @@ const Map<String, ListPropagation> _propagationByListId = {
       field: 'materialVariant',
       itemKey: 'materialVariant',
     ),
+    secondaries: [
+      ListTarget(collection: 'material_entries', field: 'materialVariant'),
+    ],
   ),
   'units': ListPropagation(
     primary: ListTarget(
@@ -93,6 +107,9 @@ const Map<String, ListPropagation> _propagationByListId = {
       field: 'unit',
       itemKey: 'unit',
     ),
+    secondaries: [
+      ListTarget(collection: 'material_entries', field: 'unit'),
+    ],
   ),
   'payment_methods': ListPropagation(
     primary: ListTarget(collection: 'sales', field: 'paymentMethod'),
@@ -117,6 +134,12 @@ const Map<String, ListPropagation> _propagationByListId = {
   // `worker_roles` no afecta a `sales` — vive en `workers.role`.
   'worker_roles': ListPropagation(
     primary: ListTarget(collection: 'workers', field: 'role'),
+  ),
+  // Proveedores de material (control de ingreso) — separado de
+  // `providers` porque ahí significa "Clientes" (a quién se le vende).
+  'material_providers': ListPropagation(
+    primary:
+        ListTarget(collection: 'material_entries', field: 'providerName'),
   ),
 };
 
@@ -518,6 +541,14 @@ List<Map<String, dynamic>> _defaultListsSeed() => [
         'allowFreeText': true,
         'description': 'Cargos disponibles al registrar un trabajador.',
         'items': <String>['AUX. GESTOR DE RESIDUOS', 'CONDUCTOR'],
+      },
+      {
+        'id': 'material_providers',
+        'name': 'Proveedores de material',
+        'allowFreeText': true,
+        'description':
+            'Empresas de las que se compra el material que entra a bodega.',
+        'items': <String>[],
       },
     ];
 

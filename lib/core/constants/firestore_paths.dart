@@ -44,4 +44,20 @@ class FirestorePaths {
   // Notificaciones in-app (campana del AppBar). Colección plana con
   // targets por uid y/o rol — ver `AppNotification`.
   static const notifications = 'notifications';
+
+  // Control de ingreso/salida de material (fotos, proveedor o cliente,
+  // cantidad). Ambos tipos viven en la misma colección `material_entries`
+  // (campo `type`), pero cada uno tiene su propio contador atómico para
+  // que el consecutivo ING-XXX/SAL-XXX no se mezcle.
+  static const materialEntries = 'material_entries';
+  static const materialEntriesCounter = 'material_entries_consecutive';
+  static const materialExitsCounter = 'material_exits_consecutive';
+
+  // Colección que consume la extensión de Firebase `firestore-send-email`.
+  // Un doc acá = un correo en cola para gerencia.
+  static const mail = 'mail';
+
+  // Config admin-only con los destinatarios del correo de material. Doc
+  // singleton dentro de `settings`.
+  static const materialNotificationSettings = 'material_notifications';
 }

@@ -193,7 +193,7 @@ Reglas:
 
 | listId                  | Display name             | Free text | Notas                                      |
 |-------------------------|--------------------------|-----------|--------------------------------------------|
-| `providers`             | Clientes                 | sí        |                                            |
+| `providers`             | Clientes                 | sí        | También la usa `material_entries.clientName` (salidas de material) — reusada a propósito, no se duplicó el catálogo. |
 | `payers`                | Quién recibe             | sí        |                                            |
 | `commission_agents`     | Comisionistas            | no        | Estricta: solo el admin gestiona. Vacío en venta = bodega. |
 | `materials`             | Materiales               | sí        | LAMINA, CHATARRA, CHATARRA TUBERIA         |
@@ -202,6 +202,7 @@ Reglas:
 | `transfer_destinations` | Destinos de transferencia| sí        | Bancolombia, Nequi, Daviplata, …           |
 | `units`                 | Unidades de medida       | no        | Kilogramos                                 |
 | `worker_roles`          | Cargos de trabajadores   | sí        |                                            |
+| `material_providers`    | Proveedores de material  | sí        | Empresas de las que se compra material (control de ingreso). Separada de `providers` a propósito — ahí significa "Clientes" (a quién se le vende). |
 
 #### Mapping `listId` → campo de Sale
 
@@ -220,6 +221,117 @@ listas afectan ventas históricas cuando el admin renombra un item.
 | `transfer_destinations` | `transferDestination`  |
 
 `worker_roles` no está acá porque afecta `workers`, no `sales`.
+`material_providers` tampoco — afecta `material_entries.providerName`
+(ver `_propagationByListId` en `master_lists_repository.dart`, que ya
+generalizó este mapping a "colección + campo" en vez de asumir
+siempre `sales`). `providers` sí tiene un `secondaries` extra ahí que
+propaga también a `material_entries.clientName`.
+
+### `material_entries/{id}`
+
+`MaterialEntry` — control de ingreso Y salida de material, ambos
+**totalmente independientes de `sales`** (decisión explícita de
+Carlos: la salida física de bodega no es la venta comercial, aunque en
+la práctica muchas veces coincidan). Ambos tipos viven en la misma
+colección, distinguidos por `type`. Consecutivo `ING-XXX` (ingreso) o
+`SAL-XXX` (salida) generado atómicamente — cada tipo tiene su propio
+contador (`counters/material_entries_consecutive` y
+`counters/material_exits_consecutive`), mismo patrón que
+`Sale.consecutive`.
+
+| Campo                 | Tipo       | Notas                                  |
+|-----------------------|------------|-----------------------------------------|
+| `consecutive`         | String     | `ING-001…` o `SAL-001…` según `type`.   |
+| `type`                | String enum | `'ingreso' \| 'salida'`.                |
+| `date`                | Timestamp  | Fecha del movimiento.                   |
+| `material`            | String     | De la lista maestra `materials` (compartida con ventas). |
+| `materialVariant`     | String?    | De `lamina_brands`, opcional.           |
+| `quantity`            | num        |                                          |
+| `unit`                | String     | De la lista maestra `units`.            |
+| `providerName`        | String?    | Solo `type == 'ingreso'`. Empresa proveedora, de `material_providers` (lista nueva, separada de `providers`). |
+| `clientName`          | String?    | Solo `type == 'salida'`. Empresa cliente/destino — **reusa** la lista maestra `providers` (la misma "Clientes" de Ventas; decisión explícita para no duplicar el catálogo). |
+| `originDescription`   | String?    | Texto libre: de dónde viene (ingreso) o hacia dónde va (salida), ej. "Barranquilla — Recicladora XYZ". |
+| `vehicleRef`          | String?    | Placa o número de vagón, opcional.      |
+| `materialPhotoUrl`    | String     | Requerida. Foto del material/vagón, sube a Storage antes del write. |
+| `originPhotoUrl`      | String?    | Opcional. Foto de procedencia (ingreso) o destino (salida). |
+| `notes`               | String?    |                                          |
+| `createdBy` / `createdByName` / `createdAt` | | Igual que `Sale`.        |
+| `updatedAt`           | Timestamp? |                                          |
+| `editableUntil`       | Timestamp? | `createdAt + 24h`, mismo patrón que sales/hours. |
+
+`MaterialEntry.counterpartyName` (getter, no persistido) devuelve
+`providerName` o `clientName` según el `type` — lo usan el dashboard y
+el correo para no tener que ramificar en cada lugar que agrega "por
+empresa".
+
+**Fotos y Storage:** suben a
+`material_entries/{entryId}/{material\|origin}.jpg` vía
+`FirebaseStorage`, comprimidas en origen
+(`ImagePicker(imageQuality: 70, maxWidth: 1600)`). La `entryId` se
+genera en cliente (`_col.doc()`, sin escribir todavía) para poder subir
+las fotos ANTES de crear el doc y así conocer sus URLs. Las
+`getDownloadURL()` de Firebase Storage llevan un token embebido que
+**no requiere sesión** para visualizarse — es justamente lo que
+permite incrustarlas en el correo a gerencia (ver `mail/{id}` abajo).
+No hay cola offline para fotos: si falla la subida, el submit falla
+con mensaje claro y hay que reintentar con conexión.
+
+Reglas:
+- Lee/crea: `admin`, `hours`. Create exige `type in ['ingreso', 'salida']`
+  y que `materialPhotoUrl`/`originPhotoUrl` sean download URLs reales de
+  Storage (`firebasestorage.googleapis.com/...`) — sin esto, alguien con
+  acceso a la API cruda (no el formulario) podría meter un string
+  arbitrario ahí, que termina en el `<img src>` del correo a gerencia.
+- Actualiza: `admin` siempre; `hours` solo su propio doc dentro de
+  `editableUntil`. `type` y `consecutive` son inmutables en cualquier
+  update (el consecutivo ING-/SAL- ya codifica el tipo).
+- Borra: solo `admin`.
+- `storage.rules` (archivo nuevo en la raíz del repo) espeja la misma
+  regla: lectura solo `admin`/`hours`; escritura solo `admin`, o `hours`
+  sobre su propio movimiento dentro de la ventana de 24h (consultando
+  `material_entries/{entryId}` vía `firestore.get()`/`firestore.exists()`
+  cross-service) — con un caso especial para la subida inicial, que pasa
+  ANTES de que exista el doc de Firestore. Límite 10MB y `contentType`
+  `image/*`.
+
+### `mail/{id}`
+
+Colección que consume la extensión oficial de Firebase
+**`firestore-send-email`** (instalada y configurada por el usuario —
+no es Cloud Functions propias, ver `docs/architecture.md`). Un doc acá
+= un correo en cola. `MaterialEntriesRepository.createEntry` escribe
+uno **DESPUÉS** de la transacción que crea el movimiento (a propósito
+fuera de ella, en un try/catch silencioso) solo si
+`settings/material_notifications.recipientEmails` no está vacío. El
+correo es de mejor esfuerzo — si falla, el ingreso/salida ya quedó
+guardado y gerencia igual se entera por la notificación in-app (esa sí
+va dentro de la transacción, porque es barata y siempre debe reflejar
+lo que realmente se guardó).
+
+| Campo             | Tipo   | Notas                                  |
+|--------------------|--------|-----------------------------------------|
+| `to`               | List<String> | Destinatarios. La regla exige que sea subconjunto de `settings/material_notifications.recipientEmails` — nadie puede mandar a una dirección arbitraria vía la API cruda. |
+| `message.subject`  | String | Asunto.                                 |
+| `message.html`     | String | Cuerpo con el resumen + `<img>` a las fotos (download URLs de Storage). |
+
+Reglas: `create` para `admin`/`hours` con
+`keys().hasOnly(['to','message'])`, `to` no vacío y subconjunto de los
+destinatarios configurados, y `message.subject`/`message.html` como
+`String`. `read`/`update`/`delete`: nadie desde el cliente — la
+extensión gestiona el estado de envío con
+privilegios de admin, fuera de estas rules.
+
+### `settings/material_notifications`
+
+Doc singleton admin-only: a quién le llega el correo de "nuevo
+ingreso de material".
+
+| Campo             | Tipo         | Notas                              |
+|--------------------|--------------|-------------------------------------|
+| `recipientEmails`  | List<String> | Si está vacía, no se envía ningún correo (el resto del flujo sigue igual). |
+
+Reglas: cubierto por la regla genérica `settings/{sid}` (lee cualquier
+autenticado, escribe solo admin) — no requiere match propio.
 
 ### `counters/sales_consecutive`
 
@@ -233,6 +345,16 @@ Acceso solo via `runTransaction` desde `SalesRepository.createSale`.
 
 Reglas: lee/escribe `admin`, `sales`.
 
+### `counters/material_entries_consecutive` y `counters/material_exits_consecutive`
+
+Contadores atómicos para los consecutivos `ING-XXX` (ingreso) y
+`SAL-XXX` (salida) — uno por tipo, para que la numeración de cada uno
+no se mezcle. Mismo patrón que `sales_consecutive`, acceso solo via
+`runTransaction` desde `MaterialEntriesRepository.createEntry`.
+
+Reglas: `counters/{cid}` es genérico — lee/escribe `admin`, `sales`,
+`hours`.
+
 ### `notifications/{id}`
 
 `AppNotification` — un aviso in-app. Colección plana, con dos arrays de
@@ -242,7 +364,7 @@ y mergea + dedup en memoria, porque Firestore no permite OR en `where`.
 
 | Campo            | Tipo            | Notas                                  |
 |------------------|-----------------|----------------------------------------|
-| `type`           | String enum     | `'sale_created' \| 'sale_processed' \| 'sale_canceled' \| 'sale_returned_to_sales' \| 'sale_marked_loss' \| 'payment_voided'`. |
+| `type`           | String enum     | `'sale_created' \| 'sale_processed' \| 'sale_canceled' \| 'sale_returned_to_sales' \| 'sale_marked_loss' \| 'payment_voided' \| 'material_entry_created'` (y los tipos de delegación caja). |
 | `title`          | String          | Encabezado corto ("Solicitud procesada"). |
 | `body`           | String          | Cuerpo ("CQG-123 — Cliente X, $1.500.000"). |
 | `saleId`         | String?         | Venta asociada. Si está, tap navega al recurso. |
@@ -386,6 +508,7 @@ en Dart.
 ```
 users.uid ──┬─── sales.createdBy
             ├─── hours_entries.createdBy
+            ├─── material_entries.createdBy
             └─── (auditFilter referencia indirecta)
 
 workers.id ──── hours_entries.workerId
@@ -401,6 +524,11 @@ master_lists/{listId}/items/{itemId}.value
         sales.paymentMethod (listId = payment_methods)
         sales.transferDestination (listId = transfer_destinations)
         workers.role        (listId = worker_roles)
+        material_entries.providerName (listId = material_providers)
+        material_entries.clientName   (listId = providers, compartida con sales)
+        material_entries.material      (listId = materials, compartida con sales)
+        material_entries.materialVariant (listId = lamina_brands)
+        material_entries.unit          (listId = units, compartida con sales)
 ```
 
 Las referencias son por **valor de string**, no por doc id. Eso es lo

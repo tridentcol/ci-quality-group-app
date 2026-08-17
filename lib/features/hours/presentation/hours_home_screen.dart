@@ -36,6 +36,11 @@ class _HoursHomeScreenState extends ConsumerState<HoursHomeScreen> {
       appBar: AppBar(
         title: const Text('Control de horas'),
         actions: [
+          IconButton(
+            tooltip: 'Control de material',
+            icon: const Icon(Icons.inventory_2_outlined),
+            onPressed: () => context.push('/material'),
+          ),
           const NotificationsBell(),
           const ThemeModeIconButton(),
           IconButton(
