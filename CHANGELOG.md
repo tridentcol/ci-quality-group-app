@@ -7,6 +7,34 @@ versionado [SemVer](https://semver.org/spec/v2.0.0.html). El número entre `+`
 es el `versionCode` de Android — cada release se sube en uno para que los
 celulares acepten la actualización sobre la versión anterior.
 
+## [1.6.1+19] — 2026-08-17
+
+Serie de correcciones sobre el control de material (1.6.0+18) después
+de probarlo con datos y usuarios reales. Bump de versionCode porque
+en la sesión anterior se distribuyeron varios APK de prueba bajo el
+mismo +18 — no volver a hacer eso, Android rechaza instalar un
+versionCode igual o menor al ya instalado.
+
+### Corregido
+- Cámara/galería no abrían nada en Web (`MissingPluginException` por
+  falta de `flutter clean` tras agregar `image_picker`/`firebase_storage`).
+- Subida de fotos tiraba `[firebase_storage/unauthorized]` (`storage.rules`
+  dependía de una función cross-service a Firestore que no funciona en
+  runtime para este proyecto).
+- Las fotos no cargaban en el detalle / el visor a pantalla completa se
+  quedaba cargando para siempre (faltaba configurar CORS en el bucket
+  de Storage — no es parte de ningún `firebase deploy`).
+- Compresión de fotos más agresiva (1600px/q70 → 1280px/q60).
+
+### Agregado
+- Dashboard de admin (`/admin/material`) ahora también lista los
+  movimientos individuales con su foto, no solo los totales agregados
+  por empresa/material — admin puede entrar al detalle de cualquier
+  ingreso/salida igual que hours, con la ventaja de que puede
+  editarlo/borrarlo sin límite de 24h. La card se extrajo a un widget
+  compartido (`MaterialEntryCard`) para que `/material` (hours) y
+  `/admin/material` se vean idénticos.
+
 ## [1.6.0+18] — 2026-08-16
 
 ### Agregado
@@ -38,36 +66,8 @@ celulares acepten la actualización sobre la versión anterior.
   a gerencia solo puede mandarse a los destinatarios configurados (no a
   direcciones arbitrarias).
 
-### Corregido
-- **Cámara/galería no abrían nada en la versión web.** El registro de
-  plugins de Web quedó cacheado desde antes de agregar `image_picker`
-  y `firebase_storage` (nunca se corrió `flutter clean` tras sumarlos),
-  así que en runtime la app tiraba `MissingPluginException` sin
-  capturar — el botón "no hacía nada" visible. Detectado probando la
-  versión real desplegada. Fix: `flutter clean` antes de rebuildear
-  (ver `docs/debugging.md`). De paso, `_pick` en `PhotoPickerField`
-  ahora captura errores y le muestra un mensaje al usuario en vez de
-  fallar en silencio. También se sacó el bottom sheet intermedio entre
-  el tap y la llamada al picker (dos botones directos "Tomar foto" /
-  "Galería") para no arriesgar el mismo problema de "user activation"
-  del navegador con ningún plugin futuro.
-- **Subida de fotos tiraba `[firebase_storage/unauthorized]`.**
-  `storage.rules` ataba el acceso al dueño/ventana de 24h consultando
-  Firestore desde Storage vía `firestore.get()`/`firestore.exists()`
-  (función cross-service) — compila sin error pero en runtime siempre
-  devuelve `permission-denied` en este proyecto. Fix: `storage.rules`
-  ya no depende de esa función, solo exige sesión autenticada (el
-  control real por rol sigue en `firestore.rules`). De paso se separó
-  `delete` de `create`/`update` en la regla (el `write` combinado
-  bloqueaba borrar, porque validaba un campo que no existe en delete).
-- **Las fotos no se veían en el detalle (miniatura vacía, visor
-  "cargando" para siempre) en Web.** El bucket de Storage no tenía
-  CORS configurado — la URL funciona perfecto por `curl` o abierta
-  directo, pero Flutter Web necesita CORS para el `fetch` interno que
-  usa `Image.network`. Fix: `gsutil cors set storage.cors.json
-  gs://...` (ver `docs/deployment.md`). No es parte de ningún
-  `firebase deploy`, así que si el bucket se recrea hay que reaplicarlo
-  a mano.
+(Los bugs encontrados al probar esto con datos reales — cámara/Web,
+Storage, CORS — están en la entrada 1.6.1+19 de arriba.)
 
 ## [1.5.0+17] — 2026-07-26
 

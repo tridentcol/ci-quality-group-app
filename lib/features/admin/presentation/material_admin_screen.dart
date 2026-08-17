@@ -12,6 +12,7 @@ import '../../../shared/widgets/range_filter_bar.dart';
 import '../../material/data/material_entries_repository.dart';
 import '../../material/data/material_metrics.dart';
 import '../../material/domain/material_entry.dart';
+import '../../material/presentation/widgets/material_entry_card.dart';
 import 'admin_shell.dart';
 
 /// Dashboard de gerencia del control de material: totales del rango,
@@ -93,30 +94,28 @@ class _MaterialAdminScreenState extends ConsumerState<MaterialAdminScreen> {
               loading: () => const Center(child: CircularProgressIndicator()),
               error: (e, _) => AppErrorView(error: e),
               data: (entries) {
-                final ingresos = MaterialMetrics.compute(
-                  entries
-                      .where((e) => e.type == MaterialMovementType.ingreso)
-                      .toList(),
-                );
-                final salidas = MaterialMetrics.compute(
-                  entries
-                      .where((e) => e.type == MaterialMovementType.salida)
-                      .toList(),
-                );
+                final ingresoEntries = entries
+                    .where((e) => e.type == MaterialMovementType.ingreso)
+                    .toList();
+                final salidaEntries = entries
+                    .where((e) => e.type == MaterialMovementType.salida)
+                    .toList();
                 return ListView(
                   padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
                   children: [
                     _MaterialSection(
                       title: 'Ingresos',
                       counterpartyLabel: 'Proveedor',
-                      metrics: ingresos,
+                      metrics: MaterialMetrics.compute(ingresoEntries),
+                      entries: ingresoEntries,
                       accent: const Color(0xFF2E7D32),
                     ),
                     const SizedBox(height: 28),
                     _MaterialSection(
                       title: 'Salidas',
                       counterpartyLabel: 'Cliente',
-                      metrics: salidas,
+                      metrics: MaterialMetrics.compute(salidaEntries),
+                      entries: salidaEntries,
                       accent: AppColors.warning,
                     ),
                   ],
@@ -135,12 +134,18 @@ class _MaterialSection extends StatelessWidget {
     required this.title,
     required this.counterpartyLabel,
     required this.metrics,
+    required this.entries,
     required this.accent,
   });
 
   final String title;
   final String counterpartyLabel;
   final MaterialMetrics metrics;
+
+  /// Movimientos individuales del rango — mismos que ve `hours` en
+  /// `/material`, con foto. Admin necesita poder entrar al detalle de
+  /// cada uno, no solo ver los totales agregados.
+  final List<MaterialEntry> entries;
   final Color accent;
 
   @override
@@ -226,6 +231,16 @@ class _MaterialSection extends StatelessWidget {
               ],
             ),
           ),
+          const SizedBox(height: 16),
+          _SectionLabel('Movimientos ($title)'),
+          const SizedBox(height: 8),
+          for (final entry in entries) ...[
+            MaterialEntryCard(
+              entry: entry,
+              onTap: () => context.push('/material/${entry.id}'),
+            ),
+            const SizedBox(height: 8),
+          ],
         ],
       ],
     );
