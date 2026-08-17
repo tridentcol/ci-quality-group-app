@@ -116,10 +116,8 @@ class _MaterialAdminScreenState extends ConsumerState<MaterialAdminScreen> {
                       cards: [
                         KpiCard(
                           label: 'Entró',
-                          value: formatQuantity(ingresoMetrics.totalQuantity),
-                          subtitle: ingresoMetrics.commonUnit != null
-                              ? '${ingresoMetrics.commonUnit} · ${ingresoMetrics.entryCount} registros'
-                              : '${ingresoMetrics.entryCount} registros',
+                          value: _formatByUnit(ingresoMetrics.quantityByUnit),
+                          subtitle: '${ingresoMetrics.entryCount} registros',
                           icon: Icons.call_received_outlined,
                           color: ingresoColor,
                           onTap: () => setState(
@@ -128,10 +126,8 @@ class _MaterialAdminScreenState extends ConsumerState<MaterialAdminScreen> {
                         ),
                         KpiCard(
                           label: 'Salió',
-                          value: formatQuantity(salidaMetrics.totalQuantity),
-                          subtitle: salidaMetrics.commonUnit != null
-                              ? '${salidaMetrics.commonUnit} · ${salidaMetrics.entryCount} registros'
-                              : '${salidaMetrics.entryCount} registros',
+                          value: _formatByUnit(salidaMetrics.quantityByUnit),
+                          subtitle: '${salidaMetrics.entryCount} registros',
                           icon: Icons.call_made_outlined,
                           color: salidaColor,
                           onTap: () => setState(
@@ -241,7 +237,7 @@ class _MaterialSection extends StatelessWidget {
                     subtitle:
                         Text('${c.count} registro${c.count == 1 ? '' : 's'}'),
                     trailing: Text(
-                      _formatWithUnit(c.quantity, metrics.commonUnit),
+                      _formatByUnit(c.quantityByUnit),
                       style: theme.textTheme.bodyMedium
                           ?.copyWith(fontWeight: FontWeight.w600),
                     ),
@@ -260,7 +256,7 @@ class _MaterialSection extends StatelessWidget {
                   ListTile(
                     title: Text(entry.key),
                     trailing: Text(
-                      _formatWithUnit(entry.value, metrics.commonUnit),
+                      _formatByUnit(entry.value),
                       style: theme.textTheme.bodyMedium
                           ?.copyWith(fontWeight: FontWeight.w600),
                     ),
@@ -284,13 +280,17 @@ class _MaterialSection extends StatelessWidget {
   }
 }
 
-/// `unit` puede ser `null` si el rango mezcla unidades distintas (hoy
-/// no pasa — la única lista maestra de unidades tiene "Kilogramos" —
-/// pero si el admin agrega otra, esto evita ponerle un sufijo
-/// incorrecto en vez de mentir con "kg" fijo.
-String _formatWithUnit(num value, String? unit) {
-  final formatted = formatQuantity(value);
-  return unit == null ? formatted : '$formatted $unit';
+/// Muestra la cantidad con su(s) unidad(es). Si el rango mezcla
+/// unidades distintas (hoy no pasa — la única lista maestra de
+/// unidades tiene "Kilogramos" — pero si el admin agrega otra, cada
+/// una se suma y se muestra por separado, nunca mezcladas en un solo
+/// número que mentiría sobre lo que en realidad se pesó/contó.
+String _formatByUnit(Map<String, num> quantityByUnit) {
+  if (quantityByUnit.isEmpty) return formatQuantity(0);
+  final units = quantityByUnit.keys.toList()..sort();
+  return units
+      .map((u) => '${formatQuantity(quantityByUnit[u]!)} $u')
+      .join(' + ');
 }
 
 class _SectionLabel extends StatelessWidget {

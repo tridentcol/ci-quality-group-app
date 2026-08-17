@@ -32,6 +32,16 @@ celulares acepten la actualización sobre la versión anterior.
   (desglose por empresa, por material, feed de movimientos) de
   ingresos o salidas de a uno, en vez de los dos bloques completos
   apilados verticalmente.
+- `MaterialMetrics` ahora acumula cantidad por unidad
+  (`quantityByUnit`) en vez de un solo número con una "unidad común"
+  global. Antes, si algún movimiento del rango tenía una unidad
+  distinta al resto, el dashboard entero perdía el sufijo de unidad
+  (o peor: el total, el desglose por empresa y por material sumaban
+  cantidades de unidades distintas como si fueran una sola). Hoy solo
+  existe una unidad ("Kilogramos"), así que no era visible en
+  producción, pero quedaba mal si el admin agrega otra. Cada unidad
+  ahora se acumula y se muestra por separado (ej. "100 kg + 5
+  unidades").
 
 ## [1.6.1+19] — 2026-08-17
 
