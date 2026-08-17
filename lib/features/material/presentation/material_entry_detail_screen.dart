@@ -42,137 +42,153 @@ class MaterialEntryDetailScreen extends ConsumerWidget {
                   (profile.uid == entry.createdBy && entry.isEditable));
           final canDelete = profile?.role == AppRole.admin;
 
-          return ListView(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
-            children: [
-              Row(
+          // En desktop (pantalla ancha), sin este límite las fotos —
+          // que están en un Row con Expanded + AspectRatio 1:1 — crecen
+          // con el ancho de la ventana y se ven gigantes. 640px es un
+          // ancho de lectura razonable, igual que un form/detail typical.
+          return Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 640),
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
                 children: [
-                  Text(
-                    entry.consecutive,
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.w700,
-                        ),
-                  ),
-                  const Spacer(),
-                  Text(
-                    formatDateTime(entry.date),
-                    style: Theme.of(context).textTheme.bodyMedium,
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(
-                    child: _PhotoCard(
-                      label: 'Material',
-                      url: entry.materialPhotoUrl,
-                    ),
-                  ),
-                  if (entry.originPhotoUrl != null) ...[
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _PhotoCard(
-                        label: entry.type == MaterialMovementType.ingreso
-                            ? 'Procedencia'
-                            : 'Destino',
-                        url: entry.originPhotoUrl!,
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-              const SizedBox(height: 20),
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  Row(
                     children: [
-                      _DetailRow(
-                        label: entry.type.counterpartyLabel,
-                        value: entry.counterpartyName,
+                      Text(
+                        entry.consecutive,
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                              fontWeight: FontWeight.w700,
+                            ),
                       ),
-                      _DetailRow(label: 'Material', value: entry.displayLabel),
-                      _DetailRow(
-                        label: 'Cantidad',
-                        value: '${formatQuantity(entry.quantity)} ${entry.unit}',
-                      ),
-                      if (entry.originDescription != null)
-                        _DetailRow(
-                          label: entry.type == MaterialMovementType.ingreso
-                              ? 'Origen'
-                              : 'Destino',
-                          value: entry.originDescription!,
-                        ),
-                      if (entry.vehicleRef != null)
-                        _DetailRow(
-                          label: 'Vehículo / vagón',
-                          value: entry.vehicleRef!,
-                        ),
-                      if (entry.notes != null)
-                        _DetailRow(label: 'Notas', value: entry.notes!),
-                      _DetailRow(
-                        label: 'Registrado por',
-                        value: entry.createdByName,
+                      const Spacer(),
+                      Text(
+                        formatDateTime(entry.date),
+                        style: Theme.of(context).textTheme.bodyMedium,
                       ),
                     ],
                   ),
-                ),
-              ),
-              if (canEdit || canDelete) ...[
-                const SizedBox(height: 20),
-                Row(
-                  children: [
-                    if (canEdit)
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
                       Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: () => context.push(
-                            '/material/${entry.id}/edit',
-                            extra: entry,
-                          ),
-                          icon: const Icon(Icons.edit_outlined),
-                          label: const Text('Editar'),
+                        child: _PhotoCard(
+                          label: 'Material',
+                          url: entry.materialPhotoUrl,
                         ),
                       ),
-                    if (canEdit && canDelete) const SizedBox(width: 12),
-                    if (canDelete)
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: Theme.of(context).colorScheme.error,
-                            side: BorderSide(
-                              color: Theme.of(context)
-                                  .colorScheme
-                                  .error
-                                  .withValues(alpha: 0.5),
+                      if (entry.originPhotoUrl != null) ...[
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _PhotoCard(
+                            label: entry.type == MaterialMovementType.ingreso
+                                ? 'Procedencia'
+                                : 'Destino',
+                            url: entry.originPhotoUrl!,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+                  Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _DetailRow(
+                            label: entry.type.counterpartyLabel,
+                            value: entry.counterpartyName,
+                          ),
+                          _DetailRow(
+                            label: 'Material',
+                            value: entry.displayLabel,
+                          ),
+                          _DetailRow(
+                            label: 'Cantidad',
+                            value:
+                                '${formatQuantity(entry.quantity)} ${entry.unit}',
+                          ),
+                          if (entry.originDescription != null)
+                            _DetailRow(
+                              label: entry.type == MaterialMovementType.ingreso
+                                  ? 'Origen'
+                                  : 'Destino',
+                              value: entry.originDescription!,
+                            ),
+                          if (entry.vehicleRef != null)
+                            _DetailRow(
+                              label: 'Vehículo / vagón',
+                              value: entry.vehicleRef!,
+                            ),
+                          if (entry.notes != null)
+                            _DetailRow(label: 'Notas', value: entry.notes!),
+                          _DetailRow(
+                            label: 'Registrado por',
+                            value: entry.createdByName,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  if (canEdit || canDelete) ...[
+                    const SizedBox(height: 20),
+                    Row(
+                      children: [
+                        if (canEdit)
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: () => context.push(
+                                '/material/${entry.id}/edit',
+                                extra: entry,
+                              ),
+                              icon: const Icon(Icons.edit_outlined),
+                              label: const Text('Editar'),
                             ),
                           ),
-                          onPressed: () async {
-                            final ok = await showConfirmDialog(
-                              context,
-                              title: 'Borrar ${entry.type.label.toLowerCase()}',
-                              message: 'Se borra ${entry.consecutive} de forma '
-                                  'permanente, incluidas sus fotos. No se '
-                                  'puede deshacer.',
-                              confirmLabel: 'Borrar',
-                              destructive: true,
-                              icon: Icons.delete_outline,
-                            );
-                            if (!ok) return;
-                            await ref
-                                .read(materialEntriesRepositoryProvider)
-                                .deleteEntry(entry.id);
-                            if (context.mounted) context.pop();
-                          },
-                          icon: const Icon(Icons.delete_outline),
-                          label: const Text('Borrar'),
-                        ),
-                      ),
+                        if (canEdit && canDelete) const SizedBox(width: 12),
+                        if (canDelete)
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor:
+                                    Theme.of(context).colorScheme.error,
+                                side: BorderSide(
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .error
+                                      .withValues(alpha: 0.5),
+                                ),
+                              ),
+                              onPressed: () async {
+                                final ok = await showConfirmDialog(
+                                  context,
+                                  title:
+                                      'Borrar ${entry.type.label.toLowerCase()}',
+                                  message:
+                                      'Se borra ${entry.consecutive} de forma '
+                                      'permanente, incluidas sus fotos. No se '
+                                      'puede deshacer.',
+                                  confirmLabel: 'Borrar',
+                                  destructive: true,
+                                  icon: Icons.delete_outline,
+                                );
+                                if (!ok) return;
+                                await ref
+                                    .read(materialEntriesRepositoryProvider)
+                                    .deleteEntry(entry.id);
+                                if (context.mounted) context.pop();
+                              },
+                              icon: const Icon(Icons.delete_outline),
+                              label: const Text('Borrar'),
+                            ),
+                          ),
+                      ],
+                    ),
                   ],
-                ),
-              ],
-            ],
+                ],
+              ),
+            ),
           );
         },
       ),

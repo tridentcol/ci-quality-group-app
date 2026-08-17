@@ -15,11 +15,15 @@ import '../../material/domain/material_entry.dart';
 import '../../material/presentation/widgets/material_entry_card.dart';
 import 'admin_shell.dart';
 
+enum _MaterialView { ingresos, salidas }
+
 /// Dashboard de gerencia del control de material: totales del rango,
 /// desglosados en ingreso y salida por separado (ambos independientes
-/// de `sales`), con breakdown por empresa y por material en cada uno.
-/// Mismos KPIs que dijo Carlos que necesitaba: "hoy entró tanto, salió
-/// tanto, tanto por empresa".
+/// de `sales`). Arriba siempre se ve el comparativo "entró vs. salió"
+/// (lo que pidió Carlos: "de un vistazo"); abajo un SegmentedButton
+/// (mismo patrón que `AdminMetricsScreen` para Ventas/Horas) muestra
+/// el detalle — breakdown por empresa, por material y el feed de
+/// movimientos — de uno solo a la vez en vez de apilar ambos.
 class MaterialAdminScreen extends ConsumerStatefulWidget {
   const MaterialAdminScreen({super.key});
 
@@ -31,6 +35,7 @@ class MaterialAdminScreen extends ConsumerStatefulWidget {
 class _MaterialAdminScreenState extends ConsumerState<MaterialAdminScreen> {
   late DateTime _start;
   late DateTime _end;
+  _MaterialView _view = _MaterialView.ingresos;
 
   @override
   void initState() {
@@ -100,24 +105,79 @@ class _MaterialAdminScreenState extends ConsumerState<MaterialAdminScreen> {
                 final salidaEntries = entries
                     .where((e) => e.type == MaterialMovementType.salida)
                     .toList();
+                final ingresoMetrics = MaterialMetrics.compute(ingresoEntries);
+                final salidaMetrics = MaterialMetrics.compute(salidaEntries);
+                const ingresoColor = Color(0xFF2E7D32);
+                const salidaColor = AppColors.warning;
                 return ListView(
                   padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
                   children: [
-                    _MaterialSection(
-                      title: 'Ingresos',
-                      counterpartyLabel: 'Proveedor',
-                      metrics: MaterialMetrics.compute(ingresoEntries),
-                      entries: ingresoEntries,
-                      accent: const Color(0xFF2E7D32),
+                    KpiRow(
+                      cards: [
+                        KpiCard(
+                          label: 'Entró',
+                          value: formatQuantity(ingresoMetrics.totalQuantity),
+                          subtitle: ingresoMetrics.commonUnit != null
+                              ? '${ingresoMetrics.commonUnit} · ${ingresoMetrics.entryCount} registros'
+                              : '${ingresoMetrics.entryCount} registros',
+                          icon: Icons.call_received_outlined,
+                          color: ingresoColor,
+                          onTap: () => setState(
+                            () => _view = _MaterialView.ingresos,
+                          ),
+                        ),
+                        KpiCard(
+                          label: 'Salió',
+                          value: formatQuantity(salidaMetrics.totalQuantity),
+                          subtitle: salidaMetrics.commonUnit != null
+                              ? '${salidaMetrics.commonUnit} · ${salidaMetrics.entryCount} registros'
+                              : '${salidaMetrics.entryCount} registros',
+                          icon: Icons.call_made_outlined,
+                          color: salidaColor,
+                          onTap: () => setState(
+                            () => _view = _MaterialView.salidas,
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 28),
-                    _MaterialSection(
-                      title: 'Salidas',
-                      counterpartyLabel: 'Cliente',
-                      metrics: MaterialMetrics.compute(salidaEntries),
-                      entries: salidaEntries,
-                      accent: AppColors.warning,
+                    const SizedBox(height: 16),
+                    SizedBox(
+                      width: double.infinity,
+                      child: SegmentedButton<_MaterialView>(
+                        segments: const [
+                          ButtonSegment(
+                            value: _MaterialView.ingresos,
+                            label: Text('Ingresos'),
+                            icon: Icon(Icons.call_received_outlined),
+                          ),
+                          ButtonSegment(
+                            value: _MaterialView.salidas,
+                            label: Text('Salidas'),
+                            icon: Icon(Icons.call_made_outlined),
+                          ),
+                        ],
+                        selected: {_view},
+                        onSelectionChanged: (s) =>
+                            setState(() => _view = s.first),
+                      ),
                     ),
+                    const SizedBox(height: 20),
+                    if (_view == _MaterialView.ingresos)
+                      _MaterialSection(
+                        title: 'Ingresos',
+                        counterpartyLabel: 'Proveedor',
+                        metrics: ingresoMetrics,
+                        entries: ingresoEntries,
+                        accent: ingresoColor,
+                      )
+                    else
+                      _MaterialSection(
+                        title: 'Salidas',
+                        counterpartyLabel: 'Cliente',
+                        metrics: salidaMetrics,
+                        entries: salidaEntries,
+                        accent: salidaColor,
+                      ),
                   ],
                 );
               },
@@ -154,11 +214,6 @@ class _MaterialSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          title,
-          style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
-        ),
-        const SizedBox(height: 10),
         if (metrics.entryCount == 0)
           Card(
             child: Padding(
@@ -174,25 +229,6 @@ class _MaterialSection extends StatelessWidget {
             ),
           )
         else ...[
-          KpiRow(cards: [
-            KpiCard(
-              label: 'Total',
-              value: formatQuantity(metrics.totalQuantity),
-              subtitle: metrics.commonUnit != null
-                  ? '${metrics.commonUnit} en el rango'
-                  : 'en el rango (unidades mixtas)',
-              icon: Icons.scale_outlined,
-              color: accent,
-            ),
-            KpiCard(
-              label: title,
-              value: '${metrics.entryCount}',
-              subtitle: 'registros',
-              icon: Icons.inventory_2_outlined,
-              color: accent,
-            ),
-          ],),
-          const SizedBox(height: 16),
           _SectionLabel('Por $counterpartyLabel'),
           const SizedBox(height: 8),
           Card(
@@ -202,7 +238,8 @@ class _MaterialSection extends StatelessWidget {
                 for (final c in metrics.topCompanies)
                   ListTile(
                     title: Text(c.name),
-                    subtitle: Text('${c.count} registro${c.count == 1 ? '' : 's'}'),
+                    subtitle:
+                        Text('${c.count} registro${c.count == 1 ? '' : 's'}'),
                     trailing: Text(
                       _formatWithUnit(c.quantity, metrics.commonUnit),
                       style: theme.textTheme.bodyMedium

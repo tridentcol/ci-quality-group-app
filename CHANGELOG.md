@@ -7,6 +7,32 @@ versionado [SemVer](https://semver.org/spec/v2.0.0.html). El número entre `+`
 es el `versionCode` de Android — cada release se sube en uno para que los
 celulares acepten la actualización sobre la versión anterior.
 
+## [1.6.2+20] — 2026-08-17
+
+### Corregido
+- En desktop web, la foto del detalle de un movimiento (`/material/:id`)
+  se veía gigante porque el `Row` con `Expanded` + `AspectRatio` crecía
+  con el ancho de la ventana. El contenido del detalle ahora va dentro
+  de un `ConstrainedBox` de 640px centrado, igual que un form/detail
+  típico.
+- Correo de notificación de material confirmado funcionando en
+  producción: el intento real del usuario había caído con
+  `PERMISSION_DENIED` porque el permiso IAM otorgado a la extensión
+  (`roles/datastore.user` sobre `ext-firestore-send-email@...`) aún no
+  había propagado. Se verificó con un envío de prueba real
+  (`delivery.state: SUCCESS` en Firestore + log de Cloud Run
+  confirmando la entrega SMTP) y se limpió el doc de `mail/` huérfano
+  que quedó del intento fallido.
+
+### Cambiado
+- Dashboard de admin (`/admin/material`) reorganizado: arriba un
+  comparativo siempre visible "Entró vs. Salió" (tap en cualquiera
+  cambia la vista de abajo), y un `SegmentedButton` — mismo patrón que
+  `AdminMetricsScreen` para Ventas/Horas — para ver el detalle
+  (desglose por empresa, por material, feed de movimientos) de
+  ingresos o salidas de a uno, en vez de los dos bloques completos
+  apilados verticalmente.
+
 ## [1.6.1+19] — 2026-08-17
 
 Serie de correcciones sobre el control de material (1.6.0+18) después
