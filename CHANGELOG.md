@@ -38,6 +38,20 @@ celulares acepten la actualización sobre la versión anterior.
   a gerencia solo puede mandarse a los destinatarios configurados (no a
   direcciones arbitrarias).
 
+### Corregido
+- **Cámara/galería no abrían nada en la versión web.** El registro de
+  plugins de Web quedó cacheado desde antes de agregar `image_picker`
+  y `firebase_storage` (nunca se corrió `flutter clean` tras sumarlos),
+  así que en runtime la app tiraba `MissingPluginException` sin
+  capturar — el botón "no hacía nada" visible. Detectado probando la
+  versión real desplegada. Fix: `flutter clean` antes de rebuildear
+  (ver `docs/debugging.md`). De paso, `_pick` en `PhotoPickerField`
+  ahora captura errores y le muestra un mensaje al usuario en vez de
+  fallar en silencio. También se sacó el bottom sheet intermedio entre
+  el tap y la llamada al picker (dos botones directos "Tomar foto" /
+  "Galería") para no arriesgar el mismo problema de "user activation"
+  del navegador con ningún plugin futuro.
+
 ## [1.5.0+17] — 2026-07-26
 
 ### Agregado

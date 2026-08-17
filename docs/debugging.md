@@ -41,6 +41,53 @@ y lo arreglás, sumalo acá para que la próxima vez sea más rápido.
 
 ---
 
+## Síntoma: un botón que usa un plugin nuevo "no hace nada" en Web (sin error visible)
+
+Pasó con `image_picker` (cámara/galería) la primera vez que se agregó
+al proyecto: tocar el botón no abría nada, ni un error, ni un pedido
+de permiso — como si el tap se perdiera en el aire. Pasaba en la web
+desplegada, pero **no** en el APK.
+
+**Causa real:** se corrió `flutter pub add <paquete>` y se compiló con
+`flutter build web`, pero **nunca se corrió `flutter clean`**. El
+archivo de registro de plugins para Web (`web_plugin_registrant.dart`,
+generado en `.dart_tool/flutter_build/<hash>/`) queda cacheado — si no
+se invalida, el paquete nuevo nunca se registra, y en runtime cualquier
+llamada a ese plugin explota con:
+
+```
+MissingPluginException(No implementation found for method <x> on
+channel plugins.flutter.io/<paquete>)
+```
+
+Esa excepción, si el código que llama al plugin no tiene `try/catch`
+alrededor, queda sin capturar — de ahí el síntoma "no pasa nada" (nada
+se muestra en pantalla, solo aparece en la consola del navegador si la
+abrís). Este tipo de bug **no lo detecta `flutter analyze` ni
+`flutter build web` exitoso** — solo aparece corriendo la app de
+verdad.
+
+**Diagnóstico:**
+1. Abrí DevTools → Console en el navegador, tocá el botón que falla.
+   Si ves `MissingPluginException`, es esto.
+2. Confirmá revisando `.dart_tool/flutter_build/<hash>/web_plugin_registrant.dart`
+   — si el paquete nuevo no aparece en los `import`s ni en
+   `registerPlugins()`, está confirmado.
+
+**Fix:**
+```
+flutter clean
+flutter pub get
+flutter build web --release --no-tree-shake-icons --no-wasm-dry-run
+```
+
+**Regla general:** después de agregar CUALQUIER paquete nuevo con
+soporte Web (`flutter pub add <paquete>`), corré `flutter clean` antes
+del próximo `flutter build web` de release. No hace falta para cambios
+de código que no tocan `pubspec.yaml`.
+
+---
+
 ## Síntoma: panel de métricas tira "La operación no se puede completar en el estado actual"
 
 Es la traducción amigable del error Firestore `failed-precondition`.
