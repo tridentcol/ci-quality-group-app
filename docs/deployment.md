@@ -39,6 +39,45 @@ firebase deploy --only firestore:rules
 Propaga en 30s–1min. Hacé este deploy **antes** del de hosting si el
 código nuevo asume permisos nuevos.
 
+### Si Storage rules cambiaron
+
+```powershell
+firebase deploy --only storage
+```
+
+### CORS del bucket de Storage (setup único, no lo maneja `firebase deploy`)
+
+Las fotos del control de material se muestran con `Image.network(url)`.
+Flutter Web necesita poder hacer un `fetch`/XHR real a esa URL (no
+alcanza con que la URL sea pública) — sin CORS configurado en el
+bucket, el navegador bloquea la respuesta y la foto se queda cargando
+para siempre (aunque la URL funcione perfecto abierta directo o por
+`curl`). Esto **no** es parte de `storage.rules` ni de ningún deploy
+de Firebase — es configuración del bucket de Cloud Storage en sí, y
+si el bucket se recrea algún día hay que volver a aplicarla:
+
+```bash
+gsutil cors set storage.cors.json gs://quality-group-app.firebasestorage.app
+```
+
+Si no tenés `gsutil`/`gcloud` instalado (no vienen con el Firebase
+CLI), se puede aplicar igual vía la API REST de Cloud Storage con un
+access token de OAuth con scope `cloud-platform` (el que ya usa
+internamente `firebase-tools` sirve, cacheado en
+`~/.config/configstore/firebase-tools.json` → `tokens.access_token`):
+
+```bash
+curl -X PATCH "https://storage.googleapis.com/storage/v1/b/quality-group-app.firebasestorage.app" \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  --data-binary @storage.cors.json
+```
+
+`storage.cors.json` (en la raíz del repo) tiene el valor aplicado:
+origin `*`, métodos `GET`/`HEAD`. Es intencionalmente abierto — las
+URLs de descarga ya llevan un token que actúa como credencial, así
+que restringir el origin no suma seguridad real acá, solo complejidad.
+
 ### Si firebase.json se rompe
 
 `firebase init` lo sobrescribe con un template vacío que destruye los

@@ -51,6 +51,23 @@ celulares acepten la actualización sobre la versión anterior.
   el tap y la llamada al picker (dos botones directos "Tomar foto" /
   "Galería") para no arriesgar el mismo problema de "user activation"
   del navegador con ningún plugin futuro.
+- **Subida de fotos tiraba `[firebase_storage/unauthorized]`.**
+  `storage.rules` ataba el acceso al dueño/ventana de 24h consultando
+  Firestore desde Storage vía `firestore.get()`/`firestore.exists()`
+  (función cross-service) — compila sin error pero en runtime siempre
+  devuelve `permission-denied` en este proyecto. Fix: `storage.rules`
+  ya no depende de esa función, solo exige sesión autenticada (el
+  control real por rol sigue en `firestore.rules`). De paso se separó
+  `delete` de `create`/`update` en la regla (el `write` combinado
+  bloqueaba borrar, porque validaba un campo que no existe en delete).
+- **Las fotos no se veían en el detalle (miniatura vacía, visor
+  "cargando" para siempre) en Web.** El bucket de Storage no tenía
+  CORS configurado — la URL funciona perfecto por `curl` o abierta
+  directo, pero Flutter Web necesita CORS para el `fetch` interno que
+  usa `Image.network`. Fix: `gsutil cors set storage.cors.json
+  gs://...` (ver `docs/deployment.md`). No es parte de ningún
+  `firebase deploy`, así que si el bucket se recrea hay que reaplicarlo
+  a mano.
 
 ## [1.5.0+17] — 2026-07-26
 

@@ -5,6 +5,43 @@ y lo arreglás, sumalo acá para que la próxima vez sea más rápido.
 
 ---
 
+## Síntoma: una foto de Storage no aparece en Web (miniatura vacía, visor a pantalla completa "cargando" para siempre)
+
+Pasó con las fotos del control de material. La URL en sí funciona
+perfecto — se puede abrir directo en el navegador o descargar con
+`curl`, y devuelve la imagen sin problema. El bug es específico de
+`Image.network(url)` en **Flutter Web**.
+
+**Causa:** Flutter Web necesita hacer un `fetch`/XHR real a la URL
+para poder decodificar la imagen (no le alcanza con embeber un
+`<img src>` simple). Eso dispara una verificación CORS del navegador,
+y **Cloud Storage no trae CORS habilitado por defecto** en el bucket.
+El síntoma es engañoso: `curl` y el navegador ABRIENDO la URL directo
+(pestaña nueva) sí funcionan porque esos casos no pasan por CORS —
+solo lo necesita un `fetch`/XHR iniciado por JS desde otro origen.
+
+**Diagnóstico:** abrí DevTools → Console mientras se intenta cargar la
+foto. Si ves algo como:
+```
+Access to XMLHttpRequest at 'https://firebasestorage.googleapis.com/...'
+from origin 'https://tu-dominio.web.app' has been blocked by CORS
+policy: No 'Access-Control-Allow-Origin' header is present...
+```
+es esto. (Ojo: un `curl -X OPTIONS` con header `Origin` puede devolver
+`access-control-allow-origin: *` en el preflight aunque el GET real
+NO lo traiga — no asumas que CORS está bien solo por eso, probá con
+un navegador real o un `GET` completo con header `Origin`.)
+
+**Fix:** configurar CORS en el bucket (no es parte de `storage.rules`
+ni de ningún `firebase deploy` — ver `docs/deployment.md` → "CORS del
+bucket de Storage" para el comando exacto con `gsutil` o, si no lo
+tenés instalado, el fallback vía API REST con el access token que ya
+tiene cacheado `firebase-tools`).
+
+---
+
+---
+
 ## Síntoma: app web se queda cargando, nunca llega a login
 
 **Diagnóstico paso a paso:**
