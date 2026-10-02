@@ -9,7 +9,9 @@ import 'work_schedule.dart';
 ///  - Festivos colombianos (algoritmo de Pascua + Ley Emiliani).
 ///  - Recargo dominical para domingos y festivos.
 ///  - Descuento de almuerzo cuando la jornada interseca la franja configurada.
-///  - Clasificación diurno/nocturno según `WorkSchedule.dayStart` / `dayEnd`.
+///  - Clasificación diurno/nocturno según `WorkSchedule.dayStart` / `dayEnd`,
+///    tanto para las extras como para la jornada ordinaria (un turno de
+///    tarde que pasa de las 19:00 genera hora ordinaria nocturna).
 ///  - Turnos que cruzan medianoche (clasifica cada minuto por su fecha real).
 class HoursCalculator {
   const HoursCalculator({this.schedule = WorkSchedule.defaultSchedule});
@@ -76,14 +78,19 @@ class HoursCalculator {
       return HoursCategory.lunch;
     }
 
-    if (inOrdinary) {
-      return isDominical
-          ? HoursCategory.sundayOrdinary
-          : HoursCategory.ordinary;
-    }
-
     final isDayTime = minute >= schedule.dayStart.totalMinutes &&
         minute < schedule.dayEnd.totalMinutes;
+
+    if (inOrdinary) {
+      if (isDayTime) {
+        return isDominical
+            ? HoursCategory.sundayOrdinary
+            : HoursCategory.ordinary;
+      }
+      return isDominical
+          ? HoursCategory.sundayOrdinaryNight
+          : HoursCategory.ordinaryNight;
+    }
 
     if (isDayTime) {
       return isDominical

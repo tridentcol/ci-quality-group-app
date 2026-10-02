@@ -35,6 +35,7 @@ Reglas:
 | `bankAccount`  | String?   | Número de cuenta.                       |
 | `phone`        | String?   |                                        |
 | `active`       | bool      | Soft-delete: si `false`, no aparece en dropdowns. |
+| `shiftId`      | String?   | Turno asignado (`work_shifts/{id}`). Null = jornada general. Es el único campo que puede escribir el rol `hours`. |
 | `createdAt`    | Timestamp |                                        |
 
 ### `sales/{id}`
@@ -150,6 +151,8 @@ Reglas:
 | `checkOut`       | Timestamp? | Null si el turno sigue abierto.        |
 | `breakdown`      | Map        | Resultado de `HoursCalculator`: claves = categorías (`ordinary`, `extraDay`, ...) → minutos. |
 | `notes`          | String?    |                                        |
+| `shiftId`        | String?    | Turno con el que se calculó el registro. Se toma del trabajador al abrir el día y se puede cambiar por día. Null = jornada general (y todos los registros anteriores a los turnos). |
+| `shiftName`      | String?    | Cacheado, para reportes y export.      |
 | `editableUntil`  | Timestamp? | Igual que sales — 24h después de cerrar. |
 | `createdBy`      | String     |                                        |
 | `createdByName`  | String     |                                        |
@@ -404,20 +407,53 @@ por separado; la dedup es solo UI).
 
 `WorkSchedule` — configuración de jornada laboral.
 
+Es la **jornada general**: aplica a los trabajadores sin turno. Los
+rangos son mapas `{startHour, startMinute, endHour, endMinute}`
+(`TimeRange.toMap()`) y las horas sueltas `{hour, minute}`.
+
 | Campo                 | Tipo  | Notas                              |
 |-----------------------|-------|------------------------------------|
-| `weekdayStart`        | String| `'07:00'`                          |
-| `weekdayEnd`          | String| `'16:00'`                          |
-| `saturdayStart`       | String| `'07:00'`                          |
-| `saturdayEnd`         | String| `'11:00'`                          |
-| `sundayStart`         | String| `'07:00'`                          |
-| `sundayEnd`           | String| `'16:00'`                          |
-| `lunchStart`          | String| `'12:00'`                          |
-| `lunchEnd`            | String| `'13:00'`                          |
-| `dayStart`            | String| `'06:00'` — frontera diurno/nocturno. |
-| `dayEnd`              | String| `'19:00'`                          |
+| `weekdayOrdinary`     | Map   | Default 07:00–16:00.               |
+| `weekdayLunch`        | Map?  | Default 12:00–13:00. Null = sin almuerzo. |
+| `saturdayOrdinary`    | Map   | Default 07:00–11:00.               |
+| `saturdayLunch`       | Map?  |                                    |
+| `sundayOrdinary`      | Map   | Default 07:00–16:00 (domingos y festivos). |
+| `sundayLunch`         | Map?  |                                    |
+| `dayStart`            | Map   | Default 06:00 — inicio de la franja diurna. |
+| `dayEnd`              | Map   | Default 19:00 — inicio de la franja nocturna. |
+
+`dayStart`/`dayEnd` aplican a todos, con o sin turno.
 
 Reglas: lee cualquiera autenticado, escribe solo admin.
+
+### `work_shifts/{id}`
+
+`WorkShift` — turno de trabajo. Reemplaza la jornada ordinaria y el
+almuerzo de `settings/work_schedule` para los trabajadores asignados
+(`workers.shiftId`). Se administra desde `/hours/shifts`.
+
+| Campo            | Tipo       | Notas                                  |
+|------------------|------------|----------------------------------------|
+| `name`           | String     | Máx. 60 caracteres.                    |
+| `weekday`        | Map        | Rango ordinario L–V (`TimeRange.toMap()`). |
+| `weekdayLunch`   | Map?       | Null = jornada corrida.                |
+| `saturday`       | Map?       | Null = el sábado usa `weekday` + `weekdayLunch`. |
+| `saturdayLunch`  | Map?       | Solo se lee si `saturday` no es null.  |
+| `sunday`         | Map?       | Null = domingos/festivos usan `weekday` + `weekdayLunch`. |
+| `sundayLunch`    | Map?       | Solo se lee si `sunday` no es null.    |
+| `active`         | bool       | Soft-delete: `hours_entries.shiftId` lo referencia. Al desactivar, la app devuelve sus trabajadores a la jornada general. |
+| `createdAt`      | Timestamp  |                                        |
+| `updatedAt`      | Timestamp  |                                        |
+| `updatedBy`      | String     | uid de quien hizo el último cambio.    |
+| `updatedByName`  | String     |                                        |
+
+No se soportan turnos que crucen la medianoche (el formulario valida
+fin > inicio).
+
+Reglas:
+- Lee: cualquiera autenticado.
+- Crea/actualiza: `admin`, `hours`.
+- Borra: solo `admin` (la app nunca borra, desactiva).
 
 ### `settings/cash_register`
 
@@ -519,6 +555,9 @@ users.uid ──┬─── sales.createdBy
             └─── (auditFilter referencia indirecta)
 
 workers.id ──── hours_entries.workerId
+
+work_shifts.id ─┬─ workers.shiftId
+                └─ hours_entries.shiftId
 
 master_lists/{listId}/items/{itemId}.value
     └── referenciado por VALOR (no por id) en:

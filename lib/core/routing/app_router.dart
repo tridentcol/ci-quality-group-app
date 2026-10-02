@@ -28,6 +28,8 @@ import '../../features/auth/presentation/login_screen.dart';
 import '../../features/hours/presentation/hours_admin_screen.dart';
 import '../../features/hours/presentation/hours_home_screen.dart';
 import '../../features/hours/presentation/manual_hours_entry_screen.dart';
+import '../../features/hours/presentation/shift_form_screen.dart';
+import '../../features/hours/presentation/shifts_screen.dart';
 import '../../features/hours/presentation/worker_day_screen.dart';
 import '../../features/admin/presentation/material_admin_screen.dart';
 import '../../features/admin/presentation/material_notification_settings_screen.dart';
@@ -306,6 +308,24 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/hours',
         builder: (_, __) => const HoursHomeScreen(),
         routes: [
+          // `shifts` va antes de `:workerId` para que el parámetro no se
+          // lo trague como si fuera el id de un trabajador.
+          GoRoute(
+            path: 'shifts',
+            builder: (_, __) => const ShiftsScreen(),
+            routes: [
+              GoRoute(
+                path: 'new',
+                builder: (_, __) => const ShiftFormScreen(),
+              ),
+              GoRoute(
+                path: ':shiftId',
+                builder: (_, state) => ShiftFormScreen(
+                  shiftId: state.pathParameters['shiftId']!,
+                ),
+              ),
+            ],
+          ),
           GoRoute(
             path: ':workerId',
             builder: (_, state) =>

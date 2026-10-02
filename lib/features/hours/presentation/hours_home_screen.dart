@@ -13,6 +13,7 @@ import '../../auth/data/auth_repository.dart';
 import '../../workers/data/workers_repository.dart';
 import '../../workers/domain/worker.dart';
 import '../data/hours_repository.dart';
+import '../data/work_shifts_repository.dart';
 import '../domain/hours_categories.dart';
 import '../domain/hours_entry.dart';
 
@@ -32,10 +33,19 @@ class _HoursHomeScreenState extends ConsumerState<HoursHomeScreen> {
   Widget build(BuildContext context) {
     final workers = ref.watch(activeWorkersProvider);
     final today = ref.watch(todayHoursByWorkerProvider);
+    final shiftNames = {
+      for (final s in ref.watch(workShiftsProvider).valueOrNull ?? const [])
+        if (s.active) s.id: s.name,
+    };
     return Scaffold(
       appBar: AppBar(
         title: const Text('Control de horas'),
         actions: [
+          IconButton(
+            tooltip: 'Turnos',
+            icon: const Icon(Icons.groups_outlined),
+            onPressed: () => context.push('/hours/shifts'),
+          ),
           IconButton(
             tooltip: 'Control de material',
             icon: const Icon(Icons.inventory_2_outlined),
@@ -125,6 +135,7 @@ class _HoursHomeScreenState extends ConsumerState<HoursHomeScreen> {
                       return _WorkerHoursCard(
                         worker: w,
                         entry: entry,
+                        shiftName: shiftNames[w.shiftId],
                         onTap: () => context.push('/hours/${w.id}'),
                       );
                     },
@@ -283,11 +294,15 @@ class _WorkerHoursCard extends StatelessWidget {
   const _WorkerHoursCard({
     required this.worker,
     required this.entry,
+    required this.shiftName,
     required this.onTap,
   });
 
   final Worker worker;
   final HoursEntry? entry;
+
+  /// Turno asignado al trabajador; `null` = jornada general.
+  final String? shiftName;
   final VoidCallback onTap;
 
   @override
@@ -329,7 +344,9 @@ class _WorkerHoursCard extends StatelessWidget {
                     Text(worker.fullName, style: theme.textTheme.titleMedium),
                     const SizedBox(height: 2),
                     Text(
-                      worker.role,
+                      shiftName == null
+                          ? worker.role
+                          : '${worker.role} · $shiftName',
                       style: theme.textTheme.bodySmall?.copyWith(
                         color:
                             theme.colorScheme.onSurface.withValues(alpha: 0.6),

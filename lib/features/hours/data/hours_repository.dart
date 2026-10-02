@@ -49,6 +49,8 @@ class HoursRepository {
     required DateTime checkIn,
     required String createdBy,
     required String createdByName,
+    String? shiftId,
+    String? shiftName,
   }) async {
     final dayStart = startOfDay(checkIn);
     final id = entryIdFor(workerId, dayStart);
@@ -65,6 +67,8 @@ class HoursRepository {
       workerName: workerName,
       workDate: dayStart,
       checkIn: checkIn,
+      shiftId: shiftId,
+      shiftName: shiftName,
       breakdown: HoursBreakdown(),
       createdBy: createdBy,
       createdByName: createdByName,
@@ -82,6 +86,11 @@ class HoursRepository {
   /// próximo recálculo (mismo patrón que el bug original de items[] en
   /// sales).
   ///
+  /// [schedule] debe ser la jornada efectiva del registro (la del turno
+  /// que queda guardado, vía `resolveSchedule`). Para cambiar el turno
+  /// del día se pasa [changeShift] en `true` junto con el nuevo
+  /// [shiftId]/[shiftName] (`null` = jornada general).
+  ///
   /// Si [closedAt] está presente, además se cierra el día y se arranca
   /// la ventana de 24 h (solo en el primer cierre; reaperturas y
   /// re-cierres no la reinician).
@@ -96,6 +105,9 @@ class HoursRepository {
     DateTime? checkOut,
     DateTime? closedAt,
     String? note,
+    bool changeShift = false,
+    String? shiftId,
+    String? shiftName,
     required WorkSchedule schedule,
   }) async {
     await _firestore.runTransaction((txn) async {
@@ -112,6 +124,8 @@ class HoursRepository {
         if (newCheckOut != null)
           'checkOut': Timestamp.fromDate(AppClock.toInstant(newCheckOut)),
         if (note != null) 'note': note,
+        if (changeShift) 'shiftId': shiftId,
+        if (changeShift) 'shiftName': shiftName,
         'updatedAt': Timestamp.fromDate(AppClock.toInstant(AppClock.now())),
       };
 
@@ -202,6 +216,8 @@ class HoursRepository {
     required DateTime checkOut,
     required String createdBy,
     required String createdByName,
+    String? shiftId,
+    String? shiftName,
     required WorkSchedule schedule,
   }) async {
     if (!checkOut.isAfter(checkIn)) {
@@ -224,6 +240,8 @@ class HoursRepository {
         'workDate': Timestamp.fromDate(AppClock.toInstant(dayStart)),
         'checkIn': Timestamp.fromDate(AppClock.toInstant(checkIn)),
         'checkOut': Timestamp.fromDate(AppClock.toInstant(checkOut)),
+        'shiftId': shiftId,
+        'shiftName': shiftName,
         'breakdown': breakdown.toMinutesMap(),
         'updatedAt': Timestamp.fromDate(AppClock.toInstant(now)),
       };
@@ -248,6 +266,8 @@ class HoursRepository {
         checkIn: checkIn,
         checkOut: checkOut,
         closedAt: now,
+        shiftId: shiftId,
+        shiftName: shiftName,
         breakdown: breakdown,
         createdBy: createdBy,
         createdByName: createdByName,

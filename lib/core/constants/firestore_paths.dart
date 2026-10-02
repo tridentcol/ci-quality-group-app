@@ -16,6 +16,9 @@ class FirestorePaths {
   // Registros de horas (uno por trabajador-día).
   static const hoursEntries = 'hours_entries';
 
+  // Turnos de trabajo. Los administran admin y hours desde la app.
+  static const workShifts = 'work_shifts';
+
   // Listas maestras gestionadas por el admin: proveedores, pagadores,
   // materiales, métodos de pago, unidades, etc.
   // Cada documento es una lista; los items son una subcolección.

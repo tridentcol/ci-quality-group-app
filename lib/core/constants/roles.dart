@@ -2,7 +2,8 @@
 ///
 /// - `admin`: control total + métricas + listas maestras + usuarios.
 /// - `sales`: registra solicitudes de venta y consulta históricos propios.
-/// - `hours`: marca entrada/salida de los trabajadores.
+/// - `hours`: marca entrada/salida de los trabajadores, administra los
+///   turnos y registra ingresos/salidas de material.
 /// - `cajero`: toma las solicitudes de sales, las procesa, registra
 ///   abonos parciales y marca pérdidas. Es la única vía para mover el
 ///   workflow más allá de `generada`.
@@ -20,7 +21,7 @@ enum AppRole {
   String get label => switch (this) {
         AppRole.admin => 'Administrador',
         AppRole.sales => 'Control de ventas',
-        AppRole.hours => 'Control de horas',
+        AppRole.hours => 'Horas y material',
         AppRole.cajero => 'Caja',
         AppRole.auditor => 'Auditor / Inversor',
       };

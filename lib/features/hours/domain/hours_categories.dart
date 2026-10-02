@@ -3,6 +3,11 @@ enum HoursCategory {
   /// Jornada ordinaria L–V o sábado, sin recargo.
   ordinary,
 
+  /// Jornada ordinaria que cae en la franja nocturna (recargo nocturno).
+  /// Solo aparece cuando un turno tiene su jornada después de las 19:00
+  /// o antes de las 06:00.
+  ordinaryNight,
+
   /// Hora extra diurna (06:00 – 19:00, fuera de jornada ordinaria, día hábil).
   extraDay,
 
@@ -11,6 +16,9 @@ enum HoursCategory {
 
   /// Hora dominical diurna ordinaria (jornada laboral en domingo/festivo).
   sundayOrdinary,
+
+  /// Jornada ordinaria de domingo/festivo que cae en la franja nocturna.
+  sundayOrdinaryNight,
 
   /// Hora extra dominical diurna (fuera de jornada ordinaria, en domingo/festivo,
   /// dentro de la franja diurna).
@@ -25,9 +33,12 @@ enum HoursCategory {
 
   String get label => switch (this) {
         HoursCategory.ordinary => 'Hora ordinaria',
+        HoursCategory.ordinaryNight => 'Hora ordinaria nocturna',
         HoursCategory.extraDay => 'Hora extra diurna',
         HoursCategory.extraNight => 'Hora extra nocturna',
         HoursCategory.sundayOrdinary => 'Hora dominical diurna ordinaria',
+        HoursCategory.sundayOrdinaryNight =>
+          'Hora dominical nocturna ordinaria',
         HoursCategory.extraSundayDay => 'Hora extra dominical diurna',
         HoursCategory.extraSundayNight => 'Hora extra dominical nocturna',
         HoursCategory.lunch => 'Almuerzo (no contabiliza)',

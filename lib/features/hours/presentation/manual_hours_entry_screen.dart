@@ -17,10 +17,12 @@ import '../../workers/data/workers_repository.dart';
 import '../../workers/domain/worker.dart';
 import '../data/hours_repository.dart';
 import '../data/work_schedule_repository.dart';
+import '../data/work_shifts_repository.dart';
 import '../domain/hours_calculator.dart';
 import '../domain/hours_categories.dart';
 import '../domain/hours_entry.dart';
 import '../domain/work_schedule.dart';
+import '../domain/work_shift.dart';
 import 'widgets/breakdown_card.dart';
 
 /// Pantalla del admin para crear o editar manualmente una entrada de horas
@@ -50,6 +52,9 @@ class _ManualHoursEntryScreenState
   bool _busy = false;
   String? _formError;
   HoursEntry? _editing;
+
+  /// Turno con el que se calcula este registro. `null` = jornada general.
+  String? _shiftId;
 
   bool get _isEdit => widget.entryId != null;
 
@@ -110,6 +115,7 @@ class _ManualHoursEntryScreenState
         _editing = entry;
         _worker = worker;
         _date = entry.workDate;
+        _shiftId = entry.shiftId;
         _checkIn =
             TimeOfDay(hour: entry.checkIn.hour, minute: entry.checkIn.minute);
         if (entry.checkOut != null) {
@@ -162,6 +168,21 @@ class _ManualHoursEntryScreenState
         }
       });
     }
+  }
+
+  /// Al elegir trabajador en un registro nuevo se propone su turno y el
+  /// horario de ese turno, que es lo más probable que haya trabajado.
+  void _onWorkerPicked(Worker? worker, List<WorkShift> shifts) {
+    final shift = activeShiftById(shifts, worker?.shiftId);
+    setState(() {
+      _worker = worker;
+      _shiftId = shift?.id;
+      if (shift != null) {
+        final range = shift.rangeFor(_date);
+        _checkIn = TimeOfDay(hour: range.startHour, minute: range.startMinute);
+        _checkOut = TimeOfDay(hour: range.endHour, minute: range.endMinute);
+      }
+    });
   }
 
   ({String label, Color color})? _dateBadge(Brightness brightness) {
@@ -219,8 +240,16 @@ class _ManualHoursEntryScreenState
     try {
       final profile = ref.read(currentProfileProvider).valueOrNull;
       if (profile == null) throw StateError('Sesión inválida.');
-      final schedule =
-          ref.read(workScheduleProvider).valueOrNull ?? const WorkSchedule();
+      final shifts = await ref.read(workShiftsProvider.future);
+      final schedule = resolveSchedule(
+        ref.read(workScheduleProvider).valueOrNull ?? const WorkSchedule(),
+        shifts,
+        _shiftId,
+      );
+      String? shiftName;
+      for (final s in shifts) {
+        if (s.id == _shiftId) shiftName = s.name;
+      }
       await ref.read(hoursRepositoryProvider).upsertManualEntry(
             workerId: _worker!.id,
             workerName: _worker!.fullName,
@@ -229,6 +258,10 @@ class _ManualHoursEntryScreenState
             checkOut: outDt,
             createdBy: profile.uid,
             createdByName: profile.fullName,
+            // Si el turno ya no existe, el registro queda en jornada
+            // general: es con la que `resolveSchedule` lo calculó.
+            shiftId: shiftName == null ? null : _shiftId,
+            shiftName: shiftName,
             schedule: schedule,
           );
       if (mounted) {
@@ -279,8 +312,21 @@ class _ManualHoursEntryScreenState
     final theme = Theme.of(context);
     final keyboardInset = MediaQuery.viewInsetsOf(context).bottom;
     final workers = ref.watch(allWorkersProvider);
-    final schedule =
-        ref.watch(workScheduleProvider).valueOrNull ?? const WorkSchedule();
+    final shifts =
+        ref.watch(workShiftsProvider).valueOrNull ?? const <WorkShift>[];
+    final schedule = resolveSchedule(
+      ref.watch(workScheduleProvider).valueOrNull ?? const WorkSchedule(),
+      shifts,
+      _shiftId,
+    );
+    // Turnos elegibles: los activos, más el del registro aunque esté
+    // inactivo (para no perderlo al editar un día viejo).
+    final shiftOptions = [
+      for (final s in shifts)
+        if (s.active || s.id == _shiftId) s,
+    ];
+    final shiftValue =
+        shiftOptions.any((s) => s.id == _shiftId) ? _shiftId : null;
 
     return Scaffold(
       appBar: AppBar(
@@ -327,7 +373,33 @@ class _ManualHoursEntryScreenState
                         )
                         .toList(),
                     onChanged:
-                        _isEdit ? null : (w) => setState(() => _worker = w),
+                        _isEdit ? null : (w) => _onWorkerPicked(w, shifts),
+                  ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<String?>(
+                    // La key fuerza a refrescar el valor cuando el turno
+                    // cambia por código (al elegir trabajador o al cargar
+                    // el registro), porque `initialValue` solo se lee una vez.
+                    key: ValueKey('shift-$shiftValue'),
+                    initialValue: shiftValue,
+                    decoration: const InputDecoration(
+                      labelText: 'Turno',
+                      prefixIcon: Icon(Icons.groups_outlined),
+                    ),
+                    items: [
+                      const DropdownMenuItem(
+                        value: null,
+                        child: Text('Jornada general'),
+                      ),
+                      for (final s in shiftOptions)
+                        DropdownMenuItem(
+                          value: s.id,
+                          child: Text(
+                            '${s.name}${s.active ? '' : ' (inactivo)'}',
+                          ),
+                        ),
+                    ],
+                    onChanged: (v) => setState(() => _shiftId = v),
                   ),
                   const SizedBox(height: 24),
                   const SectionLabel('Fecha y horas'),

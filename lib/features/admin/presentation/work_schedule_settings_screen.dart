@@ -5,6 +5,7 @@ import '../../../core/utils/dates.dart';
 import '../../../core/utils/time_picker.dart';
 import '../../hours/data/work_schedule_repository.dart';
 import '../../hours/domain/work_schedule.dart';
+import '../../hours/presentation/widgets/time_range_cards.dart';
 import 'admin_shell.dart';
 
 /// Pantalla de configuración global de la jornada laboral.
@@ -102,24 +103,11 @@ class _WorkScheduleSettingsScreenState
     setState(() => _draft = WorkSchedule.defaultSchedule);
   }
 
-  Future<TimeRange?> _editRange(TimeRange current,
-      {required String title,}) async {
-    final start = await showAppTimePicker(
-      context: context,
-      initialTime:
-          TimeOfDay(hour: current.startHour, minute: current.startMinute),
-      helpText: '$title · inicio',
-    );
-    if (start == null) return null;
-    if (!mounted) return null;
-    final end = await showAppTimePicker(
-      context: context,
-      initialTime: TimeOfDay(hour: current.endHour, minute: current.endMinute),
-      helpText: '$title · fin',
-    );
-    if (end == null) return null;
-    return TimeRange(start.hour, start.minute, end.hour, end.minute);
-  }
+  Future<TimeRange?> _editRange(
+    TimeRange current, {
+    required String title,
+  }) =>
+      pickTimeRange(context, current, title: title);
 
   Future<TimeOfDayMinutes?> _editTime(TimeOfDayMinutes current,
       {required String title,}) async {
@@ -214,7 +202,7 @@ class _WorkScheduleSettingsScreenState
                 const SizedBox(height: 16),
                 const _SectionLabel('Jornada ordinaria'),
                 const SizedBox(height: 8),
-                _OrdinaryCard(
+                OrdinaryRangeCard(
                   label: 'Lunes a viernes',
                   range: draft.weekdayOrdinary,
                   onEdit: () async {
@@ -224,7 +212,7 @@ class _WorkScheduleSettingsScreenState
                   },
                 ),
                 const SizedBox(height: 10),
-                _OrdinaryCard(
+                OrdinaryRangeCard(
                   label: 'Sábado',
                   range: draft.saturdayOrdinary,
                   onEdit: () async {
@@ -234,7 +222,7 @@ class _WorkScheduleSettingsScreenState
                   },
                 ),
                 const SizedBox(height: 10),
-                _OrdinaryCard(
+                OrdinaryRangeCard(
                   label: 'Domingo y festivo',
                   range: draft.sundayOrdinary,
                   helper:
@@ -248,7 +236,7 @@ class _WorkScheduleSettingsScreenState
                 const SizedBox(height: 24),
                 const _SectionLabel('Hora de almuerzo'),
                 const SizedBox(height: 8),
-                _LunchCard(
+                LunchRangeCard(
                   label: 'Lunes a viernes',
                   range: draft.weekdayLunch,
                   onToggle: (on) => _setLunch(
@@ -263,7 +251,7 @@ class _WorkScheduleSettingsScreenState
                   },
                 ),
                 const SizedBox(height: 10),
-                _LunchCard(
+                LunchRangeCard(
                   label: 'Sábado',
                   range: draft.saturdayLunch,
                   onToggle: (on) => _setLunch(
@@ -279,7 +267,7 @@ class _WorkScheduleSettingsScreenState
                   },
                 ),
                 const SizedBox(height: 10),
-                _LunchCard(
+                LunchRangeCard(
                   label: 'Domingo y festivo',
                   range: draft.sundayLunch,
                   onToggle: (on) => _setLunch(
@@ -401,149 +389,14 @@ class _InfoBanner extends StatelessWidget {
             child: Text(
               'Los cambios aplican a partir del próximo registro o cierre. '
               'Los registros ya cerrados conservan el desglose calculado con '
-              'la configuración vigente al momento del cierre.',
+              'la configuración vigente al momento del cierre. Los '
+              'trabajadores con un turno asignado usan el horario y el '
+              'almuerzo de su turno; de esta pantalla solo toman las '
+              'franjas diurna y nocturna.',
               style: theme.textTheme.bodySmall,
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _OrdinaryCard extends StatelessWidget {
-  const _OrdinaryCard({
-    required this.label,
-    required this.range,
-    required this.onEdit,
-    this.helper,
-  });
-
-  final String label;
-  final TimeRange range;
-  final VoidCallback onEdit;
-  final String? helper;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Card(
-      child: InkWell(
-        onTap: onEdit,
-        borderRadius: BorderRadius.circular(16),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(label, style: theme.textTheme.titleMedium),
-                  ),
-                  Icon(Icons.edit_outlined,
-                      size: 18, color: theme.colorScheme.primary,),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  _ChipTime(label: 'Entrada', minutes: range.startMinutes),
-                  const SizedBox(width: 8),
-                  Icon(Icons.arrow_forward,
-                      size: 16,
-                      color:
-                          theme.colorScheme.onSurface.withValues(alpha: 0.5),),
-                  const SizedBox(width: 8),
-                  _ChipTime(label: 'Salida', minutes: range.endMinutes),
-                ],
-              ),
-              if (helper != null) ...[
-                const SizedBox(height: 8),
-                Text(
-                  helper!,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
-                  ),
-                ),
-              ],
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _LunchCard extends StatelessWidget {
-  const _LunchCard({
-    required this.label,
-    required this.range,
-    required this.onToggle,
-    required this.onEdit,
-  });
-
-  final String label;
-  final TimeRange? range;
-  final ValueChanged<bool> onToggle;
-  final VoidCallback onEdit;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final on = range != null;
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(label, style: theme.textTheme.titleMedium),
-                ),
-                Switch.adaptive(value: on, onChanged: onToggle),
-              ],
-            ),
-            if (on) ...[
-              const SizedBox(height: 4),
-              InkWell(
-                onTap: onEdit,
-                borderRadius: BorderRadius.circular(12),
-                child: Padding(
-                  padding:
-                      const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
-                  child: Row(
-                    children: [
-                      _ChipTime(label: 'Inicio', minutes: range!.startMinutes),
-                      const SizedBox(width: 8),
-                      Icon(Icons.arrow_forward,
-                          size: 16,
-                          color: theme.colorScheme.onSurface
-                              .withValues(alpha: 0.5),),
-                      const SizedBox(width: 8),
-                      _ChipTime(label: 'Fin', minutes: range!.endMinutes),
-                      const Spacer(),
-                      Icon(Icons.edit_outlined,
-                          size: 18, color: theme.colorScheme.primary,),
-                      const SizedBox(width: 8),
-                    ],
-                  ),
-                ),
-              ),
-            ] else
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 4),
-                child: Text(
-                  'Sin descuento de almuerzo este día.',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
-                  ),
-                ),
-              ),
-          ],
-        ),
       ),
     );
   }
@@ -580,7 +433,7 @@ class _DayPeriodCard extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
                 child: Row(
                   children: [
-                    _ChipTime(
+                    TimeChip(
                         label: 'Diurno desde', minutes: start.totalMinutes,),
                     const Spacer(),
                     Icon(Icons.edit_outlined,
@@ -599,7 +452,7 @@ class _DayPeriodCard extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
                 child: Row(
                   children: [
-                    _ChipTime(
+                    TimeChip(
                         label: 'Nocturno desde', minutes: end.totalMinutes,),
                     const Spacer(),
                     Icon(Icons.edit_outlined,
@@ -618,47 +471,6 @@ class _DayPeriodCard extends StatelessWidget {
             ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-class _ChipTime extends StatelessWidget {
-  const _ChipTime({required this.label, required this.minutes});
-  final String label;
-  final int minutes;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final hour = minutes ~/ 60;
-    final minute = minutes % 60;
-    final tod = TimeOfDay(hour: hour, minute: minute);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(
-          color: theme.colorScheme.outline.withValues(alpha: 0.4),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            style: theme.textTheme.labelSmall?.copyWith(
-              color: theme.colorScheme.onSurface.withValues(alpha: 0.55),
-            ),
-          ),
-          Text(
-            formatTimeOfDay(tod),
-            style: theme.textTheme.bodyMedium?.copyWith(
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ],
       ),
     );
   }

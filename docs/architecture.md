@@ -151,6 +151,26 @@ Si agregás un campo core nuevo al modelo Sale:
 
 Ver `docs/workflows.md` → "Agregar un campo core a Sale".
 
+## Horas: jornada general y turnos
+
+- `HoursCalculator(schedule)` es puro y solo conoce un `WorkSchedule`.
+  No sabe de turnos ni de trabajadores.
+- La **jornada general** vive en `settings/work_schedule` (solo admin).
+  Un **turno** (`work_shifts/{id}`, admin + hours) reemplaza los rangos
+  ordinarios y el almuerzo: `WorkShift.applyTo(jornadaGeneral)` devuelve
+  el `WorkSchedule` efectivo. Las franjas diurna/nocturna siempre salen
+  de la jornada general.
+- Cada `hours_entries` guarda `shiftId`/`shiftName`. Al abrir el día se
+  copia el turno activo del trabajador (`workers.shiftId`); después se
+  puede cambiar solo para ese día. Toda pantalla que calcule pasa por
+  `resolveSchedule(base, shifts, entry.shiftId)`; sin turno (o en
+  registros viejos) cae a la jornada general.
+- El `breakdown` se persiste al cerrar, así que editar un turno no
+  altera días ya calculados — solo los que se abran o editen después.
+- Las pantallas esperan `workShiftsProvider.future` antes de guardar:
+  resolver con la lista aún sin cargar dejaría persistido un desglose
+  calculado con la jornada general.
+
 ## Listas maestras
 
 `master_lists/{listId}` + subcolección `items/{itemId}`. El admin las

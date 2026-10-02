@@ -21,9 +21,16 @@ class BreakdownCard extends StatelessWidget {
     final theme = Theme.of(context);
     final categories = [
       HoursCategory.ordinary,
+      // Las ordinarias nocturnas solo existen con turnos que pasan a la
+      // franja nocturna; se ocultan en cero para no llenar de ruido la
+      // tarjeta de quienes nunca las usan.
+      if (breakdown.get(HoursCategory.ordinaryNight) > Duration.zero)
+        HoursCategory.ordinaryNight,
       HoursCategory.extraDay,
       HoursCategory.extraNight,
       HoursCategory.sundayOrdinary,
+      if (breakdown.get(HoursCategory.sundayOrdinaryNight) > Duration.zero)
+        HoursCategory.sundayOrdinaryNight,
       HoursCategory.extraSundayDay,
       HoursCategory.extraSundayNight,
     ];

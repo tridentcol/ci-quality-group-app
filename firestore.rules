@@ -90,10 +90,30 @@ service cloud.firestore {
 
     // ---------- Workers (trabajadores operativos) ----------
     // Todos los autenticados leen (el encargado de horas necesita la
-    // lista). Solo admin crea/edita/desactiva.
+    // lista). Solo admin crea/edita/desactiva. Hours puede cambiar
+    // ÚNICAMENTE `shiftId` (mover al trabajador de turno) — el
+    // `affectedKeys().hasOnly` impide que toque nombre, cédula, banco, etc.
     match /workers/{wid} {
       allow read: if isSignedIn();
       allow write: if isAdmin();
+      allow update: if isHours()
+        && request.resource.data.diff(resource.data)
+            .affectedKeys().hasOnly(['shiftId']);
+    }
+
+    // ---------- Work shifts (turnos) ----------
+    // Admin y hours crean y editan turnos: la idea es que el encargado
+    // sea autosuficiente cuando la empresa cambia horarios. Nadie borra
+    // desde la app (se desactivan, porque `hours_entries` guarda el
+    // `shiftId`); el delete queda solo para limpieza manual del admin.
+    match /work_shifts/{shiftId} {
+      allow read: if isSignedIn();
+      allow create, update: if (isAdmin() || isHours())
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() <= 60
+        && request.resource.data.weekday is map;
+      allow delete: if isAdmin();
     }
 
     // ---------- Sales ----------

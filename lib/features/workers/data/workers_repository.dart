@@ -105,6 +105,17 @@ class WorkersRepository {
     await _col.doc(id).update(patch);
   }
 
+  /// Asigna a cada trabajador de [workerIds] el turno [shiftId] (`null` =
+  /// jornada general). Solo toca `shiftId`: es el único campo de `workers`
+  /// que las rules le dejan escribir al rol hours.
+  Future<void> setShift(Iterable<String> workerIds, String? shiftId) async {
+    final batch = _firestore.batch();
+    for (final id in workerIds) {
+      batch.update(_col.doc(id), {'shiftId': shiftId});
+    }
+    await batch.commit();
+  }
+
   Future<void> deactivate(String id) async {
     await _col.doc(id).update({
       'active': false,

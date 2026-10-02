@@ -469,8 +469,12 @@ class XlsxExportService {
       'Hora extra dominical nocturna',
       'Total horas pagas',
       'Días registrados',
+      // Las categorías nocturnas van al final para no correr las columnas
+      // que ya existían (hay hojas de nómina que las leen por posición).
+      'Hora ordinaria nocturna',
+      'Hora dominical nocturna ord.',
     ];
-    final widths = <double>[28, 16, 18, 18, 24, 24, 26, 18, 16];
+    final widths = <double>[28, 16, 18, 18, 24, 24, 26, 18, 16, 22, 26];
 
     sheet.appendRow(headers.map<CellValue>((h) => TextCellValue(h)).toList());
 
@@ -495,6 +499,8 @@ class XlsxExportService {
         DoubleCellValue(_hours(b.get(HoursCategory.extraSundayNight))),
         DoubleCellValue(_hours(b.totalPaid)),
         IntCellValue(daysByWorker[name] ?? 0),
+        DoubleCellValue(_hours(b.get(HoursCategory.ordinaryNight))),
+        DoubleCellValue(_hours(b.get(HoursCategory.sundayOrdinaryNight))),
       ]);
     }
 
@@ -511,6 +517,8 @@ class XlsxExportService {
       DoubleCellValue(_hours(totals.get(HoursCategory.extraSundayNight))),
       DoubleCellValue(_hours(totals.totalPaid)),
       IntCellValue(entries.length),
+      DoubleCellValue(_hours(totals.get(HoursCategory.ordinaryNight))),
+      DoubleCellValue(_hours(totals.get(HoursCategory.sundayOrdinaryNight))),
     ]);
 
     _stylizeHeader(sheet, columns: headers.length);
@@ -536,6 +544,10 @@ class XlsxExportService {
     'Hora extra dominical nocturna',
     'Total horas pagas',
     'Almuerzo descontado',
+    // Columnas nuevas al final: no corren las que ya existían.
+    'Hora ordinaria nocturna',
+    'Hora dominical nocturna ord.',
+    'Turno',
   ];
 
   static const _hoursColumnWidths = <double>[
@@ -553,6 +565,9 @@ class XlsxExportService {
     26, // Extra dominical nocturna
     18, // Total
     18, // Almuerzo
+    22, // Ordinaria nocturna
+    26, // Dominical nocturna ord.
+    20, // Turno
   ];
 
   static List<CellValue> _hoursDataRow(HoursEntry e) {
@@ -574,6 +589,11 @@ class XlsxExportService {
       DoubleCellValue(_hours(e.breakdown.get(HoursCategory.extraSundayNight))),
       DoubleCellValue(_hours(e.breakdown.totalPaid)),
       DoubleCellValue(_hours(e.breakdown.get(HoursCategory.lunch))),
+      DoubleCellValue(_hours(e.breakdown.get(HoursCategory.ordinaryNight))),
+      DoubleCellValue(
+        _hours(e.breakdown.get(HoursCategory.sundayOrdinaryNight)),
+      ),
+      TextCellValue(e.shiftName ?? 'Jornada general'),
     ];
   }
 
@@ -593,6 +613,9 @@ class XlsxExportService {
         DoubleCellValue(_hours(b.get(HoursCategory.extraSundayNight))),
         DoubleCellValue(_hours(b.totalPaid)),
         DoubleCellValue(_hours(b.get(HoursCategory.lunch))),
+        DoubleCellValue(_hours(b.get(HoursCategory.ordinaryNight))),
+        DoubleCellValue(_hours(b.get(HoursCategory.sundayOrdinaryNight))),
+        TextCellValue(''),
       ];
 
   static double _hours(Duration d) =>

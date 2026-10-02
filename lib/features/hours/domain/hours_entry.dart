@@ -18,6 +18,8 @@ class HoursEntry {
     this.checkOut,
     this.closedAt,
     this.note,
+    this.shiftId,
+    this.shiftName,
     required this.breakdown,
     required this.createdBy,
     required this.createdByName,
@@ -41,6 +43,11 @@ class HoursEntry {
   final DateTime? closedAt;
 
   final String? note;
+
+  /// Turno con el que se calcula el registro. `null` = jornada general
+  /// (también en todos los registros anteriores a los turnos).
+  final String? shiftId;
+  final String? shiftName;
 
   /// Distribución por categoría calculada al cerrar el día. Se guarda para
   /// no recalcular al consultar reportes.
@@ -68,6 +75,8 @@ class HoursEntry {
             ? null
             : Timestamp.fromDate(AppClock.toInstant(closedAt!)),
         'note': note,
+        'shiftId': shiftId,
+        'shiftName': shiftName,
         'breakdown': breakdown.toMinutesMap(),
         'createdBy': createdBy,
         'createdByName': createdByName,
@@ -95,6 +104,8 @@ class HoursEntry {
           ? null
           : AppClock.fromInstant((data['closedAt'] as Timestamp).toDate()),
       note: data['note'] as String?,
+      shiftId: data['shiftId'] as String?,
+      shiftName: data['shiftName'] as String?,
       breakdown: HoursBreakdown.fromMinutesMap(
         Map<String, dynamic>.from(data['breakdown'] as Map? ?? const {}),
       ),

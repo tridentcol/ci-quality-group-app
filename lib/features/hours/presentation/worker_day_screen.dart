@@ -15,9 +15,12 @@ import '../../workers/data/workers_repository.dart';
 import '../../workers/domain/worker.dart';
 import '../data/hours_repository.dart';
 import '../data/work_schedule_repository.dart';
+import '../data/work_shifts_repository.dart';
 import '../domain/hours_entry.dart';
 import '../domain/work_schedule.dart';
+import '../domain/work_shift.dart';
 import 'widgets/breakdown_card.dart';
+import 'widgets/time_range_cards.dart';
 
 /// Pantalla del trabajador-día. Permite:
 ///  - Abrir el día con la entrada (default = ahora).
@@ -46,21 +49,45 @@ class _WorkerDayScreenState extends ConsumerState<WorkerDayScreen> {
     _date = widget.date ?? AppClock.now();
   }
 
+  /// Jornada efectiva para un registro con el turno [shiftId]. Espera a
+  /// que los turnos carguen: caer a la jornada general por un stream que
+  /// aún no emite dejaría un desglose equivocado guardado.
+  Future<WorkSchedule> _scheduleFor(String? shiftId) async {
+    final base =
+        ref.read(workScheduleProvider).valueOrNull ?? const WorkSchedule();
+    if (shiftId == null) return base;
+    final shifts = await ref.read(workShiftsProvider.future);
+    return resolveSchedule(base, shifts, shiftId);
+  }
+
   Future<void> _openDay(Worker worker) async {
     setState(() => _busy = true);
     try {
       final profile = ref.read(currentProfileProvider).valueOrNull;
       if (profile == null) throw StateError('Sesión inválida.');
+      final shift = activeShiftById(
+        await ref.read(workShiftsProvider.future),
+        worker.shiftId,
+      );
       final now = AppClock.now();
+      final start = shift?.rangeFor(_date);
       final checkIn = isSameDay(now, _date)
           ? now
-          : DateTime(_date.year, _date.month, _date.day, 7, 0);
+          : DateTime(
+              _date.year,
+              _date.month,
+              _date.day,
+              start?.startHour ?? 7,
+              start?.startMinute ?? 0,
+            );
       await ref.read(hoursRepositoryProvider).openDay(
             workerId: worker.id,
             workerName: worker.fullName,
             checkIn: checkIn,
             createdBy: profile.uid,
             createdByName: profile.fullName,
+            shiftId: shift?.id,
+            shiftName: shift?.name,
           );
     } catch (e) {
       if (mounted) {
@@ -92,10 +119,9 @@ class _WorkerDayScreenState extends ConsumerState<WorkerDayScreen> {
       pickedTime.hour,
       pickedTime.minute,
     );
-    final schedule =
-        ref.read(workScheduleProvider).valueOrNull ?? const WorkSchedule();
     setState(() => _busy = true);
     try {
+      final schedule = await _scheduleFor(entry.shiftId);
       if (checkIn) {
         await ref
             .read(hoursRepositoryProvider)
@@ -117,14 +143,12 @@ class _WorkerDayScreenState extends ConsumerState<WorkerDayScreen> {
   }
 
   Future<void> _setCheckOutNow(HoursEntry entry) async {
-    final schedule =
-        ref.read(workScheduleProvider).valueOrNull ?? const WorkSchedule();
     setState(() => _busy = true);
     try {
       await ref.read(hoursRepositoryProvider).updateEntry(
             entry.id,
             checkOut: AppClock.now(),
-            schedule: schedule,
+            schedule: await _scheduleFor(entry.shiftId),
           );
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -151,16 +175,75 @@ class _WorkerDayScreenState extends ConsumerState<WorkerDayScreen> {
       icon: Icons.check_circle_outline,
     );
     if (!ok) return;
-    final schedule =
-        ref.read(workScheduleProvider).valueOrNull ?? const WorkSchedule();
     setState(() => _busy = true);
     try {
-      await ref
-          .read(hoursRepositoryProvider)
-          .closeDay(entry.id, checkOut: entry.checkOut!, schedule: schedule);
+      await ref.read(hoursRepositoryProvider).closeDay(
+            entry.id,
+            checkOut: entry.checkOut!,
+            schedule: await _scheduleFor(entry.shiftId),
+          );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Día cerrado.')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  /// Cambia el turno solo para este día (ej. alguien cubre el otro turno).
+  /// No toca el turno asignado al trabajador.
+  Future<void> _changeShift(HoursEntry entry, List<WorkShift> shifts) async {
+    final options = shifts.where((s) => s.active).toList();
+    // `''` representa "jornada general"; `null` es cancelar el diálogo.
+    final picked = await showDialog<String>(
+      context: context,
+      builder: (ctx) => SimpleDialog(
+        title: const Text('Turno de este día'),
+        children: [
+          for (final s in options)
+            ListTile(
+              leading: Icon(
+                s.id == entry.shiftId
+                    ? Icons.radio_button_checked
+                    : Icons.radio_button_off,
+              ),
+              title: Text(s.name),
+              subtitle: Text(formatTimeRange(s.rangeFor(entry.workDate))),
+              onTap: () => Navigator.pop(ctx, s.id),
+            ),
+          ListTile(
+            leading: Icon(
+              entry.shiftId == null
+                  ? Icons.radio_button_checked
+                  : Icons.radio_button_off,
+            ),
+            title: const Text('Jornada general'),
+            onTap: () => Navigator.pop(ctx, ''),
+          ),
+        ],
+      ),
+    );
+    if (picked == null || picked == (entry.shiftId ?? '')) return;
+    final shiftId = picked.isEmpty ? null : picked;
+    String? shiftName;
+    for (final s in options) {
+      if (s.id == shiftId) shiftName = s.name;
+    }
+    setState(() => _busy = true);
+    try {
+      await ref.read(hoursRepositoryProvider).updateEntry(
+            entry.id,
+            changeShift: true,
+            shiftId: shiftId,
+            shiftName: shiftName,
+            schedule: await _scheduleFor(shiftId),
+          );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(friendlyError(e))),
         );
       }
     } finally {
@@ -240,6 +323,8 @@ class _WorkerDayScreenState extends ConsumerState<WorkerDayScreen> {
             return const Center(child: Text('Este trabajador ya no existe.'));
           }
           final entry = entryAsync.valueOrNull;
+          final shifts =
+              ref.watch(workShiftsProvider).valueOrNull ?? const <WorkShift>[];
           final isAdmin = ref.watch(currentProfileProvider.select(
             (a) => a.valueOrNull?.role == AppRole.admin,
           ),);
@@ -268,6 +353,14 @@ class _WorkerDayScreenState extends ConsumerState<WorkerDayScreen> {
                               onEditCheckOut: () =>
                                   _editTime(entry, checkIn: false),
                               onSetCheckOutNow: () => _setCheckOutNow(entry),
+                            ),
+                            const SizedBox(height: 12),
+                            _ShiftTile(
+                              entry: entry,
+                              shifts: shifts,
+                              onChange: _canEdit(entry)
+                                  ? () => _changeShift(entry, shifts)
+                                  : null,
                             ),
                             const SizedBox(height: 12),
                             // El desglose por categoría legal solo lo ve el
@@ -430,6 +523,40 @@ class _TimesCard extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _ShiftTile extends StatelessWidget {
+  const _ShiftTile({
+    required this.entry,
+    required this.shifts,
+    required this.onChange,
+  });
+
+  final HoursEntry entry;
+  final List<WorkShift> shifts;
+  final VoidCallback? onChange;
+
+  @override
+  Widget build(BuildContext context) {
+    WorkShift? shift;
+    for (final s in shifts) {
+      if (s.id == entry.shiftId) shift = s;
+    }
+    return Card(
+      child: ListTile(
+        leading: const Icon(Icons.groups_outlined),
+        title: Text(entry.shiftName ?? shift?.name ?? 'Jornada general'),
+        subtitle: Text(
+          shift == null
+              ? 'Turno de este día'
+              : 'Turno de este día · '
+                  '${formatTimeRange(shift.rangeFor(entry.workDate))}',
+        ),
+        trailing: onChange == null ? null : const Icon(Icons.swap_horiz),
+        onTap: onChange,
       ),
     );
   }

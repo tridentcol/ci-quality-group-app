@@ -13,6 +13,7 @@ class Worker {
     this.email,
     this.phone,
     this.bank,
+    this.shiftId,
     this.active = true,
     this.createdAt,
     this.deactivatedAt,
@@ -26,6 +27,9 @@ class Worker {
   final String? email;
   final String? phone;
   final String? bank;
+
+  /// Turno asignado (`work_shifts/{id}`). `null` = jornada general.
+  final String? shiftId;
   final bool active;
   final DateTime? createdAt;
   final DateTime? deactivatedAt;
@@ -50,6 +54,7 @@ class Worker {
       email: email ?? this.email,
       phone: phone ?? this.phone,
       bank: bank ?? this.bank,
+      shiftId: shiftId,
       active: active ?? this.active,
       createdAt: createdAt,
       deactivatedAt: deactivatedAt ?? this.deactivatedAt,
@@ -64,6 +69,7 @@ class Worker {
         'email': email,
         'phone': phone,
         'bank': bank,
+        'shiftId': shiftId,
         'active': active,
         'createdAt': createdAt == null
             ? FieldValue.serverTimestamp()
@@ -84,6 +90,7 @@ class Worker {
       email: data['email'] as String?,
       phone: data['phone'] as String?,
       bank: data['bank'] as String?,
+      shiftId: data['shiftId'] as String?,
       active: (data['active'] as bool?) ?? true,
       createdAt: data['createdAt'] == null
           ? null

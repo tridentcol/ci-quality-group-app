@@ -37,6 +37,14 @@ class AdminSettingsScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 12),
           _SettingsCard(
+            icon: Icons.groups_outlined,
+            title: 'Turnos',
+            description:
+                'Horarios por grupo de trabajadores (mañana, tarde…). También los puede ajustar el encargado de horas.',
+            onTap: () => context.push('/hours/shifts'),
+          ),
+          const SizedBox(height: 12),
+          _SettingsCard(
             icon: delegation.isCurrentlyActive
                 ? Icons.lock_open_outlined
                 : Icons.lock_outline,

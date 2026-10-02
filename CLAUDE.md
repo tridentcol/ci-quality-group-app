@@ -16,7 +16,8 @@ empresa colombiana. Dos flujos principales:
    workflow de caja (generada → enProceso → procesada), abonos parciales
    y export a Excel.
 2. **Control de horas laboradas** con cálculo legal automático (extra
-   diurna/nocturna, dominical, festivos colombianos) y export mensual.
+   diurna/nocturna, dominical, festivos colombianos), turnos
+   configurables por trabajador y export mensual.
 
 Plus un **panel admin** completo con métricas, listas maestras editables,
 gestión de usuarios y herramienta de fusión de duplicados. Más un **rol
@@ -212,7 +213,7 @@ git push origin claude/check-system-status-FP9g9
 |----------|-----------------------------------------------|-----------------------------------|
 | `admin`  | Todo                                           | r/w sobre todo                    |
 | `sales`  | `/sales/*`                                     | r/w sobre `sales`, lectura de listas |
-| `hours`  | `/hours/*`, `/material/*`                      | r/w sobre `hours_entries`, `material_entries` |
+| `hours`  | `/hours/*` (incluye turnos en `/hours/shifts`), `/material/*` | r/w sobre `hours_entries`, `material_entries`, `work_shifts`; en `workers` solo `shiftId` |
 | `auditor`| `/audit` (dashboard filtrado por su auditFilter)| solo lectura sobre `sales`        |
 
 Detalles completos en `docs/data-model.md` y `firestore.rules`.

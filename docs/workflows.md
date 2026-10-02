@@ -177,6 +177,16 @@ Caso: la empresa cambia los horarios.
 - **Si es un cambio para esta empresa específica:**
   - Login como admin → `/admin/settings/schedule` → cambiá los valores ahí.
   - Esto persiste en `settings/work_schedule` y el motor de horas lo lee.
+- **Si lo que cambia es el horario de un grupo de trabajadores (turnos):**
+  - No se toca código ni la jornada general. Login como `admin` o
+    `hours` → `/hours/shifts` → crear/editar el turno y asignar
+    trabajadores. Un cambio puntual de un día se hace desde el registro
+    del trabajador ("Turno de este día").
+  - El motor no sabe de turnos: `WorkShift.applyTo(jornadaGeneral)`
+    devuelve un `WorkSchedule` y ese es el que recibe `HoursCalculator`.
+    Cualquier pantalla nueva que calcule horas debe pasar por
+    `resolveSchedule(base, shifts, entry.shiftId)` — nunca usar la
+    jornada general directo.
 
 ---
 

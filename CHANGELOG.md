@@ -7,6 +7,35 @@ versionado [SemVer](https://semver.org/spec/v2.0.0.html). El número entre `+`
 es el `versionCode` de Android — cada release se sube en uno para que los
 celulares acepten la actualización sobre la versión anterior.
 
+## [Unreleased]
+
+### Agregado
+- **Turnos configurables** (`/hours/shifts`). El administrador y el
+  encargado de horas pueden crear turnos (ej. mañana 6:00–1:00, tarde
+  1:00–7:00), definir almuerzo y horario propio de sábado o
+  domingo/festivo, y asignar trabajadores a cada uno, sin depender de
+  una actualización de la app. Las horas ordinarias de cada trabajador
+  se calculan con su turno; lo trabajado fuera cuenta como extra.
+- Cambio de turno por día: desde el registro del trabajador se puede
+  elegir otro turno solo para esa fecha (alguien que cubre el otro
+  turno) y el desglose se recalcula.
+- La entrada manual del admin permite elegir el turno y propone el
+  horario del turno del trabajador.
+- Dos categorías nuevas de horas: **ordinaria nocturna** y **dominical
+  nocturna ordinaria**, para turnos cuya jornada pasa a la franja
+  nocturna (después de las 7:00 PM). Antes esa hora se habría contado
+  como ordinaria simple.
+- Export de horas a Excel: columnas "Hora ordinaria nocturna", "Hora
+  dominical nocturna ord." y "Turno", agregadas **al final** para no
+  correr las columnas existentes.
+
+### Cambiado
+- El rol "Control de horas" ahora se llama **"Horas y material"**: ya
+  podía registrar ingresos y salidas de material, y el nombre no lo
+  reflejaba.
+- Los trabajadores sin turno siguen usando la jornada general de
+  siempre; nada cambia hasta que se cree y asigne un turno.
+
 ## [1.6.2+20] — 2026-08-17
 
 ### Corregido
