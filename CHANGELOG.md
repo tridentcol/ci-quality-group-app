@@ -7,7 +7,7 @@ versionado [SemVer](https://semver.org/spec/v2.0.0.html). El número entre `+`
 es el `versionCode` de Android — cada release se sube en uno para que los
 celulares acepten la actualización sobre la versión anterior.
 
-## [Unreleased]
+## [1.7.0+21] — 2026-10-02
 
 ### Agregado
 - **Turnos configurables** (`/hours/shifts`). El administrador y el
