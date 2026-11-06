@@ -2,8 +2,9 @@ rules_version = '2';
 
 // Reglas de Cloud Storage for Firebase para CI Quality Group.
 //
-// Único uso hoy: fotos del control de ingreso/salida de material
-// (`material_entries/{entryId}/{material|origin}.jpg`).
+// Usos: fotos del control de ingreso/salida de material
+// (`material_entries/{entryId}/{material|origin}.jpg`) y soportes de
+// gastos de bodega (`expenses/{expenseId}/receipt.jpg`).
 //
 // IMPORTANTE — por qué NO usamos `firestore.get()`/`firestore.exists()`
 // acá: en un principio estas reglas ataban el acceso al rol (admin/hours)
@@ -42,6 +43,16 @@ service firebase.storage {
       // tamaño/tipo ahí siempre falla. `deleteEntry()` en el repo
       // depende de este permiso para limpiar las fotos al borrar un
       // movimiento.
+      allow delete: if request.auth != null;
+    }
+
+    // Soportes de gastos de bodega: `expenses/{expenseId}/receipt.jpg`.
+    // Mismo criterio que material_entries (ver comentario arriba).
+    match /expenses/{expenseId}/{fileName} {
+      allow read: if request.auth != null;
+      allow create, update: if request.auth != null
+        && request.resource.size < 10 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
       allow delete: if request.auth != null;
     }
   }

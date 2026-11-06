@@ -54,6 +54,9 @@ class FirestorePaths {
   // que el consecutivo ING-XXX/SAL-XXX no se mezcle.
   static const materialEntries = 'material_entries';
   static const materialEntriesCounter = 'material_entries_consecutive';
+
+  // Gastos de bodega (con soporte fotográfico opcional).
+  static const expenses = 'expenses';
   static const materialExitsCounter = 'material_exits_consecutive';
 
   // Colección que consume la extensión de Firebase `firestore-send-email`.

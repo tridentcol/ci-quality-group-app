@@ -114,6 +114,7 @@ ci-quality-group/
 │   │   ├── sales/             # ventas (formulario + lista + detalle, multi-material)
 │   │   ├── cashier/           # caja (procesar solicitudes, abonos, pérdidas)
 │   │   ├── hours/             # control de horas + motor de cálculo
+│   │   ├── expenses/          # gastos de bodega (descripción, monto, quién pagó, foto)
 │   │   ├── material/          # control de ingreso de material (fotos, proveedor)
 │   │   └── workers/           # CRUD de trabajadores
 │   └── shared/                # widgets y services reutilizables entre features
@@ -212,8 +213,9 @@ git push origin claude/check-system-status-FP9g9
 | Rol      | Pantallas accesibles                          | Firestore (resumen)               |
 |----------|-----------------------------------------------|-----------------------------------|
 | `admin`  | Todo                                           | r/w sobre todo                    |
+| `cajero` | `/cashier/*`, `/expenses/*`                    | ver `firestore.rules` (caja, gastos) |
 | `sales`  | `/sales/*`                                     | r/w sobre `sales`, lectura de listas |
-| `hours`  | `/hours/*` (incluye turnos en `/hours/shifts`), `/material/*` | r/w sobre `hours_entries`, `material_entries`, `work_shifts`; en `workers` solo `shiftId` |
+| `hours`  | `/hours/*` (incluye turnos en `/hours/shifts`), `/material/*`, `/expenses/*` | r/w sobre `hours_entries`, `material_entries`, `work_shifts`, `expenses`; en `workers` solo `shiftId` |
 | `auditor`| `/audit` (dashboard filtrado por su auditFilter)| solo lectura sobre `sales`        |
 
 Detalles completos en `docs/data-model.md` y `firestore.rules`.

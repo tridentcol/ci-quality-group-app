@@ -206,6 +206,8 @@ Reglas:
 | `units`                 | Unidades de medida       | no        | Kilogramos                                 |
 | `worker_roles`          | Cargos de trabajadores   | sí        |                                            |
 | `material_providers`    | Proveedores de material  | sí        | Empresas de las que se compra material (control de ingreso). Separada de `providers` a propósito — ahí significa "Clientes" (a quién se le vende). |
+| `expense_categories`    | Categorías de gastos     | sí        | Reparación vehículos, Combustible, Insumos / herramientas, Servicios públicos, Alimentación / viáticos, Papelería, Otros. |
+| `expense_payers`        | Quién pagó gastos        | sí        | Seed vacío; se llena con el uso (socios, admins, trabajadores a reintegrar). |
 
 #### Mapping `listId` → campo de Sale
 
@@ -303,6 +305,39 @@ Reglas:
   por rol sigue viviendo en `firestore.rules` (`material_entries` solo
   admin/hours) — el `entryId` en el path de Storage es un id de
   Firestore autogenerado (~20 caracteres al azar), no adivinable.
+
+### `expenses/{id}`
+
+`Expense` — gastos diarios de bodega (arreglo de llantas, combustible,
+…) con soporte fotográfico opcional. Independiente de `sales` y de
+`material_entries`; sin consecutivo.
+
+| Campo              | Tipo       | Notas                                    |
+|--------------------|------------|-------------------------------------------|
+| `date`             | Timestamp  | Fecha del gasto.                          |
+| `description`      | String     | Requerida.                                |
+| `amount`           | num        | Requerido, > 0 (lo exigen las rules).     |
+| `category`         | String?    | De `expense_categories`, opcional.        |
+| `paidBy`           | String     | De `expense_payers`. Quién puso la plata. |
+| `photoUrl`         | String?    | Download URL del soporte. Opcional: mejor registrar sin foto que no registrar. |
+| `photoStoragePath` | String?    | `expenses/{id}/receipt.jpg`; permite borrar el archivo al quitar la foto o borrar el gasto. |
+| `notes`            | String?    |                                           |
+| `createdBy` / `createdByName` / `createdAt` | | Igual que `Sale`.         |
+| `updatedAt`        | Timestamp? |                                           |
+| `editableUntil`    | Timestamp? | `createdAt + 24h`, mismo patrón que sales/material. |
+
+**Foto y Storage:** mismo flujo que `material_entries` — el id se
+reserva en cliente (`newExpenseRef()`), la foto sube a
+`expenses/{id}/receipt.jpg` y el doc nace con la URL. `storage.rules`
+aplica el mismo criterio simple (sesión + 10MB + `image/*`).
+
+Reglas:
+- Lee/crea: `admin`, `cajero`, `hours`. Create exige
+  `createdBy == auth.uid` y `amount` numérico > 0.
+- Actualiza: `admin` siempre; `cajero`/`hours` solo su propio gasto
+  dentro de `editableUntil`. Si el update toca `amount`, debe seguir > 0.
+- Borra: solo `admin`.
+- `sales` y `auditor` no tienen acceso.
 
 ### `mail/{id}`
 

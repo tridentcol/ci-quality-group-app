@@ -550,6 +550,30 @@ List<Map<String, dynamic>> _defaultListsSeed() => [
             'Empresas de las que se compra el material que entra a bodega.',
         'items': <String>[],
       },
+      {
+        'id': 'expense_categories',
+        'name': 'Categorías de gastos',
+        'allowFreeText': true,
+        'description': 'Clasificación de los gastos de bodega.',
+        'items': <String>[
+          'Reparación vehículos',
+          'Combustible',
+          'Insumos / herramientas',
+          'Servicios públicos',
+          'Alimentación / viáticos',
+          'Papelería',
+          'Otros',
+        ],
+      },
+      {
+        'id': 'expense_payers',
+        'name': 'Quién pagó gastos',
+        'allowFreeText': true,
+        'description':
+            'Quién puso la plata de un gasto de bodega (socios, admins, '
+                'trabajadores a reintegrar). Se llena con el uso.',
+        'items': <String>[],
+      },
     ];
 
 final masterListsRepositoryProvider = Provider<MasterListsRepository>((ref) {

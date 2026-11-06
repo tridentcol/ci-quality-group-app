@@ -354,6 +354,25 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    // ---------- Gastos de bodega ----------
+    // Crean/ven admin, cajero y hours. Editar: admin siempre; cajero/hours
+    // solo su propio gasto dentro de `editableUntil` (24h). Borra: admin.
+    match /expenses/{eid} {
+      allow read: if isAdmin() || isCajero() || isHours();
+      allow create: if (isAdmin() || isCajero() || isHours())
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.amount is number
+        && request.resource.data.amount > 0;
+      allow update: if (isAdmin()
+            || ((isCajero() || isHours())
+                && resource.data.createdBy == request.auth.uid
+                && resource.data.get('editableUntil', request.time) > request.time))
+        && (!('amount' in request.resource.data.diff(resource.data).affectedKeys())
+            || (request.resource.data.amount is number
+                && request.resource.data.amount > 0));
+      allow delete: if isAdmin();
+    }
+
     // ---------- Mail (consume la extensión firestore-send-email) ----------
     // El cliente solo puede ENCOLAR un correo — nunca leerlo, editarlo ni
     // borrarlo (eso lo gestiona la extensión, que corre con privilegios
