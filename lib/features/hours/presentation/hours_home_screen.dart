@@ -51,6 +51,11 @@ class _HoursHomeScreenState extends ConsumerState<HoursHomeScreen> {
             icon: const Icon(Icons.inventory_2_outlined),
             onPressed: () => context.push('/material'),
           ),
+          IconButton(
+            tooltip: 'Gastos de bodega',
+            icon: const Icon(Icons.receipt_long_outlined),
+            onPressed: () => context.push('/expenses'),
+          ),
           const NotificationsBell(),
           const ThemeModeIconButton(),
           IconButton(

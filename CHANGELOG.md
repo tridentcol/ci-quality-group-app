@@ -7,6 +7,23 @@ versionado [SemVer](https://semver.org/spec/v2.0.0.html). El número entre `+`
 es el `versionCode` de Android — cada release se sube en uno para que los
 celulares acepten la actualización sobre la versión anterior.
 
+## [1.8.0+22] — 2026-11-05
+
+### Agregado
+- **Gastos de bodega** (`/expenses`). Admin, cajero y encargado de horas
+  pueden registrar gastos del día (por ejemplo, un arreglo de llantas)
+  con descripción, valor, categoría, quién puso la plata y una foto
+  opcional de la factura o soporte. Se puede editar el propio gasto
+  durante 24 horas; el administrador edita y borra cualquiera.
+- Acceso desde el menú lateral del admin ("Gastos") y desde el ícono de
+  recibo en la barra de Horas y de Caja.
+- El administrador puede exportar los gastos del rango a Excel, con fila
+  de total.
+- Métricas del admin: tarjeta "Gastos del rango" con total y cantidad,
+  que abre la lista de gastos.
+- Dos listas maestras nuevas: "Categorías de gastos" y "Quién pagó
+  gastos".
+
 ## [1.7.0+21] — 2026-10-02
 
 ### Agregado

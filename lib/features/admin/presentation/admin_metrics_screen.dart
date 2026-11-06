@@ -12,6 +12,8 @@ import '../../../shared/widgets/error_view.dart';
 import '../../../shared/widgets/kpi_card.dart';
 import 'admin_shell.dart';
 import '../../../shared/widgets/range_filter_bar.dart';
+import '../../expenses/data/expenses_repository.dart';
+import '../../expenses/domain/expense.dart';
 import '../../hours/data/hours_repository.dart';
 import '../../hours/domain/hours_categories.dart';
 import '../../sales/data/sales_repository.dart';
@@ -271,6 +273,8 @@ class _SalesSection extends StatelessWidget {
         // Resumen de clientes (nuevos vs recurrentes). Tap → pantalla
         // detallada con KPIs, lista, filtros.
         _ClientsSummaryCard(rangeStart: rangeStart),
+        const SizedBox(height: 16),
+        const _ExpensesSummaryCard(),
         const SizedBox(height: 16),
         _DonutCard(
           title: 'Por método de pago',
@@ -1215,6 +1219,82 @@ class _MaterialsSummaryCard extends StatelessWidget {
   }
 }
 
+/// Total y cantidad de gastos de bodega del rango actual. Tap → lista
+/// de gastos.
+class _ExpensesSummaryCard extends ConsumerWidget {
+  const _ExpensesSummaryCard();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final state = ref.watch(_expensesCardStateProvider);
+
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: () => context.push('/expenses'),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: state.when(
+            loading: () => const Center(
+              child: SizedBox(
+                width: 24,
+                height: 24,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            ),
+            error: (e, _) => Text(
+              'Error cargando gastos: $e',
+              style: theme.textTheme.bodySmall,
+            ),
+            data: (expenses) {
+              final total = expenses.fold<num>(0, (sum, e) => sum + e.amount);
+              return Row(
+                children: [
+                  Icon(
+                    Icons.receipt_long_outlined,
+                    color: theme.colorScheme.error,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Gastos del rango',
+                          style: theme.textTheme.titleMedium,
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          '${expenses.length} '
+                          '${expenses.length == 1 ? 'gasto' : 'gastos'}',
+                          style: theme.textTheme.bodySmall,
+                        ),
+                      ],
+                    ),
+                  ),
+                  Text(
+                    formatCop(total),
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      color: theme.colorScheme.error,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  Icon(
+                    Icons.chevron_right,
+                    color:
+                        theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                  ),
+                ],
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 /// Provider local que envuelve `clientMetricsProvider` con el rango
 /// que está mostrando _SalesView. Como _ClientsSummaryCard NO tiene
 /// acceso directo al state de _SalesView, leemos el último rango
@@ -1238,4 +1318,15 @@ final _clientsCardStateProvider =
     );
   }
   return ref.watch(clientMetricsProvider(range));
+});
+
+final _expensesCardStateProvider =
+    Provider.autoDispose<AsyncValue<List<Expense>>>((ref) {
+  final range = ref.watch(_currentRangeProvider);
+  if (range == null) return const AsyncValue.data([]);
+  return ref.watch(
+    expensesByRangeProvider(
+      ExpensesDateRange(start: range.start, end: range.end),
+    ),
+  );
 });

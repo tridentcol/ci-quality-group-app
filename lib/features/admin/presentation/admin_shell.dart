@@ -63,6 +63,12 @@ class AdminShell extends ConsumerWidget {
       icon: Icons.inventory_2_outlined,
       route: '/admin/material',
     ),
+    // Gastos vive fuera del shell admin (`/expenses`), igual que Caja.
+    _AdminNavItem(
+      label: 'Gastos',
+      icon: Icons.receipt_long_outlined,
+      route: '/expenses',
+    ),
     _AdminNavItem(
       label: 'Configuración',
       icon: Icons.settings_outlined,

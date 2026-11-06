@@ -93,6 +93,11 @@ class _CashierHomeScreenState extends ConsumerState<CashierHomeScreen> {
               : null,
           title: const Text('Caja'),
           actions: [
+            IconButton(
+              tooltip: 'Gastos de bodega',
+              icon: const Icon(Icons.receipt_long_outlined),
+              onPressed: () => context.push('/expenses'),
+            ),
             const NotificationsBell(),
             const ThemeModeIconButton(),
             IconButton(

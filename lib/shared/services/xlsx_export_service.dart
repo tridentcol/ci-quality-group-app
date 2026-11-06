@@ -2,6 +2,7 @@ import 'package:excel/excel.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import '../../features/expenses/domain/expense.dart';
 import '../../features/hours/domain/hours_categories.dart';
 import '../../features/hours/domain/hours_entry.dart';
 import '../../features/sales/domain/payment.dart';
@@ -525,6 +526,96 @@ class XlsxExportService {
     _stylizeTotalRow(sheet,
         rowIndex: names.length + 1, columns: headers.length,);
     _applyColumnWidths(sheet, widths);
+  }
+
+  // -------------------- GASTOS --------------------
+
+  /// Exporta los gastos del rango en una hoja plana "Gastos" con fila
+  /// TOTAL al final. Si la lista llega vacía lanza error para que el
+  /// caller muestre snackbar.
+  static Future<void> exportExpenses({
+    required BuildContext context,
+    required List<Expense> expenses,
+    required DateTime rangeStart,
+    required DateTime rangeEnd,
+  }) async {
+    if (expenses.isEmpty) {
+      throw StateError('No hay gastos en el rango seleccionado.');
+    }
+
+    final dateFmt = DateFormat('dd/MM/yyyy', 'es_CO');
+    final dateTimeFmt = DateFormat('dd/MM/yyyy HH:mm', 'es_CO');
+
+    final excel = Excel.createExcel();
+    const sheetName = 'Gastos';
+    excel.rename(excel.getDefaultSheet()!, sheetName);
+    final sheet = excel[sheetName];
+
+    const headers = <String>[
+      'Fecha',
+      'Descripción',
+      'Monto',
+      'Categoría',
+      'Quién pagó',
+      'Notas',
+      'Foto (URL)',
+      'Registrado por',
+      'Registrado el',
+    ];
+    const widths = <double>[12, 36, 14, 22, 20, 30, 40, 22, 18];
+    sheet.appendRow(headers.map(TextCellValue.new).toList());
+
+    final sorted = [...expenses]..sort((a, b) => a.date.compareTo(b.date));
+    num total = 0;
+    for (final e in sorted) {
+      total += e.amount;
+      sheet.appendRow(<CellValue>[
+        TextCellValue(dateFmt.format(e.date)),
+        TextCellValue(e.description),
+        DoubleCellValue(e.amount.toDouble()),
+        TextCellValue(e.category ?? ''),
+        TextCellValue(e.paidBy),
+        TextCellValue(e.notes ?? ''),
+        TextCellValue(e.photoUrl ?? ''),
+        TextCellValue(e.createdByName),
+        TextCellValue(dateTimeFmt.format(e.createdAt)),
+      ]);
+    }
+    sheet.appendRow(<CellValue>[
+      TextCellValue('TOTAL'),
+      TextCellValue(''),
+      DoubleCellValue(total.toDouble()),
+      TextCellValue(''),
+      TextCellValue(''),
+      TextCellValue(''),
+      TextCellValue(''),
+      TextCellValue(''),
+      TextCellValue(''),
+    ]);
+
+    _stylizeHeader(sheet, columns: headers.length);
+    _stylizeTotalRow(sheet, rowIndex: sorted.length + 1, columns: headers.length);
+    _applyColumnWidths(sheet, widths);
+
+    final filename = 'CQG_gastos_'
+        '${DateFormat('yyyyMMdd').format(rangeStart)}_'
+        '${DateFormat('yyyyMMdd').format(rangeEnd)}.xlsx';
+    final bytes = excel.save(fileName: filename);
+    if (bytes == null) throw StateError('No se pudo serializar el Excel.');
+    await deliver.deliverFiles(
+      files: [
+        deliver.ExportFile(
+          bytes: bytes,
+          filename: filename,
+          mimeType:
+              'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ),
+      ],
+      subject: 'Gastos de bodega CI Quality Group',
+      message: 'Gastos del ${dateFmt.format(rangeStart)} al '
+          '${dateFmt.format(rangeEnd)} (${expenses.length} registros).',
+      sharePositionOrigin: _shareOrigin(context),
+    );
   }
 
   // -------------------- helpers compartidos --------------------

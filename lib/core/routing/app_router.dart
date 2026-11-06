@@ -33,6 +33,11 @@ import '../../features/hours/presentation/shifts_screen.dart';
 import '../../features/hours/presentation/worker_day_screen.dart';
 import '../../features/admin/presentation/material_admin_screen.dart';
 import '../../features/admin/presentation/material_notification_settings_screen.dart';
+import '../../features/expenses/data/expenses_repository.dart';
+import '../../features/expenses/domain/expense.dart';
+import '../../features/expenses/presentation/expense_detail_screen.dart';
+import '../../features/expenses/presentation/expense_form_screen.dart';
+import '../../features/expenses/presentation/expenses_list_screen.dart';
 import '../../features/material/data/material_entries_repository.dart';
 import '../../features/material/domain/material_entry.dart';
 import '../../features/material/presentation/material_entry_detail_screen.dart';
@@ -106,6 +111,12 @@ final routerProvider = Provider<GoRouter>((ref) {
       }
       if (loc.startsWith('/material') &&
           user.role != AppRole.admin &&
+          user.role != AppRole.hours) {
+        return home;
+      }
+      if (loc.startsWith('/expenses') &&
+          user.role != AppRole.admin &&
+          user.role != AppRole.cajero &&
           user.role != AppRole.hours) {
         return home;
       }
@@ -375,6 +386,39 @@ final routerProvider = Provider<GoRouter>((ref) {
         ],
       ),
 
+      // Gastos de bodega (admin + cajero + hours). Fuera del shell, igual
+      // que `/material`.
+      GoRoute(
+        path: '/expenses',
+        builder: (_, __) => const ExpensesListScreen(),
+        routes: [
+          GoRoute(
+            path: 'new',
+            builder: (_, __) => const ExpenseFormScreen(),
+          ),
+          GoRoute(
+            path: ':id',
+            builder: (_, state) => ExpenseDetailScreen(
+              expenseId: state.pathParameters['id']!,
+            ),
+            routes: [
+              GoRoute(
+                path: 'edit',
+                builder: (_, state) {
+                  final extra = state.extra;
+                  if (extra is Expense) {
+                    return ExpenseFormScreen(editingExpense: extra);
+                  }
+                  return _EditExpenseRoute(
+                    expenseId: state.pathParameters['id']!,
+                  );
+                },
+              ),
+            ],
+          ),
+        ],
+      ),
+
       // Cashier (admin + cajero). El home tiene 3 tabs (Pendientes /
       // Deudas / Cerradas) y desde una venta se llega al detalle de
       // proceso. El detalle de pagos (`/cashier/:id/payments`) entra
@@ -467,6 +511,19 @@ class _EditMaterialEntryRoute extends ConsumerWidget {
       async: ref.watch(materialEntryByIdProvider(entryId)),
       notFoundLabel: 'Ingreso no encontrado.',
       onData: (e) => MaterialEntryFormScreen(editingEntry: e),
+    );
+  }
+}
+
+class _EditExpenseRoute extends ConsumerWidget {
+  const _EditExpenseRoute({required this.expenseId});
+  final String expenseId;
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return _asyncEntityScreen(
+      async: ref.watch(expenseByIdProvider(expenseId)),
+      notFoundLabel: 'Gasto no encontrado.',
+      onData: (e) => ExpenseFormScreen(editingExpense: e),
     );
   }
 }
