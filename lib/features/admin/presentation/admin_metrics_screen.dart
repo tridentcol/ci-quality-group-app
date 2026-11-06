@@ -171,15 +171,21 @@ class _SalesSection extends StatelessWidget {
         metrics.pendingCount == 0 &&
         metrics.receivableCount == 0 &&
         metrics.lossCount == 0) {
-      return Card(
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Center(
-            child: Text('Sin ventas en el rango.',
-                style: theme.textTheme.bodyMedium?.copyWith(
-                    color: theme.colorScheme.onSurface.withValues(alpha: 0.6),),),
+      return Column(
+        children: [
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Center(
+                child: Text('Sin ventas en el rango.',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                        color: theme.colorScheme.onSurface.withValues(alpha: 0.6),),),
+              ),
+            ),
           ),
-        ),
+          const SizedBox(height: 16),
+          const _ExpensesSummaryCard(),
+        ],
       );
     }
 

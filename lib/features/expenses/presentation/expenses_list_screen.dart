@@ -78,6 +78,15 @@ class _ExpensesListScreenState extends ConsumerState<ExpensesListScreen> {
 
     return Scaffold(
       appBar: AppBar(
+        // Vive fuera del shell admin (se entra con `go`), así que no hay
+        // stack al que volver: mismo patrón que CashierHomeScreen.
+        leading: isAdmin
+            ? IconButton(
+                icon: const Icon(Icons.arrow_back),
+                tooltip: 'Volver al panel admin',
+                onPressed: () => context.go('/admin'),
+              )
+            : null,
         title: const Text('Gastos de bodega'),
         actions: [
           if (isAdmin)
